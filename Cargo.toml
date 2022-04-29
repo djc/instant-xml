@@ -1,0 +1,2 @@
+[workspace]
+members = ["instant-xml", "instant-xml-macros"]

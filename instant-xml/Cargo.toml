@@ -1,0 +1,10 @@
+[package]
+name = "instant-xml"
+version = "0.1.0"
+edition = "2021"
+workspace = ".."
+
+[dependencies]
+macros = { package = "instant-xml-macros", version = "0.1", path = "../instant-xml-macros" }
+thiserror = "1.0.29"
+xmlparser = "0.13.3"

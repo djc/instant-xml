@@ -1,0 +1,13 @@
+[package]
+name = "instant-xml-macros"
+version = "0.1.0"
+edition = "2021"
+workspace = ".."
+
+[lib]
+proc-macro = true
+
+[dependencies]
+heck = "0.4"
+quote = "1.0.18"
+syn = { version = "1.0.86", features = ["full"] }

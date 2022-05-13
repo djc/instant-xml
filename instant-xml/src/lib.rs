@@ -1,8 +1,13 @@
 use std::fmt;
+use std::collections::HashMap;
 
+pub use xmlparser as xmlparser;
 use thiserror::Error;
 
-pub use macros::ToXml;
+pub use macros::{FromXml, ToXml};
+
+#[doc(hidden)]
+pub mod parse;
 
 pub trait ToXml {
     fn write_xml<W: fmt::Write>(&self, write: &mut W) -> Result<(), Error>;
@@ -20,8 +25,18 @@ pub trait FromXml<'xml>: Sized {
 
 pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}
 
+struct State<'a> {
+    prefix: HashMap<&'a str, &'a str>,
+}
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("format: {0}")]
     Format(#[from] fmt::Error),
+    #[error("parse: {0}")]
+    Parse(#[from] xmlparser::Error),
+    #[error("unexpected end of stream")]
+    UnexpectedEndOfStream,
+    #[error("unexpected value")]
+    UnexpectedValue,
 }

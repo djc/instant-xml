@@ -6,15 +6,38 @@ use syn::parse_macro_input;
 
 #[proc_macro_derive(ToXml)]
 pub fn to_xml(input: TokenStream) -> TokenStream {
-    let ast = parse_macro_input!(input as syn::ItemStruct);
+    let ast = parse_macro_input!(input as syn::DeriveInput);
     let ident = &ast.ident;
-    let name = ident.to_string();
+    let root_name = ident.to_string();
+    let mut output: proc_macro2::TokenStream =
+        TokenStream::from(quote!("<".to_owned() + #root_name + ">")).into();
+
+    match &ast.data {
+        syn::Data::Struct(ref data) => {
+            match data.fields {
+                syn::Fields::Named(ref fields) => {
+                    fields
+                    .named
+                    .iter()
+                    .for_each(|field| {
+                        let field_name = field.ident.as_ref().unwrap().to_string();
+                        let field_value = field.ident.as_ref().unwrap();
+                        output.extend(quote!(+ "<" + #field_name + ">" + self.#field_value.to_string().as_str() + "</" + #field_name + ">"));
+                    });
+                }
+                syn::Fields::Unnamed(_) => todo!(),
+                syn::Fields::Unit => {}
+            };
+        }
+        _ => todo!(),
+    };
+
+    output.extend(quote!(+ "</" + #root_name + ">"));
+
     TokenStream::from(quote!(
         impl ToXml for #ident {
             fn write_xml<W: ::std::fmt::Write>(&self, write: &mut W) -> Result<(), instant_xml::Error> {
-                write.write_str("<")?;
-                write.write_fmt(format_args!("{}", #name))?;
-                write.write_str("/>")?;
+                write.write_str(&(#output))?;
                 Ok(())
             }
         }

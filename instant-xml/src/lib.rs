@@ -1,8 +1,8 @@
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 
-pub use xmlparser as xmlparser;
 use thiserror::Error;
+pub use xmlparser;
 
 pub use macros::{FromXml, ToXml};
 

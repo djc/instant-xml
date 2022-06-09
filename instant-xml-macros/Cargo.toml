@@ -3,6 +3,7 @@ name = "instant-xml-macros"
 version = "0.1.0"
 edition = "2021"
 workspace = ".."
+license = "Apache-2.0 OR MIT"
 
 [lib]
 proc-macro = true

@@ -2,15 +2,50 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::parse_macro_input;
+use syn::{parse_macro_input, DeriveInput, Lit, Meta, NestedMeta};
 
-#[proc_macro_derive(ToXml)]
+fn retrieve_default_namespace(input: &DeriveInput) -> Option<String> {
+    if let NestedMeta::Meta(Meta::List(list)) = get_meta_items(&input.attrs).first()? {
+        if list.path.get_ident()? == "namespace" {
+            if let NestedMeta::Lit(Lit::Str(v)) = list.nested.first()? {
+                return Some(v.value());
+            }
+        }
+    }
+    None
+}
+
+const XML: &str = "xml";
+
+pub(crate) fn get_meta_items(attrs: &[syn::Attribute]) -> Vec<NestedMeta> {
+    let mut out = Vec::new();
+    for attr in attrs {
+        if !attr.path.is_ident(XML) {
+            continue;
+        }
+
+        match attr.parse_meta() {
+            Ok(Meta::List(meta)) => out.extend(meta.nested.into_iter()),
+            Ok(_) => todo!(),
+            _ => todo!(),
+        }
+    }
+    out
+}
+
+#[proc_macro_derive(ToXml, attributes(xml))]
 pub fn to_xml(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
+
     let ident = &ast.ident;
     let root_name = ident.to_string();
+    let mut header: String = root_name.to_string();
+    if let Some(v) = retrieve_default_namespace(&ast) {
+        header += format!(" xmlns=\"{}\"", v).as_str();
+    };
+
     let mut output: proc_macro2::TokenStream =
-        TokenStream::from(quote!("<".to_owned() + #root_name + ">")).into();
+        TokenStream::from(quote!("<".to_owned() + #header + ">")).into();
 
     match &ast.data {
         syn::Data::Struct(ref data) => {
@@ -44,7 +79,7 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
     ))
 }
 
-#[proc_macro_derive(FromXml)]
+#[proc_macro_derive(FromXml, attributes(xml))]
 pub fn from_xml(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as syn::ItemStruct);
     let ident = &ast.ident;

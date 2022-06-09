@@ -4,6 +4,7 @@ use instant_xml::{FromXml, ToXml};
 struct Unit;
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
+#[xml(namespace("URI"))]
 struct StructWithNamedFields {
     flag: bool,
     string: String,
@@ -26,6 +27,6 @@ fn struct_with_named_fields() {
         }
         .to_xml()
         .unwrap(),
-        "<StructWithNamedFields><flag>true</flag><string>test</string><number>1</number></StructWithNamedFields>"
+        "<StructWithNamedFields xmlns=\"URI\"><flag>true</flag><string>test</string><number>1</number></StructWithNamedFields>"
     );
 }

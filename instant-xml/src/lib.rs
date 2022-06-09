@@ -25,6 +25,7 @@ pub trait FromXml<'xml>: Sized {
 
 pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}
 
+#[allow(dead_code)]
 struct State<'a> {
     prefix: HashMap<&'a str, &'a str>,
 }

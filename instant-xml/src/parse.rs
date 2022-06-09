@@ -33,7 +33,7 @@ impl<'a> Parse for Option<Result<xmlparser::Token<'a>, xmlparser::Error>> {
             Some(Ok(Token::ElementEnd { end, .. })) => match end {
                 ElementEnd::Open => todo!(),
                 ElementEnd::Close(_, _) => todo!(),
-                ElementEnd::Empty => return Ok(()),
+                ElementEnd::Empty => Ok(()),
             },
             Some(Ok(_)) => Err(Error::UnexpectedValue),
             Some(Err(err)) => Err(err.into()),

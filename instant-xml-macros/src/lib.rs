@@ -39,9 +39,9 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
 
     let ident = &ast.ident;
     let root_name = ident.to_string();
-    let mut header: String = root_name.to_string();
-    if let Some(v) = retrieve_default_namespace(&ast) {
-        header += format!(" xmlns=\"{}\"", v).as_str();
+    let header = match retrieve_default_namespace(&ast) {
+        Some(ns) => format!("{} xmlns=\"{}\"", root_name, ns),
+        None => root_name.clone(),
     };
 
     let mut output: proc_macro2::TokenStream =

@@ -5,7 +5,7 @@ use quote::quote;
 use std::collections::HashMap;
 use syn::{parse_macro_input, DeriveInput, Lit, Meta, NestedMeta};
 
-fn retrieve_namespace_list(
+fn retrieve_namespace_tag_list(
     attributes: &Vec<syn::Attribute>,
 ) -> Option<syn::punctuated::Punctuated<NestedMeta, syn::token::Comma>> {
     for attr in attributes {
@@ -33,7 +33,7 @@ fn retrieve_namespace_list(
 }
 
 fn retrieve_field_namespace(input: &syn::Field) -> Option<String> {
-    if let Some(list) = retrieve_namespace_list(&input.attrs) {
+    if let Some(list) = retrieve_namespace_tag_list(&input.attrs) {
         if let NestedMeta::Lit(Lit::Str(v)) = list.first()? {
             return Some(v.value());
         }
@@ -49,7 +49,7 @@ fn retrieve_namespaces(input: &DeriveInput) -> Namespaces {
     let mut default_namespace: Option<DefaultNamespace> = None;
     let mut other_namespaces = OtherNamespaces::default();
 
-    if let Some(list) = retrieve_namespace_list(&input.attrs) {
+    if let Some(list) = retrieve_namespace_tag_list(&input.attrs) {
         for item in list {
             match item {
                 NestedMeta::Lit(Lit::Str(v)) => {
@@ -65,7 +65,7 @@ fn retrieve_namespaces(input: &DeriveInput) -> Namespaces {
             }
         }
     }
-    
+
     Some((
         default_namespace,
         if other_namespaces.is_empty() {
@@ -74,6 +74,29 @@ fn retrieve_namespaces(input: &DeriveInput) -> Namespaces {
             Some(other_namespaces)
         },
     ))
+}
+
+fn process_named_field(field: &syn::Field, output: &mut proc_macro2::TokenStream, default_namespace: &Option<DefaultNamespace>, other_namespaces: &Option<OtherNamespaces>) {
+    let field_name = field.ident.as_ref().unwrap().to_string();
+    let field_value = field.ident.as_ref().unwrap();
+    if let Some(namespaces_map) = &other_namespaces {
+        if let Some(namespace_key) = retrieve_field_namespace(field) {
+            if let Some(namespace_value) = namespaces_map.get(&namespace_key) {
+                output.extend(quote!(+ "<" + #field_name + " xmlns=" + #namespace_value));
+            }
+            else if let Some(default) = &default_namespace {
+                // Not exist in the map, adding default one if exist
+                output.extend(quote!(+ "<" + #field_name + " xmlns=" + #default));
+            } else {
+                // Without the namespace
+                output.extend(quote!(+ "<" + #field_name +));
+            }
+        }
+    } else {
+        // Without the namespace
+        output.extend(quote!(+ "<" + #field_name +));
+    }
+    output.extend(quote!(+ ">" + self.#field_value.to_string().as_str() + "</" + #field_name + ">"));
 }
 
 const XML: &str = "xml";
@@ -108,26 +131,7 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
                     .named
                     .iter()
                     .for_each(|field| {
-                        let field_name = field.ident.as_ref().unwrap().to_string();
-                        let field_value = field.ident.as_ref().unwrap();
-                        if let Some(namespaces_map) = &other_namespaces {
-                            if let Some(namespace_key) = retrieve_field_namespace(field) {
-                                if let Some(namespace_value) = namespaces_map.get(&namespace_key) {
-                                    output.extend(quote!(+ "<" + #field_name + " xmlns=" + #namespace_value));
-                                }
-                                else if let Some(default) = &default_namespace {
-                                    // Not exist in the map, adding default one if exist
-                                    output.extend(quote!(+ "<" + #field_name + " xmlns=" + #default));
-                                } else {
-                                    // Without the namespace
-                                    output.extend(quote!(+ "<" + #field_name +));
-                                }
-                            }
-                        } else {
-                            // Without the namespace
-                            output.extend(quote!(+ "<" + #field_name +));
-                        }
-                        output.extend(quote!(+ ">" + self.#field_value.to_string().as_str() + "</" + #field_name + ">"));
+                        process_named_field(field, &mut output, &default_namespace, &other_namespaces);
                     });
                 }
                 syn::Fields::Unnamed(_) => todo!(),

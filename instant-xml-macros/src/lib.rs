@@ -50,18 +50,20 @@ fn retrieve_namespaces(input: &DeriveInput) -> Namespaces {
     let mut other_namespaces = OtherNamespaces::default();
 
     if let Some(list) = retrieve_namespace_tag_list(&input.attrs) {
-        for item in list {
+        let mut iter = list.iter();
+        if let NestedMeta::Lit(Lit::Str(v)) = iter.next()? {
+            default_namespace = Some(v.value());
+        }
+        
+        for item in iter {
             match item {
-                NestedMeta::Lit(Lit::Str(v)) => {
-                    default_namespace = Some(v.value());
-                }
                 NestedMeta::Meta(Meta::NameValue(key)) => {
                     if let Lit::Str(value) = &key.lit {
                         other_namespaces
                             .insert(key.path.get_ident().unwrap().to_string(), value.value());
                     }
                 }
-                _ => (),
+                _ => todo!(),
             }
         }
     }

@@ -7,13 +7,13 @@ use syn::{parse_macro_input, Lit, Meta, NestedMeta};
 
 const XML: &str = "xml";
 
-struct Namespaces {
+struct Serializer {
     default_namespace: Option<String>,
     other_namespaces: HashMap<String, String>,
 }
 
-impl<'a> Namespaces {
-    pub fn init(attributes: &'a Vec<syn::Attribute>) -> Namespaces {
+impl<'a> Serializer {
+    pub fn init(attributes: &'a Vec<syn::Attribute>) -> Serializer {
         let mut default_namespace: Option<String> = None;
         let mut other_namespaces = HashMap::<String, String>::default();
 
@@ -57,19 +57,20 @@ impl<'a> Namespaces {
             }
         }
 
-        Namespaces {
+        Serializer {
             default_namespace,
             other_namespaces,
         }
     }
 
     fn add_header(&mut self, root_name: String, output: &'a mut proc_macro2::TokenStream) {
-        let mut header = root_name;
-        if self.default_namespace.is_some() {
-            header += format!(" xmlns=\"{}\"", self.default_namespace.as_ref().unwrap()).as_str();
-        };
+        output.extend(quote!(+ "<" + #root_name));
 
-        output.extend(quote!(+ "<" + #header + ">"));
+        if let Some(default_namespace) = self.default_namespace.as_ref() {
+            output.extend(quote!(+ " xmlns=\"" + #default_namespace + "\""));
+        }
+
+        output.extend(quote!(+ ">"));
     }
 
     fn add_footer(&mut self, root_name: String, output: &'a mut proc_macro2::TokenStream) {
@@ -84,12 +85,14 @@ impl<'a> Namespaces {
         let field_name = field.ident.as_ref().unwrap().to_string();
         let field_value = field.ident.as_ref().unwrap();
         if !self.other_namespaces.is_empty() {
-            if let Some(namespace_key) = Namespaces::init(&field.attrs).default_namespace {
+            if let Some(namespace_key) = Serializer::init(&field.attrs).default_namespace {
                 if let Some(namespace_value) = self.other_namespaces.get(&namespace_key) {
-                    output.extend(quote!(+ "<" + #field_name + " xmlns=" + #namespace_value));
+                    output.extend(
+                        quote!(+ "<" + #field_name + " xmlns=\"" + #namespace_value + "\""),
+                    );
                 } else if let Some(default) = &self.default_namespace {
                     // Not exist in the map, adding default one if exist
-                    output.extend(quote!(+ "<" + #field_name + " xmlns=" + #default));
+                    output.extend(quote!(+ "<" + #field_name + " xmlns=\"" + #default + "\""));
                 } else {
                     // Without the namespace
                     output.extend(quote!(+ "<" + #field_name +));
@@ -115,15 +118,15 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
     let header: String = root_name.to_string();
     let mut output: proc_macro2::TokenStream = TokenStream::from(quote!("".to_owned())).into();
 
-    let mut namespaces = Namespaces::init(&ast.attrs);
-    namespaces.add_header(header, &mut output);
+    let mut serializer = Serializer::init(&ast.attrs);
+    serializer.add_header(header, &mut output);
 
     match &ast.data {
         syn::Data::Struct(ref data) => {
             match data.fields {
                 syn::Fields::Named(ref fields) => {
                     fields.named.iter().for_each(|field| {
-                        namespaces.process_named_field(field, &mut output);
+                        serializer.process_named_field(field, &mut output);
                     });
                 }
                 syn::Fields::Unnamed(_) => todo!(),
@@ -133,7 +136,7 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
         _ => todo!(),
     };
 
-    namespaces.add_footer(root_name, &mut output);
+    serializer.add_footer(root_name, &mut output);
 
     TokenStream::from(quote!(
         impl ToXml for #ident {

@@ -63,7 +63,7 @@ impl<'a> Serializer {
         }
     }
 
-    fn add_header(&mut self, root_name: String, output: &'a mut proc_macro2::TokenStream) {
+    fn add_header(&mut self, root_name: &str, output: &'a mut proc_macro2::TokenStream) {
         output.extend(quote!(+ "<" + #root_name));
 
         if let Some(default_namespace) = self.default_namespace.as_ref() {
@@ -73,7 +73,7 @@ impl<'a> Serializer {
         output.extend(quote!(+ ">"));
     }
 
-    fn add_footer(&mut self, root_name: String, output: &'a mut proc_macro2::TokenStream) {
+    fn add_footer(&mut self, root_name: &str, output: &'a mut proc_macro2::TokenStream) {
         output.extend(quote!(+ "</" + #root_name + ">"));
     }
 
@@ -114,12 +114,10 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
 
     let ident = &ast.ident;
     let root_name = ident.to_string();
-
-    let header: String = root_name.to_string();
     let mut output: proc_macro2::TokenStream = TokenStream::from(quote!("".to_owned())).into();
 
     let mut serializer = Serializer::init(&ast.attrs);
-    serializer.add_header(header, &mut output);
+    serializer.add_header(&root_name, &mut output);
 
     match &ast.data {
         syn::Data::Struct(ref data) => {
@@ -136,7 +134,7 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
         _ => todo!(),
     };
 
-    serializer.add_footer(root_name, &mut output);
+    serializer.add_footer(&root_name, &mut output);
 
     TokenStream::from(quote!(
         impl ToXml for #ident {

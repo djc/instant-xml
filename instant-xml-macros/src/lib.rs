@@ -13,9 +13,9 @@ struct Serializer {
 }
 
 impl<'a> Serializer {
-    pub fn init(attributes: &'a Vec<syn::Attribute>) -> Serializer {
-        let mut default_namespace: Option<String> = None;
-        let mut other_namespaces = HashMap::<String, String>::default();
+    pub fn new(attributes: &'a Vec<syn::Attribute>) -> Serializer {
+        let mut default_namespace = None;
+        let mut other_namespaces = HashMap::default();
 
         for attr in attributes {
             if !attr.path.is_ident(XML) {
@@ -33,8 +33,8 @@ impl<'a> Serializer {
                 _ => todo!(),
             };
 
-            if let Some(ident) = list.path.get_ident() {
-                if ident == "namespace" {
+            match list.path.get_ident() {
+                Some(ident) if ident == "namespace" => {
                     let mut iter = list.nested.iter();
                     if let Some(NestedMeta::Lit(Lit::Str(v))) = iter.next() {
                         default_namespace = Some(v.value());
@@ -54,6 +54,7 @@ impl<'a> Serializer {
                         }
                     }
                 }
+                _ => (),
             }
         }
 
@@ -85,7 +86,7 @@ impl<'a> Serializer {
         let field_name = field.ident.as_ref().unwrap().to_string();
         let field_value = field.ident.as_ref().unwrap();
         if !self.other_namespaces.is_empty() {
-            if let Some(namespace_key) = Serializer::init(&field.attrs).default_namespace {
+            if let Some(namespace_key) = Serializer::new(&field.attrs).default_namespace {
                 if let Some(namespace_value) = self.other_namespaces.get(&namespace_key) {
                     output.extend(
                         quote!(+ "<" + #field_name + " xmlns=\"" + #namespace_value + "\""),
@@ -116,7 +117,7 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
     let root_name = ident.to_string();
     let mut output: proc_macro2::TokenStream = TokenStream::from(quote!("".to_owned())).into();
 
-    let mut serializer = Serializer::init(&ast.attrs);
+    let mut serializer = Serializer::new(&ast.attrs);
     serializer.add_header(&root_name, &mut output);
 
     match &ast.data {

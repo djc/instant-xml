@@ -61,11 +61,11 @@ impl<'a> Serializer {
             output.extend(quote!(+ " xmlns=\"" + #default_namespace + "\""));
         }
 
-        let mut sorted_values: Vec<_> = self.other_namespaces.values().collect();
+        let mut sorted_values: Vec<_> = self.other_namespaces.iter().collect();
         sorted_values.sort();
 
-        for val in sorted_values {
-            output.extend(quote!(+ " xmlns=\"" + #val + "\""));
+        for (key, val) in sorted_values {
+            output.extend(quote!(+ " xmlns:" + #key + "=\"" + #val + "\""));
         }
 
         output.extend(quote!(+ ">"));

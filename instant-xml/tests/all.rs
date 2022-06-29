@@ -29,6 +29,6 @@ fn struct_with_named_fields() {
         }
         .to_xml()
         .unwrap(),
-        "<StructWithNamedFields xmlns=\"URI\" xmlns=\"BAZ\" xmlns=\"BAR\"><flag>true</flag><bar:string>test</bar:string><number xmlns=\"typo\">1</number></StructWithNamedFields>"
+        "<StructWithNamedFields xmlns=\"URI\" xmlns=\"BAR\" xmlns=\"BAZ\"><flag>true</flag><bar:string>test</bar:string><number xmlns=\"typo\">1</number></StructWithNamedFields>"
     );
 }

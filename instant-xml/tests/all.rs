@@ -7,7 +7,7 @@ struct Unit;
 #[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
 struct StructWithNamedFields {
     flag: bool,
-    #[xml(namespace("bar"))]
+    #[xml(namespace(bar))]
     string: String,
     #[xml(namespace("typo"))]
     number: i32,
@@ -29,6 +29,6 @@ fn struct_with_named_fields() {
         }
         .to_xml()
         .unwrap(),
-        "<StructWithNamedFields xmlns=\"URI\">>true</flag><string xmlns=\"BAZ\">test</string><number xmlns=\"URI\">1</number></StructWithNamedFields>"
+        "<StructWithNamedFields xmlns=\"URI\" xmlns=\"BAZ\" xmlns=\"BAR\"><flag>true</flag><bar:string>test</bar:string><number xmlns=\"typo\">1</number></StructWithNamedFields>"
     );
 }

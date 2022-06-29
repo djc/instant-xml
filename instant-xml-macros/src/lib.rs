@@ -7,6 +7,11 @@ use syn::{parse_macro_input, Lit, Meta, NestedMeta};
 
 const XML: &str = "xml";
 
+enum FieldAttribute {
+    Namespace(String),
+    PrefixIdentifier(String),
+}
+
 struct Serializer {
     default_namespace: Option<String>,
     other_namespaces: HashMap<String, String>,
@@ -17,22 +22,7 @@ impl<'a> Serializer {
         let mut default_namespace = None;
         let mut other_namespaces = HashMap::default();
 
-        for attr in attributes {
-            if !attr.path.is_ident(XML) {
-                continue;
-            }
-
-            let nested = match attr.parse_meta() {
-                Ok(Meta::List(meta)) => meta.nested,
-                Ok(_) => todo!(),
-                _ => todo!(),
-            };
-
-            let list = match nested.first() {
-                Some(NestedMeta::Meta(Meta::List(list))) => list,
-                _ => todo!(),
-            };
-
+        if let Some(list) = Self::retrieve_namespace_list(attributes) {
             match list.path.get_ident() {
                 Some(ident) if ident == "namespace" => {
                     let mut iter = list.nested.iter();
@@ -71,6 +61,10 @@ impl<'a> Serializer {
             output.extend(quote!(+ " xmlns=\"" + #default_namespace + "\""));
         }
 
+        for val in self.other_namespaces.values() {
+            output.extend(quote!(+ " xmlns=\"" + #val + "\""));
+        }
+
         output.extend(quote!(+ ">"));
     }
 
@@ -85,27 +79,74 @@ impl<'a> Serializer {
     ) {
         let field_name = field.ident.as_ref().unwrap().to_string();
         let field_value = field.ident.as_ref().unwrap();
-        if !self.other_namespaces.is_empty() {
-            if let Some(namespace_key) = Serializer::new(&field.attrs).default_namespace {
-                if let Some(namespace_value) = self.other_namespaces.get(&namespace_key) {
-                    output.extend(
-                        quote!(+ "<" + #field_name + " xmlns=\"" + #namespace_value + "\""),
-                    );
-                } else if let Some(default) = &self.default_namespace {
-                    // Not exist in the map, adding default one if exist
-                    output.extend(quote!(+ "<" + #field_name + " xmlns=\"" + #default + "\""));
-                } else {
-                    // Without the namespace
-                    output.extend(quote!(+ "<" + #field_name +));
-                }
+        let mut prefix = String::default();
+
+        match Self::retrieve_field_attribute(field) {
+            Some(FieldAttribute::Namespace(namespace)) => {
+                output.extend(quote!(+ "<" + #field_name + " xmlns=\"" + #namespace + "\""));
             }
-        } else {
-            // Without the namespace
-            output.extend(quote!(+ "<" + #field_name +));
-        }
+            Some(FieldAttribute::PrefixIdentifier(prefix_key))
+                if !self.other_namespaces.is_empty() =>
+            {
+                match self.other_namespaces.get(&prefix_key) {
+                    Some(_) => {
+                        prefix = prefix_key + ":";
+                        output.extend(quote!(+ "<" + #prefix + #field_name));
+                    }
+                    None => todo!(), // return the error
+                };
+            }
+            _ => {
+                // Without the namespace
+                output.extend(quote!(+ "<" + #field_name));
+            }
+        };
+
         output.extend(
-            quote!(+ ">" + self.#field_value.to_string().as_str() + "</" + #field_name + ">"),
+            quote!(+ ">" + self.#field_value.to_string().as_str() + "</" + #prefix + #field_name + ">"),
         );
+    }
+
+    fn retrieve_namespace_list(attributes: &Vec<syn::Attribute>) -> Option<syn::MetaList> {
+        for attr in attributes {
+            if !attr.path.is_ident(XML) {
+                continue;
+            }
+
+            let nested = match attr.parse_meta() {
+                Ok(Meta::List(meta)) => meta.nested,
+                Ok(_) => todo!(),
+                _ => todo!(),
+            };
+
+            let list = match nested.first() {
+                Some(NestedMeta::Meta(Meta::List(list))) => list,
+                _ => todo!(),
+            };
+
+            if list.path.get_ident()? == "namespace" {
+                return Some(list.to_owned());
+            }
+        }
+
+        None
+    }
+
+    fn retrieve_field_attribute(input: &syn::Field) -> Option<FieldAttribute> {
+        if let Some(list) = Self::retrieve_namespace_list(&input.attrs) {
+            match list.nested.first() {
+                Some(NestedMeta::Lit(Lit::Str(v))) => {
+                    return Some(FieldAttribute::Namespace(v.value()));
+                }
+                Some(NestedMeta::Meta(Meta::Path(v))) => {
+                    if let Some(ident) = v.get_ident() {
+                        return Some(FieldAttribute::PrefixIdentifier(ident.to_string()));
+                    }
+                }
+                _ => (),
+            };
+        }
+        None
     }
 }
 

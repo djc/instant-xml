@@ -2,8 +2,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use std::collections::BTreeSet;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use syn::{parse_macro_input, Lit, Meta, NestedMeta};
 
 const XML: &str = "xml";

@@ -1,5 +1,4 @@
-use std::collections::BTreeSet;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fmt;
 
 use thiserror::Error;
@@ -60,7 +59,7 @@ pub trait FromXml<'xml>: Sized {
 pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}
 
 #[allow(dead_code)]
-pub struct State<'a> {
+struct State<'a> {
     prefix: HashMap<&'a str, &'a str>,
 }
 

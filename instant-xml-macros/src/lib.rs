@@ -184,14 +184,20 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
     serializer.add_footer(&root_name, &mut output);
 
     let current_prefixes: BTreeSet<&str> = serializer.get_keys_set();
-
     TokenStream::from(quote!(
         impl ToXml for #ident {
             fn write_xml<W: ::std::fmt::Write>(&self, write: &mut W, parent_prefixes: Option<&mut std::collections::BTreeSet<&str>>) -> Result<(), instant_xml::Error> {
                 match parent_prefixes {
                     Some(child_prefixes) => {
-                        #(child_prefixes.insert(#current_prefixes);)*;
+                        let mut to_remove: Vec<&str> = Vec::new();
+                        #(if child_prefixes.insert(#current_prefixes) {
+                            to_remove.push(#current_prefixes);
+                        };)*;
                         write.write_str(&(#output))?;
+                        
+                        for it in to_remove {
+                            child_prefixes.remove(it);
+                        }    
                     },
                     None => {
                         let mut set = std::collections::BTreeSet::<&str>::new();

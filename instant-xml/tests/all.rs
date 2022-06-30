@@ -27,15 +27,15 @@ struct NestedWrongPrefix {
     flag: bool,
 }
 
-// #[derive(Debug, Eq, PartialEq, ToXml)]
-// #[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
-// struct StructWithNamedFields {
-//     flag: bool,
-//     #[xml(namespace(bar))]
-//     string: String,
-//     #[xml(namespace("typo"))]
-//     number: i32,
-// }
+#[derive(Debug, Eq, PartialEq, ToXml)]
+#[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
+struct StructWithNamedFields {
+    flag: bool,
+    #[xml(namespace(bar))]
+    string: String,
+    #[xml(namespace("typo"))]
+    number: i32,
+}
 
 #[test]
 fn unit() {
@@ -43,19 +43,19 @@ fn unit() {
     assert_eq!(Unit::from_xml("<Unit/>").unwrap(), Unit);
 }
 
-// #[test]
-// fn struct_with_named_fields() {
-//     assert_eq!(
-//         StructWithNamedFields {
-//             flag: true,
-//             string: "test".to_string(),
-//             number: 1,
-//         }
-//         .to_xml()
-//         .unwrap(),
-//         "<StructWithNamedFields xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><flag>true</flag><bar:string>test</bar:string><number xmlns=\"typo\">1</number></StructWithNamedFields>"
-//     );
-// }
+#[test]
+fn struct_with_named_fields() {
+    assert_eq!(
+        StructWithNamedFields {
+            flag: true,
+            string: "test".to_string(),
+            number: 1,
+        }
+        .to_xml(None)
+        .unwrap(),
+        "<StructWithNamedFields xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><flag>true</flag><bar:string>test</bar:string><number xmlns=\"typo\">1</number></StructWithNamedFields>"
+    );
+}
 
 #[test]
 fn struct_with_custom_field() {

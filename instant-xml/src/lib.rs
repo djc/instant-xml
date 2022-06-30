@@ -24,21 +24,31 @@ pub trait ToXml {
     }
 }
 
-impl ToXml for bool {
-    fn write_xml<W: fmt::Write>(
-        &self,
-        _write: &mut W,
-        _parent_prefixes: Option<&mut BTreeSet<&str>>,
-    ) -> Result<(), Error> {
-        Ok(())
-    }
-
-    fn to_xml(&self, parent_prefixes: Option<&mut BTreeSet<&str>>) -> Result<String, Error> {
-        let mut out = self.to_string();
-        self.write_xml(&mut out, parent_prefixes)?;
-        Ok(out)
-    }
+macro_rules! to_xml_for_type {
+    ($typ:ty) => {
+        impl ToXml for $typ {
+            fn write_xml<W: fmt::Write>(
+                &self,
+                _write: &mut W,
+                _parent_prefixes: Option<&mut BTreeSet<&str>>,
+            ) -> Result<(), Error> {
+                Ok(())
+            }
+        
+            fn to_xml(&self, parent_prefixes: Option<&mut BTreeSet<&str>>) -> Result<String, Error> {
+                let mut out = self.to_string();
+                self.write_xml(&mut out, parent_prefixes)?;
+                Ok(out)
+            }
+        }
+    };
 }
+
+to_xml_for_type!(bool);
+to_xml_for_type!(i8);
+to_xml_for_type!(i16);
+to_xml_for_type!(i32);
+to_xml_for_type!(String);
 
 pub trait FromXml<'xml>: Sized {
     fn from_xml(input: &str) -> Result<Self, Error>;

@@ -10,11 +10,37 @@ pub use macros::{FromXml, ToXml};
 pub mod parse;
 
 pub trait ToXml {
-    fn write_xml<W: fmt::Write>(&self, write: &mut W) -> Result<(), Error>;
+    fn write_xml<W: fmt::Write>(
+        &self,
+        write: &mut W,
+        parent_prefixes: Option<Vec<String>>,
+    ) -> Result<(), Error>;
 
-    fn to_xml(&self) -> Result<String, Error> {
+    fn to_xml(&self, parent_prefixes: Option<Vec<String>>) -> Result<String, Error> {
         let mut out = String::new();
-        self.write_xml(&mut out)?;
+        self.write_xml(&mut out, parent_prefixes)?;
+        Ok(out)
+    }
+}
+
+impl ToXml for bool {
+    fn write_xml<W: fmt::Write>(
+        &self,
+        _write: &mut W,
+        _parent_prefixes: Option<Vec<String>>,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn to_xml(&self, parent_prefixes: Option<Vec<String>>) -> Result<String, Error> {
+        parent_prefixes
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|&value| value == "123");
+
+        let mut out = self.to_string();
+        self.write_xml(&mut out, parent_prefixes)?;
         Ok(out)
     }
 }
@@ -26,7 +52,7 @@ pub trait FromXml<'xml>: Sized {
 pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}
 
 #[allow(dead_code)]
-struct State<'a> {
+pub struct State<'a> {
     prefix: HashMap<&'a str, &'a str>,
 }
 

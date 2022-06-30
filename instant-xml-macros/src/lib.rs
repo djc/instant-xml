@@ -4,6 +4,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use std::collections::HashMap;
 use syn::{parse_macro_input, Lit, Meta, NestedMeta};
+use std::collections::BTreeSet;
 
 const XML: &str = "xml";
 
@@ -54,12 +55,8 @@ impl<'a> Serializer {
         }
     }
 
-    fn get_vec_keys(&self) -> Vec<String> {
-        let mut out = Vec::new();
-        for keys in self.other_namespaces.keys() {
-            out.push(keys.clone());
-        }
-        out
+    fn get_keys_set(&self) -> BTreeSet<&str> {
+        self.other_namespaces.iter().map(|(k, _)| k.as_str()).collect()
     }
 
     fn add_header(&mut self, root_name: &str, output: &'a mut proc_macro2::TokenStream) {
@@ -87,7 +84,7 @@ impl<'a> Serializer {
         &mut self,
         field: &syn::Field,
         output: &'a mut proc_macro2::TokenStream,
-        missing_prefixes: &'a mut Vec<String>,
+        missing_prefixes: &'a mut BTreeSet<String>,
     ) {
         let field_name = field.ident.as_ref().unwrap().to_string();
         let field_value = field.ident.as_ref().unwrap();
@@ -100,7 +97,7 @@ impl<'a> Serializer {
             Some(FieldAttribute::PrefixIdentifier(prefix_key)) => {
                 output.extend(quote!(+ "<" + #prefix_key + ":" + #field_name));
                 if self.other_namespaces.get(&prefix_key).is_none() {
-                    missing_prefixes.push(prefix_key.clone());
+                    missing_prefixes.insert(prefix_key.clone());
                 };
                 prefix = prefix_key + ":";
             }
@@ -164,7 +161,7 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
     let ident = &ast.ident;
     let root_name = ident.to_string();
     let mut output: proc_macro2::TokenStream = TokenStream::from(quote!("".to_owned())).into();
-    let mut missing_prefixes = Vec::new();
+    let mut missing_prefixes = BTreeSet::new();
 
     let mut serializer = Serializer::new(&ast.attrs);
     serializer.add_header(&root_name, &mut output);
@@ -186,28 +183,31 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
 
     serializer.add_footer(&root_name, &mut output);
 
-    let current_prefixes: Vec<String> = serializer.get_vec_keys();
+    let current_prefixes: BTreeSet<&str> = serializer.get_keys_set();
 
     TokenStream::from(quote!(
         impl ToXml for #ident {
-            fn write_xml<W: ::std::fmt::Write>(&self, write: &mut W, parent_prefixes: Option<Vec<String>>) -> Result<(), instant_xml::Error> {
-                // #(println!("{}", #parent_prefixes);)*;
-                let mut child_prefixes: Vec<String> = Vec::new();
-                if let Some(parent_prefixes) = parent_prefixes {
-                    child_prefixes = parent_prefixes;
+            fn write_xml<W: ::std::fmt::Write>(&self, write: &mut W, parent_prefixes: Option<&mut std::collections::BTreeSet<&str>>) -> Result<(), instant_xml::Error> {
+                match parent_prefixes {
+                    Some(child_prefixes) => {
+                        #(child_prefixes.insert(#current_prefixes);)*;
+                        write.write_str(&(#output))?;
+                    },
+                    None => {
+                        let mut set = std::collections::BTreeSet::<&str>::new();
+                        let child_prefixes = &mut set;
+                        #(child_prefixes.insert(#current_prefixes);)*;
+                        write.write_str(&(#output))?;
+                    }
                 }
-
-                #(child_prefixes.push(#current_prefixes.to_string());)*;
-
-                write.write_str(&(#output))?;
                 Ok(())
             }
 
-            fn to_xml(&self, parent_prefixes: Option<Vec<String>>) -> Result<String, instant_xml::Error> {
+            fn to_xml(&self, parent_prefixes: Option<&mut std::collections::BTreeSet<&str>>) -> Result<String, instant_xml::Error> {
                 //#(println!("{}", #missing_prefixes);)*;
                 if let Some(parent_prefixes) = parent_prefixes.as_ref() {
                     #(
-                        if parent_prefixes.iter().find(|&value| value == #missing_prefixes).is_none() {
+                        if parent_prefixes.get(#missing_prefixes).is_none() {
                             panic!("wrong prefix");
                         }
                     )*;

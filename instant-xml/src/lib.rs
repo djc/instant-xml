@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::collections::BTreeSet;
 
 use thiserror::Error;
 pub use xmlparser;
@@ -13,10 +14,10 @@ pub trait ToXml {
     fn write_xml<W: fmt::Write>(
         &self,
         write: &mut W,
-        parent_prefixes: Option<Vec<String>>,
+        parent_prefixes: Option<&mut BTreeSet<&str>>,
     ) -> Result<(), Error>;
 
-    fn to_xml(&self, parent_prefixes: Option<Vec<String>>) -> Result<String, Error> {
+    fn to_xml(&self, parent_prefixes: Option<&mut BTreeSet<&str>>) -> Result<String, Error> {
         let mut out = String::new();
         self.write_xml(&mut out, parent_prefixes)?;
         Ok(out)
@@ -27,18 +28,12 @@ impl ToXml for bool {
     fn write_xml<W: fmt::Write>(
         &self,
         _write: &mut W,
-        _parent_prefixes: Option<Vec<String>>,
+        _parent_prefixes: Option<&mut BTreeSet<&str>>,
     ) -> Result<(), Error> {
         Ok(())
     }
 
-    fn to_xml(&self, parent_prefixes: Option<Vec<String>>) -> Result<String, Error> {
-        parent_prefixes
-            .as_ref()
-            .unwrap()
-            .iter()
-            .find(|&value| value == "123");
-
+    fn to_xml(&self, parent_prefixes: Option<&mut BTreeSet<&str>>) -> Result<String, Error> {
         let mut out = self.to_string();
         self.write_xml(&mut out, parent_prefixes)?;
         Ok(out)

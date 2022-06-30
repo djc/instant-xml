@@ -2,9 +2,9 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
+use std::collections::BTreeSet;
 use std::collections::HashMap;
 use syn::{parse_macro_input, Lit, Meta, NestedMeta};
-use std::collections::BTreeSet;
 
 const XML: &str = "xml";
 
@@ -56,7 +56,10 @@ impl<'a> Serializer {
     }
 
     fn get_keys_set(&self) -> BTreeSet<&str> {
-        self.other_namespaces.iter().map(|(k, _)| k.as_str()).collect()
+        self.other_namespaces
+            .iter()
+            .map(|(k, _)| k.as_str())
+            .collect()
     }
 
     fn add_header(&mut self, root_name: &str, output: &'a mut proc_macro2::TokenStream) {
@@ -194,10 +197,10 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
                             to_remove.push(#current_prefixes);
                         };)*;
                         write.write_str(&(#output))?;
-                        
+
                         for it in to_remove {
                             child_prefixes.remove(it);
-                        }    
+                        }
                     },
                     None => {
                         let mut set = std::collections::BTreeSet::<&str>::new();

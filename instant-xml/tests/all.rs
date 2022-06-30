@@ -83,17 +83,3 @@ fn struct_with_custom_field_wrong_prefix() {
         ""
     );
 }
-
-// #[test]
-// fn struct_with_custom_field() {
-//     assert_eq!(
-//         StructWithCustomField {
-//             test: Test {
-//                 flag: true,
-//             },
-//         }
-//         .to_xml(None)
-//         .unwrap(),
-//         "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><test><Test>>true</flag></Test></test></StructWithCustomField>"
-//     );
-// }

@@ -1,2 +1,4 @@
 /target
+/instant-xml/target
+/instant-xml-macros/target
 Cargo.lock

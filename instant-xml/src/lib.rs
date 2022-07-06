@@ -1,10 +1,13 @@
 use std::collections::{BTreeSet, HashMap};
 use std::fmt;
 
+use crate::xmlparser::Tokenizer;
 use thiserror::Error;
 pub use xmlparser;
 
 pub use macros::{FromXml, ToXml};
+use std::iter::Peekable;
+use std::str::FromStr;
 
 #[doc(hidden)]
 pub mod parse;
@@ -53,7 +56,24 @@ to_xml_for_type!(i32);
 to_xml_for_type!(String);
 
 pub trait FromXml<'xml>: Sized {
-    fn from_xml(input: &str) -> Result<Self, Error>;
+    fn from_xml<'a>(
+        input: &'a str,
+        iter: Option<&mut Peekable<Tokenizer<'a>>>,
+        scalar_type_value: Option<String>,
+    ) -> Result<Self, Error>;
+}
+
+impl<'xml> FromXml<'xml> for bool {
+    fn from_xml<'a>(
+        _input: &'a str,
+        _parent_iter: Option<&mut Peekable<Tokenizer<'a>>>,
+        scalar_type_value: Option<String>,
+    ) -> Result<Self, Error> {
+        match scalar_type_value {
+            Some(v) => Ok(bool::from_str(v.as_str()).expect("Proper bool value")),
+            _ => panic!("missing value"),
+        }
+    }
 }
 
 pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}

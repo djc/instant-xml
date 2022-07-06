@@ -2,11 +2,6 @@ use xmlparser::{ElementEnd, Token};
 
 use super::Error;
 
-pub enum Element {
-    Scalar(String),
-    Custom,
-}
-
 pub enum EndType {
     Open,
     Close,

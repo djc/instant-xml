@@ -122,7 +122,7 @@ impl<'a> Deserializer<'a> {
                     })
                     }
                 }
-                Ok(deserializer.deserialize_struct(StructVisitor{}, #name)?)
+                deserializer.deserialize_struct(StructVisitor{}, #name)
             }
         ))
         .into();

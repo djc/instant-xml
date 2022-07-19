@@ -7,9 +7,9 @@ pub use xmlparser;
 pub use macros::{FromXml, ToXml};
 use parse::{XmlParser, XmlRecord};
 
+pub mod impls;
 #[doc(hidden)]
 pub mod parse;
-pub mod impls;
 
 pub trait ToXml {
     fn write_xml<W: fmt::Write>(
@@ -55,15 +55,14 @@ to_xml_for_type!(i32);
 to_xml_for_type!(String);
 
 pub trait FromXml<'xml>: Sized {
-    fn from_xml<'a>(input: &'a str) -> Result<Self, Error> 
-    {
-        let mut xml_parser = XmlParser::from_str(input);
+    fn from_xml(input: &str) -> Result<Self, Error> {
+        let mut xml_parser = XmlParser::new(input);
         let mut deserializer = Deserializer {
             iter: &mut xml_parser,
         };
 
         deserializer.iter.next();
-        Ok(Self::deserialize(&mut deserializer)?)
+        Self::deserialize(&mut deserializer)
     }
 
     fn deserialize<D>(deserializer: &mut D) -> Result<Self, Error>
@@ -78,7 +77,7 @@ pub trait DeserializeXml<'xml>: Sized {
 
     fn deserialize_bool<V>(&mut self, _visitor: V) -> Result<V::Value, Error>
     where
-        V: Visitor<'xml> 
+        V: Visitor<'xml>,
     {
         unimplemented!();
     }
@@ -94,23 +93,21 @@ pub trait DeserializeXml<'xml>: Sized {
 pub trait Visitor<'xml>: Sized {
     type Value;
 
-    fn visit_str<'a>(self, _value: &str) -> Result<Self::Value, Error> {
+    fn visit_str(self, _value: &str) -> Result<Self::Value, Error> {
         unimplemented!();
     }
 
-    fn visit_struct<'a>(&self, _deserializer: &mut Deserializer) -> Result<Self::Value, Error>
-    {
+    fn visit_struct(&self, _deserializer: &mut Deserializer) -> Result<Self::Value, Error> {
         unimplemented!();
     }
 }
 
 pub struct Deserializer<'a> {
-    pub iter:  &'a mut XmlParser<'a>,
+    pub iter: &'a mut XmlParser<'a>,
 }
 
 impl<'xml> FromXml<'xml> for Deserializer<'xml> {
-    fn from_xml<'a>(_input: &'a str) -> Result<Self, Error> 
-    {
+    fn from_xml(_input: &str) -> Result<Self, Error> {
         unimplemented!();
     }
 
@@ -122,26 +119,26 @@ impl<'xml> FromXml<'xml> for Deserializer<'xml> {
     }
 }
 
-impl<'xml,'a> DeserializeXml<'xml> for &mut Deserializer<'a> {
+impl<'xml, 'a> DeserializeXml<'xml> for &mut Deserializer<'a> {
     fn deserialize<D>(_deserializer: D) -> Result<Self, Error>
     where
-        D: FromXml<'xml> 
+        D: FromXml<'xml>,
     {
         unimplemented!();
     }
 }
 
-impl<'xml,'a> DeserializeXml<'xml> for Deserializer<'a> {
+impl<'xml, 'a> DeserializeXml<'xml> for Deserializer<'a> {
     fn deserialize<D>(_deserializer: D) -> Result<Self, Error>
     where
-        D: FromXml<'xml> 
+        D: FromXml<'xml>,
     {
         unimplemented!();
     }
 
     fn deserialize_bool<V>(&mut self, visitor: V) -> Result<V::Value, Error>
     where
-        V: Visitor<'xml> 
+        V: Visitor<'xml>,
     {
         if let Some(item) = self.iter.next() {
             match item {

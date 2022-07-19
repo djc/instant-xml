@@ -18,7 +18,7 @@ pub struct XmlParser<'a> {
 }
 
 impl<'a> XmlParser<'a> {
-    pub fn from_str(input: &'a str) -> XmlParser<'a> {
+    pub fn new(input: &'a str) -> XmlParser<'a> {
         XmlParser {
             stack: Vec::new(),
             internal_iter: Tokenizer::from(input),
@@ -46,12 +46,13 @@ impl<'a> XmlParser<'a> {
                     match end {
                         ElementEnd::Open => {
                             self.stack.push(key.clone().unwrap());
-                            println!("Stack size after push: {}, top: {:?}", self.stack.len(), &key);
+                            println!(
+                                "Stack size after push: {}, top: {:?}",
+                                self.stack.len(),
+                                &key
+                            );
 
-                            return Ok(Some(XmlRecord::Open(TagData {
-                                attributes,
-                                key
-                            })));
+                            return Ok(Some(XmlRecord::Open(TagData { attributes, key })));
                         }
                         ElementEnd::Close(..) => {
                             // TODO: Check if close tag equal to tag in top of stack

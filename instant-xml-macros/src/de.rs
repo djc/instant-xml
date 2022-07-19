@@ -73,7 +73,7 @@ impl<'a> Deserializer<'a> {
         let fn_deserialize: proc_macro2::TokenStream = TokenStream::from(quote!(
             fn deserialize<D>(deserializer: &mut D) -> Result<Self, ::instant_xml::Error>
             where
-                D: ::instant_xml::DeserializeXml<'xml> 
+                D: ::instant_xml::DeserializeXml<'xml>,
             {
                 println!("deserialize: {}", #name);
                 use ::instant_xml::parse::XmlRecord;
@@ -116,16 +116,14 @@ impl<'a> Deserializer<'a> {
                                 XmlRecord::Element(_) => panic!("Unexpected element"),
                             }
                         }
-                        
                         println!("return");
                         Ok(Self::Value {
                             #return_val
                     })
                     }
                 }
-            
                 Ok(deserializer.deserialize_struct(StructVisitor{}, #name)?)
-        }
+            }
         ))
         .into();
 
@@ -136,14 +134,6 @@ impl<'a> Deserializer<'a> {
     }
 
     fn is_scalar(value: &str) -> bool {
-        match value {
-            "bool" => true,
-            "i8" => true,
-            "i16" => true,
-            "i32" => true,
-            "i64" => true,
-            "u8" => true,
-            _ => false,
-        }
+        matches!(value, "bool" | "i8" | "i16" | "i32" | "i64" | "u8")
     }
 }

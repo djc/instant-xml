@@ -114,8 +114,6 @@ fn struct_with_custom_field_from_xml() {
     );
 }
 
-
-
 /* Example impl
 struct StructWithCustomFieldFromXml {
     flag: bool,
@@ -129,7 +127,7 @@ struct Nested {
 impl<'xml> FromXml<'xml> for StructWithCustomFieldFromXml {
     fn deserialize<D>(deserializer: &mut D) -> Result<Self, Error>
     where
-        D: DeserializeXml<'xml> 
+        D: DeserializeXml<'xml>
     {
         //  1. Sprawdzenie czy next równa się typowi z T
         //  2. Sprawdzenie czy ten typ juz byl
@@ -183,7 +181,7 @@ impl<'xml> FromXml<'xml> for StructWithCustomFieldFromXml {
                     flag: field0.unwrap(),
                     test: field1.unwrap(),
                 })
-            } 
+            }
         }
 
         Ok(deserializer.deserialize_struct(StructWithCustomFieldFromXmlVisitor{}, "StructWithCustomFieldFromXml")?)

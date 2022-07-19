@@ -94,7 +94,7 @@ fn struct_with_custom_field_wrong_prefix() {
 #[test]
 fn struct_with_custom_field_from_xml() {
     assert_eq!(
-        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><flag>false</flag><Nested><flag>true</flag></Nested></StructWithCustomFieldFromXml>", None, None).unwrap(),
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><flag>false</flag><Nested><flag>true</flag></Nested></StructWithCustomFieldFromXml>").unwrap(),
         StructWithCustomFieldFromXml {
             flag: false,
             test: Nested { flag: true }
@@ -102,14 +102,91 @@ fn struct_with_custom_field_from_xml() {
     );
     // Different order
     assert_eq!(
-        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested><flag>true</flag></Nested><flag>false</flag></StructWithCustomFieldFromXml>", None, None).unwrap(),
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested><flag>true</flag></Nested><flag>false</flag></StructWithCustomFieldFromXml>").unwrap(),
         StructWithCustomFieldFromXml {
             flag: false,
             test: Nested { flag: true }
         }
     );
     assert_eq!(
-        Nested::from_xml("<Nested><flag>true</flag></Nested>", None, None).unwrap(),
+        Nested::from_xml("<Nested><flag>true</flag></Nested>").unwrap(),
         Nested { flag: true }
     );
 }
+
+
+
+/* Example impl
+struct StructWithCustomFieldFromXml {
+    flag: bool,
+    test: Nested,
+}
+
+struct Nested {
+    flag: bool,
+}
+
+impl<'xml> FromXml<'xml> for StructWithCustomFieldFromXml {
+    fn deserialize<D>(deserializer: &mut D) -> Result<Self, Error>
+    where
+        D: DeserializeXml<'xml> 
+    {
+        //  1. Sprawdzenie czy next równa się typowi z T
+        //  2. Sprawdzenie czy ten typ juz byl
+
+        // Jezeli 1 i 2 spelnione to dalej
+
+        enum __Field {
+            Field0,
+            Field1,
+            Ignore,
+        }
+
+        fn get_type<'a>(value: &str) -> __Field {
+            match value {
+                "flag" => __Field::Field0,
+                "test" => __Field::Field1,
+                _ => __Field::Ignore,
+            }
+        }
+
+        struct StructWithCustomFieldFromXmlVisitor;
+        impl<'xml> Visitor<'xml> for StructWithCustomFieldFromXmlVisitor {
+            type Value = StructWithCustomFieldFromXml;
+
+            fn visit_struct<'a>(&self, deserializer: &mut Deserializer) -> Result<Self::Value, Error>
+            {
+                let mut field0: Option<bool> = None;
+                let mut field1: Option<Nested> = None;
+                while let Some(item) = &deserializer.iter.next() {
+                    match item {
+                        XmlRecord::Open(item) => {
+                            match get_type(&item.key.as_ref().unwrap()) {
+                                __Field::Field0 => {
+                                    field0 = Some(bool::deserialize(deserializer).unwrap());
+                                },
+                                __Field::Field1 => {
+                                    //field1 = Some(Nested::deserialize(deserializer).unwrap());
+                                },
+                                // __Field::__field2 => {
+                                //     field2 = Some(Nested::deserialize(deserializer).unwrap());
+                                // },
+                                _ => (),
+                            }
+                        },
+                        XmlRecord::Close(tag) => (),
+                        XmlRecord::Element(_) => panic!("Unexpected element"),
+                    }
+                }
+
+                Ok(Self::Value {
+                    flag: field0.unwrap(),
+                    test: field1.unwrap(),
+                })
+            } 
+        }
+
+        Ok(deserializer.deserialize_struct(StructWithCustomFieldFromXmlVisitor{}, "StructWithCustomFieldFromXml")?)
+    }
+}
+*/

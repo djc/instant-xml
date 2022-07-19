@@ -71,10 +71,6 @@ pub trait FromXml<'xml>: Sized {
 }
 
 pub trait DeserializeXml<'xml>: Sized {
-    fn deserialize<D>(deserializer: D) -> Result<Self, Error>
-    where
-        D: FromXml<'xml>;
-
     fn deserialize_bool<V>(&mut self, _visitor: V) -> Result<V::Value, Error>
     where
         V: Visitor<'xml>,
@@ -106,36 +102,7 @@ pub struct Deserializer<'a> {
     pub iter: &'a mut XmlParser<'a>,
 }
 
-impl<'xml> FromXml<'xml> for Deserializer<'xml> {
-    fn from_xml(_input: &str) -> Result<Self, Error> {
-        unimplemented!();
-    }
-
-    fn deserialize<D>(_deserializer: &mut D) -> Result<Self, Error>
-    where
-        D: DeserializeXml<'xml>,
-    {
-        unimplemented!();
-    }
-}
-
-impl<'xml, 'a> DeserializeXml<'xml> for &mut Deserializer<'a> {
-    fn deserialize<D>(_deserializer: D) -> Result<Self, Error>
-    where
-        D: FromXml<'xml>,
-    {
-        unimplemented!();
-    }
-}
-
 impl<'xml, 'a> DeserializeXml<'xml> for Deserializer<'a> {
-    fn deserialize<D>(_deserializer: D) -> Result<Self, Error>
-    where
-        D: FromXml<'xml>,
-    {
-        unimplemented!();
-    }
-
     fn deserialize_bool<V>(&mut self, visitor: V) -> Result<V::Value, Error>
     where
         V: Visitor<'xml>,

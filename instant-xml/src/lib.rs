@@ -61,7 +61,6 @@ pub trait FromXml<'xml>: Sized {
             iter: &mut xml_parser,
         };
 
-        deserializer.iter.next();
         Self::deserialize(&mut deserializer)
     }
 
@@ -98,8 +97,8 @@ pub trait Visitor<'xml>: Sized {
     }
 }
 
-pub struct Deserializer<'a> {
-    pub iter: &'a mut XmlParser<'a>,
+pub struct Deserializer<'xml> {
+    pub iter: &'xml mut XmlParser<'xml>,
 }
 
 impl<'xml, 'a> DeserializeXml<'xml> for Deserializer<'a> {
@@ -107,9 +106,14 @@ impl<'xml, 'a> DeserializeXml<'xml> for Deserializer<'a> {
     where
         V: Visitor<'xml>,
     {
+        self.iter.next();
         if let Some(item) = self.iter.next() {
             match item {
-                XmlRecord::Element(v) => visitor.visit_str(v.as_str()),
+                XmlRecord::Element(v) => {
+                    let ret = visitor.visit_str(v.as_str());
+                    self.iter.next();
+                    ret
+                }
                 _ => panic!("Wrong token type"),
             }
         } else {
@@ -118,22 +122,24 @@ impl<'xml, 'a> DeserializeXml<'xml> for Deserializer<'a> {
     }
 
     // TODO: Validate if other types were already used, tab of &str
-    fn deserialize_struct<'b, V>(&mut self, visitor: V, _name: &str) -> Result<V::Value, Error>
+    fn deserialize_struct<'b, V>(&mut self, visitor: V, name: &str) -> Result<V::Value, Error>
     where
         V: Visitor<'xml>,
     {
-        // if let Some(item) = self.iter.next() {
-        //     match item {
-        //         XmlRecord::Open(item) if item.key.as_ref().unwrap() == name => {
-        //             visitor.visit_struct(self)
-        //         },
-        //         _ => panic!("Wrong token type"),
-        //     }
-        // } else {
-        //     panic!("No element");
-        // }
+        // Open tag
+        if let Some(XmlRecord::Open(v)) = self.iter.next() {
+            if v.key != name {
+                panic!("Wrong tag name");
+            }
+        } else {
+            panic!("wrong tag");
+        }
 
-        visitor.visit_struct(self)
+        let ret = visitor.visit_struct(self);
+
+        // Close tag
+        self.iter.next();
+        ret
     }
 }
 

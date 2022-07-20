@@ -1,9 +1,11 @@
+use crate::Error;
+use std::iter::Peekable;
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
 #[derive(Debug)]
 pub struct TagData {
     pub attributes: Option<Vec<String>>,
-    pub key: Option<String>, // TODO: Not an option
+    pub key: String,
 }
 
 pub enum XmlRecord {
@@ -14,20 +16,20 @@ pub enum XmlRecord {
 
 pub struct XmlParser<'a> {
     stack: Vec<String>,
-    internal_iter: Tokenizer<'a>,
+    internal_iter: Peekable<Tokenizer<'a>>,
 }
 
 impl<'a> XmlParser<'a> {
     pub fn new(input: &'a str) -> XmlParser<'a> {
         XmlParser {
             stack: Vec::new(),
-            internal_iter: Tokenizer::from(input),
+            internal_iter: Tokenizer::from(input).peekable(),
         }
     }
 
-    fn parse_next(&mut self) -> Result<Option<XmlRecord>, ()> {
+    fn parse_next(&mut self) -> Result<Option<XmlRecord>, Error> {
         let mut attributes = None;
-        let mut key = None;
+        let mut key = String::new();
 
         loop {
             let item = match self.internal_iter.next() {
@@ -40,12 +42,12 @@ impl<'a> XmlParser<'a> {
                 Ok(Token::ElementStart {
                     prefix: _, local, ..
                 }) => {
-                    key = Some(local.to_string());
+                    key = local.to_string();
                 }
                 Ok(Token::ElementEnd { end, .. }) => {
                     match end {
                         ElementEnd::Open => {
-                            self.stack.push(key.clone().unwrap());
+                            self.stack.push(key.to_owned());
                             println!(
                                 "Stack size after push: {}, top: {:?}",
                                 self.stack.len(),
@@ -75,6 +77,32 @@ impl<'a> XmlParser<'a> {
                 }
                 _ => (), // Todo
             }
+        }
+    }
+
+    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>, Error> {
+        let item = match self.internal_iter.peek() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        println!("peek: {:?}", &item);
+        match item {
+            Ok(Token::ElementStart {
+                prefix: _, local, ..
+            }) => Ok(Some(XmlRecord::Open(TagData {
+                attributes: None,
+                key: local.to_string(),
+            }))),
+            Ok(Token::ElementEnd { end, .. }) => {
+                if let ElementEnd::Close(..) = end {
+                    return Ok(Some(XmlRecord::Close(
+                        self.stack.last().unwrap().to_string(),
+                    )));
+                }
+                panic!("Wrong end type")
+            }
+            _ => panic!("Wrong token, expected Start or End"),
         }
     }
 }

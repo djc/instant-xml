@@ -15,8 +15,8 @@ impl<'a> Deserializer<'a> {
         let mut return_val: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
         let mut declare_values: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
         let mut type_match: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
-        let mut enum_fields: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
-        let mut field_names: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
+        let mut enum_elements: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
+        let mut elements_names: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
 
         match &input.data {
             syn::Data::Struct(ref data) => {
@@ -31,18 +31,18 @@ impl<'a> Deserializer<'a> {
                                 todo!();
                             };
                             let enum_name =
-                                Ident::new(&format!("__field{index}"), Span::call_site());
+                                Ident::new(&format!("__Elements{index}"), Span::call_site());
                             let is_scalar =
                                 Self::is_scalar(field_type.as_ref().unwrap().to_string().as_str());
 
-                            enum_fields.extend(quote!(#enum_name,));
+                            enum_elements.extend(quote!(#enum_name,));
 
                             if !is_scalar {
                                 field_name = field_type.as_ref().unwrap().to_string();
                             }
 
-                            field_names.extend(quote!(
-                                #field_name => __Field::#enum_name,
+                            elements_names.extend(quote!(
+                                #field_name => __Elements::#enum_name,
                             ));
 
                             declare_values.extend(quote!(
@@ -50,7 +50,7 @@ impl<'a> Deserializer<'a> {
                             ));
 
                             type_match.extend(quote!(
-                                __Field::#enum_name => {
+                                __Elements::#enum_name => {
                                     if( #enum_name.is_some() ) {
                                         panic!("duplicated value");
                                     }
@@ -79,17 +79,29 @@ impl<'a> Deserializer<'a> {
                 use ::instant_xml::parse::XmlRecord;
                 use ::instant_xml::{Deserializer, DeserializeXml, Visitor} ;
 
-                enum __Field {
-                    #enum_fields
+                enum __Elements {
+                    #enum_elements
                     __ignore,
                 }
 
-                fn get_type(value: &str) -> __Field {
+                fn get_element(value: &str) -> __Elements {
                     match value {
-                        #field_names
-                        _ => __Field::__ignore,
+                        #elements_names
+                        _ => __Elements::__ignore,
                     }
                 }
+
+                // enum __Attributes {
+                //     #enum_attributes
+                //     __ignore,
+                // }
+
+                // fn get_attribute(value: &str) -> __Elements {
+                //     match value {
+                //         #attributes_names
+                //         _ => __Elements::__ignore,
+                //     }
+                // }
 
                 struct StructVisitor;
                 impl<'xml> Visitor<'xml> for StructVisitor {
@@ -98,24 +110,34 @@ impl<'a> Deserializer<'a> {
                     fn visit_struct<'a>(&self, deserializer: &mut ::instant_xml::Deserializer) -> Result<Self::Value, ::instant_xml::Error>
                     {
                         #declare_values
-                        while let Some(item) = &deserializer.iter.next() {
+                        println!("visit struct");
+                        while let Some(item) = &deserializer.iter.peek_next_tag().unwrap() {
                             match item {
                                 XmlRecord::Open(item) => {
-                                    println!("Key: {:?}", &item.key);
-                                    match get_type(&item.key.as_ref().unwrap()) {
+                                    match get_element(&item.key.as_ref()) {
                                         #type_match
-                                        __Field::__ignore => todo!(),
+                                        __Elements::__ignore => todo!(),
                                     }
-                                }
-                                XmlRecord::Close(tag) => {
-                                    println!("Close: {}", tag); // Moze jest jakiś lepszy sposob?
+
+                                    if let Some(attributes_vec) = &item.attributes {
+                                        for attr in attributes_vec {
+                                            // match get_attribute(&item.key.as_ref().unwrap()) {
+                                            //     #type_match
+                                            //     __Elements::__ignore => todo!(),
+                                            // }
+                                        }
+                                    }
+                                 }
+                                 XmlRecord::Close(tag) => {
+                                    println!("Close: {}", tag);
                                     if tag == #name {
-                                        break
+                                        break;
                                     }
                                 },
                                 XmlRecord::Element(_) => panic!("Unexpected element"),
                             }
                         }
+
                         println!("return");
                         Ok(Self::Value {
                             #return_val
@@ -134,6 +156,6 @@ impl<'a> Deserializer<'a> {
     }
 
     fn is_scalar(value: &str) -> bool {
-        matches!(value, "bool" | "i8" | "i16" | "i32" | "i64" | "u8")
+        matches!(value, "bool" | "i8" | "i16" | "i32" | "i64" | "u8") // TODO: Fill up
     }
 }

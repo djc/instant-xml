@@ -27,9 +27,9 @@ pub trait ToXml {
         &self,
         write: &mut W,
         parent_prefixes: Option<&mut BTreeSet<&str>>,
-    ) -> Result<(), Error>;
+    ) -> Result<()>;
 
-    fn to_xml(&self, parent_prefixes: Option<&mut BTreeSet<&str>>) -> Result<String, Error> {
+    fn to_xml(&self, parent_prefixes: Option<&mut BTreeSet<&str>>) -> Result<String> {
         let mut out = String::new();
         self.write_xml(&mut out, parent_prefixes)?;
         Ok(out)
@@ -43,14 +43,14 @@ macro_rules! to_xml_for_type {
                 &self,
                 _write: &mut W,
                 _parent_prefixes: Option<&mut BTreeSet<&str>>,
-            ) -> Result<(), Error> {
+            ) -> Result<()> {
                 Ok(())
             }
 
             fn to_xml(
                 &self,
                 parent_prefixes: Option<&mut BTreeSet<&str>>,
-            ) -> Result<String, Error> {
+            ) -> Result<String> {
                 let mut out = self.to_string();
                 self.write_xml(&mut out, parent_prefixes)?;
                 Ok(out)
@@ -66,7 +66,7 @@ to_xml_for_type!(i32);
 to_xml_for_type!(String);
 
 pub trait FromXml<'xml>: Sized {
-    fn from_xml(input: &str) -> Result<Self, Error> {
+    fn from_xml(input: &str) -> Result<Self> {
         let mut xml_parser = XmlParser::new(input);
         let mut deserializer = Deserializer {
             iter: &mut xml_parser,
@@ -75,20 +75,20 @@ pub trait FromXml<'xml>: Sized {
         Self::deserialize(&mut deserializer)
     }
 
-    fn deserialize<D>(deserializer: &mut D) -> Result<Self, Error>
+    fn deserialize<D>(deserializer: &mut D) -> Result<Self>
     where
         D: DeserializeXml<'xml>;
 }
 
 pub trait DeserializeXml<'xml>: Sized {
-    fn deserialize_bool<V>(&mut self, _visitor: V) -> Result<V::Value, Error>
+    fn deserialize_bool<V>(&mut self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'xml>,
     {
         unimplemented!();
     }
 
-    fn deserialize_struct<'a, V>(&mut self, _visitor: V, _name: &str) -> Result<V::Value, Error>
+    fn deserialize_struct<'a, V>(&mut self, _visitor: V, _name: &str) -> Result<V::Value>
     where
         V: Visitor<'xml>,
     {
@@ -96,7 +96,7 @@ pub trait DeserializeXml<'xml>: Sized {
     }
 
     // TODO: Consider this with generic XmlRecord
-    fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>, Error> {
+    fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>> {
         unimplemented!();
     }
 }
@@ -104,11 +104,11 @@ pub trait DeserializeXml<'xml>: Sized {
 pub trait Visitor<'xml>: Sized {
     type Value;
 
-    fn visit_str(self, _value: &str) -> Result<Self::Value, Error> {
+    fn visit_str(self, _value: &str) -> Result<Self::Value> {
         unimplemented!();
     }
 
-    fn visit_struct<'a, D>(&self, _deserializer: &mut D) -> Result<Self::Value, Error>
+    fn visit_struct<'a, D>(&self, _deserializer: &mut D) -> Result<Self::Value>
     where
         D: DeserializeXml<'xml>,
     {
@@ -120,56 +120,63 @@ pub struct Deserializer<'xml> {
     pub iter: &'xml mut XmlParser<'xml>,
 }
 
+impl<'xml> Deserializer<'xml> {
+    fn check_open_tag(&mut self, name: &str) -> Result<()> {
+        if let Some(item) = self.iter.next() {
+            match item? {
+                XmlRecord::Open(v) if v.key == name => Ok(()),
+                _ => return Err(Error::UnexpectedValue),
+            }
+        } else {
+            return Err(Error::UnexpectedTag);
+        }
+    }
+
+    fn check_close_tag(&mut self, name: &str) -> Result<()> {
+         // Close tag
+         if let Some(item) = self.iter.next() {
+            match item? {
+                XmlRecord::Close(v) if v == name => Ok(()),
+                _ =>  Err(Error::UnexpectedTag),
+            }
+        } else {
+            Err(Error::MissingTag)
+        }
+    }
+}
+
 impl<'xml, 'a> DeserializeXml<'xml> for Deserializer<'a> {
-    fn deserialize_bool<V>(&mut self, visitor: V) -> Result<V::Value, Error>
+    fn deserialize_bool<V>(&mut self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'xml>,
     {
         self.iter.next();
         if let Some(item) = self.iter.next() {
-            match item {
+            match item? {
                 XmlRecord::Element(v) => {
                     let ret = visitor.visit_str(v.as_str());
                     self.iter.next();
                     ret
                 }
-                _ => panic!("Wrong token type"),
+                _ => Err(Error::UnexpectedTag),
             }
         } else {
-            panic!("No element");
+            Err(Error::MissingValue)
         }
     }
 
     // TODO: Validate if other types were already used, tab of &str
-    fn deserialize_struct<'b, V>(&mut self, visitor: V, name: &str) -> Result<V::Value, Error>
+    fn deserialize_struct<'b, V>(&mut self, visitor: V, name: &str) -> Result<V::Value>
     where
         V: Visitor<'xml>,
     {
-        // Open tag
-        if let Some(XmlRecord::Open(v)) = self.iter.next() {
-            if v.key != name {
-                panic!("Wrong tag name");
-            }
-        } else {
-            panic!("wrong tag");
-        }
-
+        self.check_open_tag(name)?;
         let ret = visitor.visit_struct(self)?;
-
-        // Close tag
-        match self.iter.next() {
-            Some(XmlRecord::Close(v)) => {
-                if v == name {
-                    Ok(ret)
-                } else {
-                    panic!("Wrong close tag");
-                }
-            }
-            _ => panic!("Expected close tag"),
-        }
+        self.check_close_tag(name)?;
+        Ok(ret)
     }
 
-    fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>, Error> {
+    fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>> {
         self.iter.peek_next_tag()
     }
 }
@@ -181,6 +188,8 @@ struct State<'a> {
     prefix: HashMap<&'a str, &'a str>,
 }
 
+pub type Result<T> = core::result::Result<T, Error>;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("format: {0}")]
@@ -191,4 +200,12 @@ pub enum Error {
     UnexpectedEndOfStream,
     #[error("unexpected value")]
     UnexpectedValue,
+    #[error("unexpected tag")]
+    UnexpectedTag,
+    #[error("missing tag")]
+    MissingTag,
+    #[error("missing value")]
+    MissingValue,
+    #[error("unexpected token")]
+    UnexpectedToken,
 }

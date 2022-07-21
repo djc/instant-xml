@@ -54,7 +54,7 @@ impl<'a> Deserializer<'a> {
                                     if( #enum_name.is_some() ) {
                                         panic!("duplicated value");
                                     }
-                                    #enum_name = Some(#field_type::deserialize(deserializer).unwrap());
+                                    #enum_name = Some(#field_type::deserialize(deserializer)?);
                                 },
                             ));
 
@@ -113,7 +113,7 @@ impl<'a> Deserializer<'a> {
                     {
                         #declare_values
                         println!("visit struct");
-                        while let Some(item) = &deserializer.peek_next_tag().unwrap() {
+                        while let Some(item) = &deserializer.peek_next_tag()? {
                             match item {
                                 XmlRecord::Open(item) => {
                                     match get_element(&item.key.as_ref()) {

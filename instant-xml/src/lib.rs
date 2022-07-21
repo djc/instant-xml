@@ -154,11 +154,19 @@ impl<'xml, 'a> DeserializeXml<'xml> for Deserializer<'a> {
             panic!("wrong tag");
         }
 
-        let ret = visitor.visit_struct(self);
+        let ret = visitor.visit_struct(self)?;
 
         // Close tag
-        self.iter.next();
-        ret
+        match self.iter.next() {
+            Some(XmlRecord::Close(v)) => {
+                if v == name {
+                    Ok(ret)
+                } else {
+                    panic!("Wrong close tag");
+                }
+            }
+            _ => panic!("Expected close tag"),
+        }
     }
 
     fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>, Error> {

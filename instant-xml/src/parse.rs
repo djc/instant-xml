@@ -1,18 +1,7 @@
 use crate::Error;
+pub use crate::{TagData, XmlRecord};
 use std::iter::Peekable;
 use xmlparser::{ElementEnd, Token, Tokenizer};
-
-#[derive(Debug)]
-pub struct TagData {
-    pub attributes: Option<Vec<String>>,
-    pub key: String,
-}
-
-pub enum XmlRecord {
-    Open(TagData),
-    Element(String),
-    Close(String),
-}
 
 pub struct XmlParser<'a> {
     stack: Vec<String>,

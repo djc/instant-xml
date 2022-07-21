@@ -5,11 +5,22 @@ use thiserror::Error;
 pub use xmlparser;
 
 pub use macros::{FromXml, ToXml};
-use parse::{XmlParser, XmlRecord};
+use parse::XmlParser;
 
 pub mod impls;
 #[doc(hidden)]
 pub mod parse;
+
+pub struct TagData {
+    pub attributes: Option<Vec<String>>,
+    pub key: String,
+}
+
+pub enum XmlRecord {
+    Open(TagData),
+    Element(String),
+    Close(String),
+}
 
 pub trait ToXml {
     fn write_xml<W: fmt::Write>(
@@ -83,6 +94,11 @@ pub trait DeserializeXml<'xml>: Sized {
     {
         unimplemented!();
     }
+
+    // TODO: Consider this with generic XmlRecord
+    fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>, Error> {
+        unimplemented!();
+    }
 }
 
 pub trait Visitor<'xml>: Sized {
@@ -92,7 +108,10 @@ pub trait Visitor<'xml>: Sized {
         unimplemented!();
     }
 
-    fn visit_struct(&self, _deserializer: &mut Deserializer) -> Result<Self::Value, Error> {
+    fn visit_struct<'a, D>(&self, _deserializer: &mut D) -> Result<Self::Value, Error>
+    where
+        D: DeserializeXml<'xml>,
+    {
         unimplemented!();
     }
 }
@@ -140,6 +159,10 @@ impl<'xml, 'a> DeserializeXml<'xml> for Deserializer<'a> {
         // Close tag
         self.iter.next();
         ret
+    }
+
+    fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>, Error> {
+        self.iter.peek_next_tag()
     }
 }
 

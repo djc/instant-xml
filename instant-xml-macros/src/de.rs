@@ -107,11 +107,13 @@ impl<'a> Deserializer<'a> {
                 impl<'xml> Visitor<'xml> for StructVisitor {
                     type Value = #ident;
 
-                    fn visit_struct<'a>(&self, deserializer: &mut ::instant_xml::Deserializer) -> Result<Self::Value, ::instant_xml::Error>
+                    fn visit_struct<'a, D>(&self, deserializer: &mut D) -> Result<Self::Value, ::instant_xml::Error>
+                    where
+                        D: ::instant_xml::DeserializeXml<'xml>,
                     {
                         #declare_values
                         println!("visit struct");
-                        while let Some(item) = &deserializer.iter.peek_next_tag().unwrap() {
+                        while let Some(item) = &deserializer.peek_next_tag().unwrap() {
                             match item {
                                 XmlRecord::Open(item) => {
                                     match get_element(&item.key.as_ref()) {

@@ -33,32 +33,28 @@ impl<'a> XmlParser<'a> {
                 }) => {
                     key = local.to_string();
                 }
-                Ok(Token::ElementEnd { end, .. }) => {
-                    match end {
-                        ElementEnd::Open => {
-                            self.stack.push(key.to_owned());
-                            println!(
-                                "Stack size after push: {}, top: {:?}",
-                                self.stack.len(),
-                                &key
-                            );
+                Ok(Token::ElementEnd { end, .. }) => match end {
+                    ElementEnd::Open => {
+                        self.stack.push(key.to_owned());
+                        println!(
+                            "Stack size after push: {}, top: {:?}",
+                            self.stack.len(),
+                            &key
+                        );
 
-                            return Ok(Some(XmlRecord::Open(TagData { attributes, key })));
-                        }
-                        ElementEnd::Close(_, v) => {
-                            match self.stack.pop() {
-                                Some(last) if last == v.as_str() => {
-                                    println!("Stack size after pop: {}", self.stack.len());
-                                    return Ok(Some(XmlRecord::Close(last)));
-                                },
-                                _ => return Err(Error::UnexpectedValue),
-                            }                            
-                        }
-                        ElementEnd::Empty => {
-                            todo!();
-                        }
+                        return Ok(Some(XmlRecord::Open(TagData { attributes, key })));
                     }
-                }
+                    ElementEnd::Close(_, v) => match self.stack.pop() {
+                        Some(last) if last == v.as_str() => {
+                            println!("Stack size after pop: {}", self.stack.len());
+                            return Ok(Some(XmlRecord::Close(last)));
+                        }
+                        _ => return Err(Error::UnexpectedValue),
+                    },
+                    ElementEnd::Empty => {
+                        todo!();
+                    }
+                },
                 Ok(Token::Attribute { prefix: _, .. }) => {
                     // TODO: Add to attributes map
                     attributes = Some(Vec::new());
@@ -92,10 +88,10 @@ impl<'a> XmlParser<'a> {
                         self.stack.last().unwrap().to_string(),
                     )));
                 }
-                panic!("Wrong end type")
+                Err(Error::UnexpectedToken)
             }
-            Ok(_) => return Err(Error::UnexpectedToken),
-            Err(e) => return Err(Error::Parse(*e)),
+            Ok(_) => Err(Error::UnexpectedToken),
+            Err(e) => Err(Error::Parse(*e)),
         }
     }
 }

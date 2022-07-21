@@ -109,6 +109,13 @@ fn struct_with_custom_field_from_xml() {
         }
     );
     assert_eq!(
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested><flag>true</flag></Nested><flag>false</flag></StructWithCustomFieldFromXml>").unwrap(),
+        StructWithCustomFieldFromXml {
+            flag: false,
+            test: Nested { flag: true }
+        }
+    );
+    assert_eq!(
         Nested::from_xml("<Nested><flag>true</flag></Nested>").unwrap(),
         Nested { flag: true }
     );

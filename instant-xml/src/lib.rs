@@ -47,10 +47,7 @@ macro_rules! to_xml_for_type {
                 Ok(())
             }
 
-            fn to_xml(
-                &self,
-                parent_prefixes: Option<&mut BTreeSet<&str>>,
-            ) -> Result<String> {
+            fn to_xml(&self, parent_prefixes: Option<&mut BTreeSet<&str>>) -> Result<String> {
                 let mut out = self.to_string();
                 self.write_xml(&mut out, parent_prefixes)?;
                 Ok(out)
@@ -125,19 +122,19 @@ impl<'xml> Deserializer<'xml> {
         if let Some(item) = self.iter.next() {
             match item? {
                 XmlRecord::Open(v) if v.key == name => Ok(()),
-                _ => return Err(Error::UnexpectedValue),
+                _ => Err(Error::UnexpectedValue),
             }
         } else {
-            return Err(Error::UnexpectedTag);
+            Err(Error::UnexpectedTag)
         }
     }
 
     fn check_close_tag(&mut self, name: &str) -> Result<()> {
-         // Close tag
-         if let Some(item) = self.iter.next() {
+        // Close tag
+        if let Some(item) = self.iter.next() {
             match item? {
                 XmlRecord::Close(v) if v == name => Ok(()),
-                _ =>  Err(Error::UnexpectedTag),
+                _ => Err(Error::UnexpectedTag),
             }
         } else {
             Err(Error::MissingTag)

@@ -9,7 +9,7 @@ pub struct Serializer {
 
 impl<'a> Serializer {
     pub fn new(attributes: &'a Vec<syn::Attribute>) -> Serializer {
-        let (default_namespace, other_namespaces) = get_namespaces(attributes); 
+        let (default_namespace, other_namespaces) = get_namespaces(attributes);
 
         Serializer {
             default_namespace,

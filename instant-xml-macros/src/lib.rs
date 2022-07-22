@@ -16,7 +16,9 @@ pub(crate) enum FieldAttribute {
     PrefixIdentifier(String),
 }
 
-pub(crate) fn get_namespaces<'a>(attributes: &'a Vec<syn::Attribute>) -> (Option<String>, HashMap<String, String>) {
+pub(crate) fn get_namespaces(
+    attributes: &Vec<syn::Attribute>,
+) -> (Option<String>, HashMap<String, String>) {
     let mut default_namespace = None;
     let mut other_namespaces = HashMap::default();
 
@@ -46,7 +48,7 @@ pub(crate) fn get_namespaces<'a>(attributes: &'a Vec<syn::Attribute>) -> (Option
         }
     }
 
-    return (default_namespace, other_namespaces)
+    (default_namespace, other_namespaces)
 }
 
 pub(crate) fn retrieve_field_attribute(name: &str, input: &syn::Field) -> Option<FieldAttribute> {
@@ -66,10 +68,31 @@ pub(crate) fn retrieve_field_attribute(name: &str, input: &syn::Field) -> Option
     None
 }
 
-fn retrieve_attr_list(
-    name: &str,
-    attributes: &Vec<syn::Attribute>,
-) -> Option<syn::MetaList> {
+pub(crate) fn retrieve_attr(name: &str, attributes: &Vec<syn::Attribute>) -> Option<bool> {
+    for attr in attributes {
+        if !attr.path.is_ident(XML) {
+            continue;
+        }
+
+        let nested = match attr.parse_meta() {
+            Ok(Meta::List(meta)) => meta.nested,
+            _ => return Some(false),
+        };
+
+        let path = match nested.first() {
+            Some(NestedMeta::Meta(Meta::Path(path))) => path,
+            _ => return Some(false),
+        };
+
+        if path.get_ident()? == name {
+            return Some(true);
+        }
+    }
+
+    None
+}
+
+fn retrieve_attr_list(name: &str, attributes: &Vec<syn::Attribute>) -> Option<syn::MetaList> {
     for attr in attributes {
         if !attr.path.is_ident(XML) {
             continue;
@@ -83,7 +106,7 @@ fn retrieve_attr_list(
 
         let list = match nested.first() {
             Some(NestedMeta::Meta(Meta::List(list))) => list,
-            _ => todo!(),
+            _ => return None,
         };
 
         if list.path.get_ident()? == name {
@@ -173,9 +196,11 @@ pub fn from_xml(input: TokenStream) -> TokenStream {
 
     let deserializer = de::Deserializer::new(&ast);
     let fn_deserialize = deserializer.fn_deserialize;
+    let fn_from_xml = deserializer.fn_from_xml;
 
     TokenStream::from(quote!(
         impl<'xml> FromXml<'xml> for #ident {
+            #fn_from_xml
             #fn_deserialize
         }
     ))

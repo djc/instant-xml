@@ -1,4 +1,4 @@
-use crate::{DeserializeXml, Error, FromXml, Visitor};
+use crate::{Attribute, DeserializeXml, Error, FromXml, Visitor};
 use std::str::FromStr;
 
 struct BoolVisitor;
@@ -17,5 +17,16 @@ impl<'xml> FromXml<'xml> for bool {
         D: DeserializeXml<'xml>,
     {
         deserializer.deserialize_bool(BoolVisitor)
+    }
+}
+
+impl<'xml> FromXml<'xml> for Attribute<bool> {
+    fn deserialize<D>(deserializer: &mut D) -> Result<Self, Error>
+    where
+        D: DeserializeXml<'xml>,
+    {
+        Ok(Attribute::Value(
+            deserializer.deserialize_attribute(BoolVisitor)?,
+        ))
     }
 }

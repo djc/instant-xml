@@ -1,6 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
+use crate::get_namespaces;
 
 pub struct Deserializer<'a> {
     /// Original input.
@@ -12,6 +13,9 @@ impl<'a> Deserializer<'a> {
     pub fn new(input: &syn::DeriveInput) -> Deserializer {
         let ident = &input.ident;
         let name = ident.to_string();
+
+        let (default_namespace, other_namespaces) = get_namespaces(&input.attrs);
+
         let mut return_val: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
         let mut declare_values: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
         let mut type_match: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
@@ -107,9 +111,9 @@ impl<'a> Deserializer<'a> {
                 impl<'xml> Visitor<'xml> for StructVisitor {
                     type Value = #ident;
 
-                    fn visit_struct<'a, D>(&self, deserializer: &mut D) -> Result<Self::Value, ::instant_xml::Error>
+                    fn visit_struct<'a, D>(&self, deserializer: &mut D, _attributes: Option<&std::collections::HashMap<String, String>>) -> Result<Self::Value, ::instant_xml::Error>
                     where
-                        D: ::instant_xml::DeserializeXml<'xml>,
+                        D: ::instant_xml::DeserializeXml<'xml> + ::instant_xml::AccessorXml<'xml>,
                     {
                         #declare_values
                         println!("visit struct");
@@ -146,7 +150,9 @@ impl<'a> Deserializer<'a> {
                     })
                     }
                 }
-                deserializer.deserialize_struct(StructVisitor{}, #name)
+
+                let mut prefixes = std::collections::BTreeSet::new();
+                deserializer.deserialize_struct(StructVisitor{}, #name, &mut prefixes)
             }
         ))
         .into();

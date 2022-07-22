@@ -84,6 +84,10 @@ impl<'a> XmlParser<'a> {
             }))),
             Ok(Token::ElementEnd { end, .. }) => {
                 if let ElementEnd::Close(..) = end {
+                    if self.stack.is_empty() {
+                        return Err(Error::UnexpectedEndOfStream);
+                    }
+
                     return Ok(Some(XmlRecord::Close(
                         self.stack.last().unwrap().to_string(),
                     )));

@@ -98,9 +98,7 @@ impl<'a> Deserializer<'a> {
                                         if( #enum_name.is_some() ) {
                                             panic!("duplicated value");
                                         }
-                                        if let Some(::instant_xml::Attribute::Value(value)) = Some(::instant_xml::Attribute::<#field_type>::deserialize(deserializer)?) {
-                                            #enum_name = Some(value);
-                                        }
+                                        #enum_name = Some(#field_type::deserialize_attr(deserializer, value)?);
                                     },
                                 ));
                             }
@@ -121,11 +119,9 @@ impl<'a> Deserializer<'a> {
             fn from_xml<'a>(input: &'a str) -> Result<Self, ::instant_xml::Error> {
                 let mut xml_parser = ::instant_xml::parse::XmlParser::new(input);
                 let mut prefixes_set = std::collections::BTreeSet::new();
-                let mut current_attribute = String::new();
                 let mut deserializer = ::instant_xml::Deserializer {
                     iter: &mut xml_parser,
                     prefixes: &mut prefixes_set,
-                    current_attribute: &mut current_attribute,
                 };
                 Self::deserialize(&mut deserializer)
             }
@@ -139,7 +135,7 @@ impl<'a> Deserializer<'a> {
             {
                 println!("deserialize: {}", #name);
                 use ::instant_xml::parse::XmlRecord;
-                use ::instant_xml::{Deserializer, DeserializeXml, Visitor, Attribute} ;
+                use ::instant_xml::{Deserializer, DeserializeXml, Visitor} ;
 
                 enum __Elements {
                     #enum_elements
@@ -203,9 +199,8 @@ impl<'a> Deserializer<'a> {
                         }
 
                         if let Some(attributes_map) = &attributes {
-                            for (k, v) in attributes_map.iter() {
-                                deserializer.set_current_attribute(v);
-                                match get_attribute(&k) {
+                            for (key, value) in attributes_map.iter() {
+                                match get_attribute(&key) {
                                     #attr_type_match
                                     __Attributes::__ignore => todo!(),
                                 }

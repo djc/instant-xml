@@ -11,10 +11,6 @@ pub mod impls;
 #[doc(hidden)]
 pub mod parse;
 
-pub enum Attribute<T> {
-    Value(T),
-}
-
 pub struct TagData {
     pub key: String,
     pub attributes: Option<HashMap<String, String>>,
@@ -80,6 +76,13 @@ pub trait FromXml<'xml>: Sized {
     fn deserialize<D>(deserializer: &mut D) -> Result<Self>
     where
         D: DeserializeXml<'xml>;
+
+    fn deserialize_attr<D>(_deserializer: &mut D, _value: &str) -> Result<Self>
+    where
+        D: DeserializeXml<'xml>,  
+    {
+        unimplemented!();
+    }
 }
 
 pub trait DeserializeXml<'xml>: Sized {
@@ -102,7 +105,7 @@ pub trait DeserializeXml<'xml>: Sized {
         unimplemented!();
     }
 
-    fn deserialize_attribute<V>(&mut self, _visitor: V) -> Result<V::Value>
+    fn deserialize_attribute<V>(&mut self, _visitor: V, _value: &str) -> Result<V::Value>
     where
         V: Visitor<'xml>,
     {
@@ -132,15 +135,11 @@ pub trait Visitor<'xml>: Sized {
 pub trait AccessorXml<'xml> {
     fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>>;
     fn verify_prefix(&self, prefix_to_verify: &str) -> bool;
-    fn set_current_attribute(&mut self, attr: &str);
 }
 
 pub struct Deserializer<'xml> {
     pub iter: &'xml mut XmlParser<'xml>,
     pub prefixes: &'xml mut BTreeSet<&'xml str>,
-
-    // TODO: Think of some more clever way to pass this
-    pub current_attribute: &'xml mut String,
 }
 
 impl<'xml> Deserializer<'xml> {
@@ -205,13 +204,11 @@ impl<'xml> DeserializeXml<'xml> for Deserializer<'xml> {
         }
     }
 
-    fn deserialize_attribute<V>(&mut self, visitor: V) -> Result<V::Value>
+    fn deserialize_attribute<V>(&mut self, visitor: V, value: &str) -> Result<V::Value>
     where
         V: Visitor<'xml>,
     {
-        let ret = visitor.visit_str(self.current_attribute);
-        self.current_attribute.clear();
-        ret
+        visitor.visit_str(value)
     }
 
     // TODO: Validate if other types were already used, tab of &str
@@ -230,12 +227,6 @@ impl<'xml> DeserializeXml<'xml> for Deserializer<'xml> {
             .collect::<Vec<_>>();
 
         let attributes = self.process_open_tag(name, namespaces)?;
-        if attributes.is_some() {
-            for (v, k) in attributes.as_ref().unwrap().iter() {
-                println!("attr : {}, {}", v, k);
-            }
-        }
-
         let ret = visitor.visit_struct(self, attributes.as_ref())?;
 
         self.check_close_tag(name)?;
@@ -252,10 +243,6 @@ impl<'xml, 'a> AccessorXml<'xml> for Deserializer<'a> {
 
     fn verify_prefix(&self, prefix_to_verify: &str) -> bool {
         self.prefixes.get(prefix_to_verify).is_some()
-    }
-
-    fn set_current_attribute(&mut self, attr: &str) {
-        *self.current_attribute = attr.to_string();
     }
 }
 

@@ -79,7 +79,7 @@ pub trait FromXml<'xml>: Sized {
 
     fn deserialize_attr<D>(_deserializer: &mut D, _value: &str) -> Result<Self>
     where
-        D: DeserializeXml<'xml>,  
+        D: DeserializeXml<'xml>,
     {
         unimplemented!();
     }

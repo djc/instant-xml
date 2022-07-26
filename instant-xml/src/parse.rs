@@ -34,7 +34,11 @@ impl<'a> XmlParser<'a> {
             match item {
                 Ok(Token::ElementStart { prefix, local, .. }) => {
                     key = local.to_string();
-                    prefix_ret = Some(prefix.to_string());
+                    prefix_ret = if prefix.is_empty() {
+                        None
+                    } else {
+                        Some(prefix.to_string())
+                    };
                 }
                 Ok(Token::ElementEnd { end, .. }) => match end {
                     ElementEnd::Open => {
@@ -101,15 +105,21 @@ impl<'a> XmlParser<'a> {
 
         println!("peek: {:?}", &item);
         match item {
-            Ok(Token::ElementStart {
-                prefix: _, local, ..
-            }) => Ok(Some(XmlRecord::Open(TagData {
-                key: local.to_string(),
-                attributes: None,
-                default_namespace: None,
-                namespaces: None,
-                prefix: None,
-            }))),
+            Ok(Token::ElementStart { prefix, local, .. }) => {
+                let prefix_ret = if prefix.is_empty() {
+                    None
+                } else {
+                    Some(prefix.to_string())
+                };
+
+                Ok(Some(XmlRecord::Open(TagData {
+                    key: local.to_string(),
+                    attributes: None,
+                    default_namespace: None,
+                    namespaces: None,
+                    prefix: prefix_ret,
+                })))
+            }
             Ok(Token::ElementEnd { end, .. }) => {
                 if let ElementEnd::Close(..) = end {
                     if self.stack.is_empty() {

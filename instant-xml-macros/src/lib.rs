@@ -106,50 +106,70 @@ impl<'a> Serializer {
         output: &'a mut TokenStream,
         missing_prefixes: &'a mut BTreeSet<String>,
     ) {
-        let field_name = field.ident.as_ref().unwrap().to_string();
+        let mut field_name = field.ident.as_ref().unwrap().to_string();
         let field_value = field.ident.as_ref().unwrap();
-        let mut prefix = String::default();
-
-        match Self::retrieve_field_attribute(field) {
-            Some(FieldAttribute::Namespace(namespace)) => {
-                output.extend(quote!(
-                    output.push_str("<");
-                    output.push_str(#field_name);
-                    output.push_str(" xmlns=\"");
-                    output.push_str(#namespace);
-                    output.push_str("\"");
-                ));
-            }
-            Some(FieldAttribute::PrefixIdentifier(prefix_key)) => {
-                output.extend(quote!(
-                    output.push_str("<");
-                    output.push_str(#prefix_key);
-                    output.push_str(":");
-                    output.push_str(#field_name);
-                ));
-
-                if self.other_namespaces.get(&prefix_key).is_none() {
-                    missing_prefixes.insert(prefix_key.clone());
-                };
-                prefix = prefix_key + ":";
-            }
-            _ => {
-                // Without the namespace
-                output.extend(quote!(
-                    output.push_str("<");
-                    output.push_str(#field_name);
-                ));
-            }
+        let field_type = if let syn::Type::Path(v) = &field.ty {
+            v.path.get_ident()
+        } else {
+            todo!();
         };
 
+        // For non-scalars ditch the field name
+        let is_scalar = Self::is_scalar(field_type.as_ref().unwrap().to_string().as_str());
+        if !is_scalar {
+            field_name = field_type.as_ref().unwrap().to_string();
+        }
+
+        let mut prefix = String::default();
+        if is_scalar {
+            match Self::retrieve_field_attribute(field) {
+                Some(FieldAttribute::Namespace(namespace)) => {
+                    output.extend(quote!(
+                        output.push_str("<");
+                        output.push_str(#field_name);
+                        output.push_str(" xmlns=\"");
+                        output.push_str(#namespace);
+                        output.push_str("\"");
+                    ));
+                }
+                Some(FieldAttribute::PrefixIdentifier(prefix_key)) => {
+                    output.extend(quote!(
+                        output.push_str("<");
+                        output.push_str(#prefix_key);
+                        output.push_str(":");
+                        output.push_str(#field_name);
+                    ));
+
+                    if self.other_namespaces.get(&prefix_key).is_none() {
+                        missing_prefixes.insert(prefix_key.clone());
+                    };
+                    prefix = prefix_key + ":";
+                }
+                _ => {
+                    // Without the namespace
+                    output.extend(quote!(
+                        output.push_str("<");
+                        output.push_str(#field_name);
+                    ));
+                }
+            };
+            output.extend(quote!(
+                output.push_str(">");
+            ));
+        }
+
         output.extend(quote!(
-            output.push_str(">");
             output.push_str(self.#field_value.to_xml(Some(child_prefixes)).unwrap().as_str());
-            output.push_str("</");
-            output.push_str(#prefix);
-            output.push_str(#field_name);
-            output.push_str(">");
         ));
+
+        if is_scalar {
+            output.extend(quote!(
+                output.push_str("</");
+                output.push_str(#prefix);
+                output.push_str(#field_name);
+                output.push_str(">");
+            ));
+        }
     }
 
     fn retrieve_namespace_list(attributes: &Vec<syn::Attribute>) -> Option<syn::MetaList> {
@@ -193,6 +213,13 @@ impl<'a> Serializer {
         }
         None
     }
+
+    fn is_scalar(value: &str) -> bool {
+        matches!(
+            value,
+            "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "String"
+        ) // TODO: Fill up
+    }
 }
 
 #[proc_macro_derive(ToXml, attributes(xml))]
@@ -204,7 +231,6 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut serializer = Serializer::new(&ast.attrs);
 
     let mut output = TokenStream::new();
-    output.extend(quote!(let mut output = String::new();));
 
     serializer.add_header(&root_name, &mut output);
 
@@ -225,10 +251,11 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     serializer.add_footer(&root_name, &mut output);
 
-    let current_prefixes: BTreeSet<&str> = serializer.keys_set();
+    let current_prefixes = serializer.keys_set();
     proc_macro::TokenStream::from(quote!(
         impl ToXml for #ident {
             fn write_xml<W: ::std::fmt::Write>(&self, write: &mut W, parent_prefixes: Option<&mut std::collections::BTreeSet<&str>>) -> Result<(), instant_xml::Error> {
+                let mut output = String::new();
                 match parent_prefixes {
                     Some(child_prefixes) => {
                         let mut to_remove: Vec<&str> = Vec::new();

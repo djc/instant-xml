@@ -38,8 +38,8 @@ macro_rules! to_xml_for_type {
                 &self,
                 parent_prefixes: Option<&mut BTreeSet<&str>>,
             ) -> Result<String, Error> {
-                let mut out = self.to_string();
-                self.write_xml(&mut out, parent_prefixes)?;
+                let out = self.to_string();
+                self.write_xml(&mut self.to_string(), parent_prefixes)?;
                 Ok(out)
             }
         }

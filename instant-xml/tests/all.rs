@@ -68,6 +68,7 @@ fn struct_with_custom_field() {
         .to_xml(None)
         .unwrap(),
         "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested><bar:flag>true</bar:flag></Nested></StructWithCustomField>"
+
     );
 }
 

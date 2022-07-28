@@ -74,12 +74,9 @@ fn struct_with_custom_field() {
 #[test]
 #[should_panic]
 fn struct_with_custom_field_wrong_prefix() {
-    assert_eq!(
-        StructWithCustomFieldWrongPrefix {
-            test: NestedWrongPrefix { flag: true },
-        }
-        .to_xml(None)
-        .unwrap(),
-        ""
-    );
+    StructWithCustomFieldWrongPrefix {
+        test: NestedWrongPrefix { flag: true },
+    }
+    .to_xml(None)
+    .unwrap();
 }

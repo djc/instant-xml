@@ -10,46 +10,63 @@ pub use macros::{FromXml, ToXml};
 pub mod parse;
 
 pub trait ToXml {
+    fn to_xml(&self) -> Result<String, Error> {
+        let mut parent_prefixes = BTreeSet::new();
+        let mut serializer = Serializer {
+            parent_prefixes: &mut parent_prefixes,
+        };
+        self.serialize(&mut serializer)
+    }
+
+    fn serialize(&self, serializer: &mut Serializer) -> Result<String, Error>;
+
     fn write_xml<W: fmt::Write>(
         &self,
-        write: &mut W,
-        parent_prefixes: Option<&mut BTreeSet<&str>>,
-    ) -> Result<(), Error>;
-
-    fn to_xml(&self, parent_prefixes: Option<&mut BTreeSet<&str>>) -> Result<String, Error> {
-        let mut out = String::new();
-        self.write_xml(&mut out, parent_prefixes)?;
-        Ok(out)
+        _write: &mut W,
+        _serializer: &mut Serializer,
+    ) -> Result<(), Error> {
+        unimplemented!();
     }
 }
 
-macro_rules! to_xml_for_type {
+macro_rules! to_xml_for_number {
     ($typ:ty) => {
         impl ToXml for $typ {
-            fn write_xml<W: fmt::Write>(
-                &self,
-                _write: &mut W,
-                _parent_prefixes: Option<&mut BTreeSet<&str>>,
-            ) -> Result<(), Error> {
-                Ok(())
-            }
-
-            fn to_xml(
-                &self,
-                parent_prefixes: Option<&mut BTreeSet<&str>>,
-            ) -> Result<String, Error> {
-                self.write_xml(&mut self.to_string(), parent_prefixes)?;
+            fn serialize(&self, _serializer: &mut Serializer) -> Result<String, Error> {
                 Ok(self.to_string())
             }
         }
     };
 }
 
-to_xml_for_type!(bool);
-to_xml_for_type!(i8);
-to_xml_for_type!(i16);
-to_xml_for_type!(i32);
-to_xml_for_type!(String);
+to_xml_for_number!(i8);
+to_xml_for_number!(i16);
+to_xml_for_number!(i32);
+to_xml_for_number!(i64);
+to_xml_for_number!(u8);
+to_xml_for_number!(u16);
+to_xml_for_number!(u32);
+to_xml_for_number!(u64);
+
+pub struct Serializer<'xml> {
+    pub parent_prefixes: &'xml mut BTreeSet<&'xml str>,
+}
+
+impl ToXml for bool {
+    fn serialize(&self, _serializer: &mut Serializer) -> Result<String, Error> {
+        let value = match self {
+            true => "true",
+            false => "false",
+        };
+        Ok(value.to_string())
+    }
+}
+
+impl ToXml for String {
+    fn serialize(&self, _serializer: &mut Serializer) -> Result<String, Error> {
+        Ok((*self).clone())
+    }
+}
 
 pub trait FromXml<'xml>: Sized {
     fn from_xml(input: &str) -> Result<Self, Error>;

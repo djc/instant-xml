@@ -39,7 +39,7 @@ struct StructWithNamedFields {
 
 #[test]
 fn unit() {
-    assert_eq!(Unit.to_xml(None).unwrap(), "<Unit></Unit>");
+    assert_eq!(Unit.to_xml().unwrap(), "<Unit></Unit>");
     assert_eq!(Unit::from_xml("<Unit/>").unwrap(), Unit);
 }
 
@@ -51,7 +51,7 @@ fn struct_with_named_fields() {
             string: "test".to_string(),
             number: 1,
         }
-        .to_xml(None)
+        .to_xml()
         .unwrap(),
         "<StructWithNamedFields xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><flag>true</flag><bar:string>test</bar:string><number xmlns=\"typo\">1</number></StructWithNamedFields>"
     );
@@ -65,7 +65,7 @@ fn struct_with_custom_field() {
                 flag: true,
             },
         }
-        .to_xml(None)
+        .to_xml()
         .unwrap(),
         "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested><bar:flag>true</bar:flag></Nested></StructWithCustomField>"
 
@@ -78,6 +78,6 @@ fn struct_with_custom_field_wrong_prefix() {
     StructWithCustomFieldWrongPrefix {
         test: NestedWrongPrefix { flag: true },
     }
-    .to_xml(None)
+    .to_xml()
     .unwrap();
 }

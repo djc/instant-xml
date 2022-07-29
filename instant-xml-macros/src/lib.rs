@@ -159,7 +159,7 @@ impl<'a> Serializer {
         }
 
         output.extend(quote!(
-            output.push_str(self.#field_value.to_xml(Some(child_prefixes)).unwrap().as_str());
+            output.push_str(self.#field_value.serialize(serializer).unwrap().as_str());
         ));
 
         if is_scalar {
@@ -254,43 +254,33 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let current_prefixes = serializer.keys_set();
     proc_macro::TokenStream::from(quote!(
         impl ToXml for #ident {
-            fn write_xml<W: ::std::fmt::Write>(&self, write: &mut W, parent_prefixes: Option<&mut std::collections::BTreeSet<&str>>) -> Result<(), instant_xml::Error> {
+            fn write_xml<W: ::std::fmt::Write>(&self, write: &mut W, serializer: &mut instant_xml::Serializer) -> Result<(), instant_xml::Error> {
                 let mut output = String::new();
-                match parent_prefixes {
-                    Some(child_prefixes) => {
-                        let mut to_remove: Vec<&str> = Vec::new();
-                        #(if child_prefixes.insert(#current_prefixes) {
-                            to_remove.push(#current_prefixes);
-                        };)*;
-                        #output;
-                        write.write_str(&(output))?;
-                        for it in to_remove {
-                            child_prefixes.remove(it);
-                        }
-                    },
-                    None => {
-                        let mut set = std::collections::BTreeSet::<&str>::new();
-                        let child_prefixes = &mut set;
-                        #(child_prefixes.insert(#current_prefixes);)*;
-                        #output;
-                        write.write_str(&(output))?;
-                    }
+                let mut to_remove: Vec<&str> = Vec::new();
+
+                #(if serializer.parent_prefixes.insert(#current_prefixes) {
+                    to_remove.push(#current_prefixes);
+                };)*;
+                
+                #output;
+                write.write_str(&(output))?;
+                for it in to_remove {
+                    serializer.parent_prefixes.remove(it);
                 }
+
                 Ok(())
             }
 
-            fn to_xml(&self, parent_prefixes: Option<&mut std::collections::BTreeSet<&str>>) -> Result<String, instant_xml::Error> {
+            fn serialize(&self, serializer: &mut instant_xml::Serializer) -> Result<String, instant_xml::Error> {
                 //#(println!("{}", #missing_prefixes);)*;
-                if let Some(parent_prefixes) = parent_prefixes.as_ref() {
-                    #(
-                        if parent_prefixes.get(#missing_prefixes).is_none() {
-                            panic!("wrong prefix");
-                        }
-                    )*;
-                }
+                #(
+                    if serializer.parent_prefixes.get(#missing_prefixes).is_none() {
+                        panic!("wrong prefix");
+                    }
+                )*;
 
                 let mut out = String::new();
-                self.write_xml(&mut out, parent_prefixes)?;
+                self.write_xml(&mut out, serializer)?;
                 Ok(out)
             }
         };

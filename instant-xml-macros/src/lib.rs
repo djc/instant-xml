@@ -63,15 +63,15 @@ impl<'a> Serializer {
 
     fn add_header(&mut self, root_name: &str, output: &'a mut TokenStream) {
         output.extend(quote!(
-            output.push_str("<");
-            output.push_str(#root_name);
+            serializer.output.push('<');
+            serializer.output.push_str(#root_name);
         ));
 
         if let Some(default_namespace) = self.default_namespace.as_ref() {
             output.extend(quote!(
-                output.push_str(" xmlns=\"");
-                output.push_str(#default_namespace);
-                output.push_str("\"");
+                serializer.output.push_str(" xmlns=\"");
+                serializer.output.push_str(#default_namespace);
+                serializer.output.push('\"');
             ));
         }
 
@@ -80,23 +80,23 @@ impl<'a> Serializer {
 
         for (key, val) in sorted_values {
             output.extend(quote!(
-                output.push_str(" xmlns:");
-                output.push_str(#key);
-                output.push_str("=\"");
-                output.push_str(#val);
-                output.push_str("\"");
+                serializer.output.push_str(" xmlns:");
+                serializer.output.push_str(#key);
+                serializer.output.push_str("=\"");
+                serializer.output.push_str(#val);
+                serializer.output.push('\"');
             ));
         }
         output.extend(quote!(
-            output.push_str(">");
+            serializer.output.push('>');
         ));
     }
 
     fn add_footer(&mut self, root_name: &str, output: &'a mut TokenStream) {
         output.extend(quote!(
-            output.push_str("</");
-            output.push_str(#root_name);
-            output.push_str(">");
+            serializer.output.push_str("</");
+            serializer.output.push_str(#root_name);
+            serializer.output.push('>');
         ));
     }
 
@@ -106,70 +106,38 @@ impl<'a> Serializer {
         output: &'a mut TokenStream,
         missing_prefixes: &'a mut BTreeSet<String>,
     ) {
-        let mut field_name = field.ident.as_ref().unwrap().to_string();
+        let field_name = field.ident.as_ref().unwrap().to_string();
         let field_value = field.ident.as_ref().unwrap();
-        let field_type = if let syn::Type::Path(v) = &field.ty {
-            v.path.get_ident()
-        } else {
-            todo!();
-        };
-
-        // For non-scalars ditch the field name
-        let is_scalar = Self::is_scalar(field_type.as_ref().unwrap().to_string().as_str());
-        if !is_scalar {
-            field_name = field_type.as_ref().unwrap().to_string();
-        }
-
-        let mut prefix = String::default();
-        if is_scalar {
-            match Self::retrieve_field_attribute(field) {
-                Some(FieldAttribute::Namespace(namespace)) => {
-                    output.extend(quote!(
-                        output.push_str("<");
-                        output.push_str(#field_name);
-                        output.push_str(" xmlns=\"");
-                        output.push_str(#namespace);
-                        output.push_str("\"");
-                    ));
-                }
-                Some(FieldAttribute::PrefixIdentifier(prefix_key)) => {
-                    output.extend(quote!(
-                        output.push_str("<");
-                        output.push_str(#prefix_key);
-                        output.push_str(":");
-                        output.push_str(#field_name);
-                    ));
-
-                    if self.other_namespaces.get(&prefix_key).is_none() {
-                        missing_prefixes.insert(prefix_key.clone());
-                    };
-                    prefix = prefix_key + ":";
-                }
-                _ => {
-                    // Without the namespace
-                    output.extend(quote!(
-                        output.push_str("<");
-                        output.push_str(#field_name);
-                    ));
-                }
-            };
-            output.extend(quote!(
-                output.push_str(">");
-            ));
-        }
 
         output.extend(quote!(
-            output.push_str(self.#field_value.serialize(serializer).unwrap().as_str());
+            let mut field = instant_xml::FieldData {
+                field_name: #field_name,
+                field_attribute: None,
+                value: "".to_owned(),
+            };
         ));
 
-        if is_scalar {
-            output.extend(quote!(
-                output.push_str("</");
-                output.push_str(#prefix);
-                output.push_str(#field_name);
-                output.push_str(">");
-            ));
-        }
+        match Self::retrieve_field_attribute(field) {
+            Some(FieldAttribute::Namespace(namespace_key)) => {
+                output.extend(quote!(
+                    field.field_attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace_key));
+                ));
+            }
+            Some(FieldAttribute::PrefixIdentifier(prefix_key)) => {
+                output.extend(quote!(
+                    field.field_attribute = Some(instant_xml::FieldAttribute::Prefix(#prefix_key));
+                ));
+
+                if self.other_namespaces.get(&prefix_key).is_none() {
+                    missing_prefixes.insert(prefix_key);
+                };
+            }
+            _ => {}
+        };
+
+        output.extend(quote!(
+            self.#field_value.serialize(serializer, Some(&mut field))?;
+        ));
     }
 
     fn retrieve_namespace_list(attributes: &Vec<syn::Attribute>) -> Option<syn::MetaList> {
@@ -213,13 +181,6 @@ impl<'a> Serializer {
         }
         None
     }
-
-    fn is_scalar(value: &str) -> bool {
-        matches!(
-            value,
-            "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "String"
-        ) // TODO: Fill up
-    }
 }
 
 #[proc_macro_derive(ToXml, attributes(xml))]
@@ -254,16 +215,23 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let current_prefixes = serializer.keys_set();
     proc_macro::TokenStream::from(quote!(
         impl ToXml for #ident {
-            fn write_xml<W: ::std::fmt::Write>(&self, write: &mut W, serializer: &mut instant_xml::Serializer) -> Result<(), instant_xml::Error> {
-                let mut output = String::new();
-                let mut to_remove: Vec<&str> = Vec::new();
+            fn write_xml(&self, serializer: &mut instant_xml::Serializer, field_data: &instant_xml::FieldData) -> Result<(), instant_xml::Error> {
+                // Check if prefix exist
+                #(
+                    if serializer.parent_prefixes.get(#missing_prefixes).is_none() {
+                        panic!("wrong prefix");
+                    }
+                )*;
 
+                // Adding current prefixes
+                let mut to_remove: Vec<&str> = Vec::new();
                 #(if serializer.parent_prefixes.insert(#current_prefixes) {
                     to_remove.push(#current_prefixes);
                 };)*;
-                
-                #output;
-                write.write_str(&(output))?;
+
+                #output
+
+                // Removing current prefixes
                 for it in to_remove {
                     serializer.parent_prefixes.remove(it);
                 }
@@ -271,17 +239,15 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 Ok(())
             }
 
-            fn serialize(&self, serializer: &mut instant_xml::Serializer) -> Result<String, instant_xml::Error> {
-                //#(println!("{}", #missing_prefixes);)*;
-                #(
-                    if serializer.parent_prefixes.get(#missing_prefixes).is_none() {
-                        panic!("wrong prefix");
-                    }
-                )*;
+            fn serialize(&self, serializer: &mut instant_xml::Serializer, _field_data: Option<&mut instant_xml::FieldData>) -> Result<(), instant_xml::Error> {
+                let mut field_data = instant_xml::FieldData {
+                    field_name: #root_name,
+                    field_attribute: None,
+                    value: "".to_owned(),
+                };
 
-                let mut out = String::new();
-                self.write_xml(&mut out, serializer)?;
-                Ok(out)
+                self.write_xml(serializer, &field_data)?;
+                Ok(())
             }
         };
     ))

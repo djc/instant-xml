@@ -113,7 +113,6 @@ impl<'a> Serializer {
             let mut field = instant_xml::FieldData {
                 field_name: #field_name,
                 field_attribute: None,
-                value: "".to_owned(),
             };
         ));
 
@@ -215,11 +214,16 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let current_prefixes = serializer.keys_set();
     proc_macro::TokenStream::from(quote!(
         impl ToXml for #ident {
-            fn write_xml(&self, serializer: &mut instant_xml::Serializer, field_data: &instant_xml::FieldData) -> Result<(), instant_xml::Error> {
+            fn serialize(&self, serializer: &mut instant_xml::Serializer, _field_data: Option<&mut instant_xml::FieldData>) -> Result<(), instant_xml::Error> {
+                let mut field_data = instant_xml::FieldData {
+                    field_name: #root_name,
+                    field_attribute: None,
+                };
+
                 // Check if prefix exist
                 #(
                     if serializer.parent_prefixes.get(#missing_prefixes).is_none() {
-                        panic!("wrong prefix");
+                        return Err(instant_xml::Error::WrongPrefix);
                     }
                 )*;
 
@@ -236,17 +240,6 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     serializer.parent_prefixes.remove(it);
                 }
 
-                Ok(())
-            }
-
-            fn serialize(&self, serializer: &mut instant_xml::Serializer, _field_data: Option<&mut instant_xml::FieldData>) -> Result<(), instant_xml::Error> {
-                let mut field_data = instant_xml::FieldData {
-                    field_name: #root_name,
-                    field_attribute: None,
-                    value: "".to_owned(),
-                };
-
-                self.write_xml(serializer, &field_data)?;
                 Ok(())
             }
         };

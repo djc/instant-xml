@@ -166,7 +166,7 @@ impl ToXml for String {
     ) -> Result<(), Error> {
         match field_data {
             Some(field_data) => {
-                field_data.value = (*self).clone(); // TODO: Is it possible to skip this clone? Maybe move write_xml to Serializer?
+                field_data.value = (*self).clone(); // TODO: Is it possible to skip this clone?
                 self.write_xml(serializer, field_data)?;
                 Ok(())
             }

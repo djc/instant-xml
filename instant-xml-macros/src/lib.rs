@@ -1,8 +1,8 @@
 extern crate proc_macro;
 
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 use quote::quote;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use syn::{parse_macro_input, Lit, Meta, NestedMeta};
 
 const XML: &str = "xml";
@@ -54,60 +54,89 @@ impl<'a> Serializer {
         }
     }
 
-    fn add_header(&mut self, root_name: &str, output: &'a mut proc_macro2::TokenStream) {
-        output.extend(quote!(+ "<" + #root_name));
+    fn keys_set(&self) -> BTreeSet<&str> {
+        self.other_namespaces
+            .iter()
+            .map(|(k, _)| k.as_str())
+            .collect()
+    }
+
+    fn add_header(&mut self, root_name: &str, output: &'a mut TokenStream) {
+        output.extend(quote!(
+            serializer.output.write_char('<')?;
+            serializer.output.write_str(#root_name)?;
+        ));
 
         if let Some(default_namespace) = self.default_namespace.as_ref() {
-            output.extend(quote!(+ " xmlns=\"" + #default_namespace + "\""));
+            output.extend(quote!(
+                serializer.output.write_str(" xmlns=\"")?;
+                serializer.output.write_str(#default_namespace)?;
+                serializer.output.write_char('\"')?;
+            ));
         }
 
         let mut sorted_values: Vec<_> = self.other_namespaces.iter().collect();
         sorted_values.sort();
 
         for (key, val) in sorted_values {
-            output.extend(quote!(+ " xmlns:" + #key + "=\"" + #val + "\""));
+            output.extend(quote!(
+                serializer.output.write_str(" xmlns:")?;
+                serializer.output.write_str(#key)?;
+                serializer.output.write_str("=\"")?;
+                serializer.output.write_str(#val)?;
+                serializer.output.write_char('\"')?;
+            ));
         }
-
-        output.extend(quote!(+ ">"));
+        output.extend(quote!(
+            serializer.output.write_char('>')?;
+        ));
     }
 
-    fn add_footer(&mut self, root_name: &str, output: &'a mut proc_macro2::TokenStream) {
-        output.extend(quote!(+ "</" + #root_name + ">"));
+    fn add_footer(&mut self, root_name: &str, output: &'a mut TokenStream) {
+        output.extend(quote!(
+            serializer.output.write_str("</")?;
+            serializer.output.write_str(#root_name)?;
+            serializer.output.write_char('>')?;
+        ));
     }
 
     fn process_named_field(
         &mut self,
         field: &syn::Field,
-        output: &'a mut proc_macro2::TokenStream,
+        output: &'a mut TokenStream,
+        missing_prefixes: &'a mut BTreeSet<String>,
     ) {
-        let field_name = field.ident.as_ref().unwrap().to_string();
+        let name = field.ident.as_ref().unwrap().to_string();
         let field_value = field.ident.as_ref().unwrap();
-        let mut prefix = String::default();
+
+        output.extend(quote!(
+            let mut field = instant_xml::FieldContext {
+                name: #name,
+                attribute: None,
+            };
+        ));
 
         match Self::retrieve_field_attribute(field) {
-            Some(FieldAttribute::Namespace(namespace)) => {
-                output.extend(quote!(+ "<" + #field_name + " xmlns=\"" + #namespace + "\""));
+            Some(FieldAttribute::Namespace(namespace_key)) => {
+                output.extend(quote!(
+                    field.attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace_key));
+                ));
             }
-            Some(FieldAttribute::PrefixIdentifier(prefix_key))
-                if !self.other_namespaces.is_empty() =>
-            {
-                match self.other_namespaces.get(&prefix_key) {
-                    Some(_) => {
-                        prefix = prefix_key + ":";
-                        output.extend(quote!(+ "<" + #prefix + #field_name));
-                    }
-                    None => todo!(), // return the error
+            Some(FieldAttribute::PrefixIdentifier(prefix_key)) => {
+                output.extend(quote!(
+                    field.attribute = Some(instant_xml::FieldAttribute::Prefix(#prefix_key));
+                ));
+
+                if self.other_namespaces.get(&prefix_key).is_none() {
+                    missing_prefixes.insert(prefix_key);
                 };
             }
-            _ => {
-                // Without the namespace
-                output.extend(quote!(+ "<" + #field_name));
-            }
+            _ => {}
         };
 
-        output.extend(
-            quote!(+ ">" + self.#field_value.to_string().as_str() + "</" + #prefix + #field_name + ">"),
-        );
+        output.extend(quote!(
+            self.#field_value.serialize(serializer, Some(&field))?;
+        ));
     }
 
     fn retrieve_namespace_list(attributes: &Vec<syn::Attribute>) -> Option<syn::MetaList> {
@@ -154,14 +183,15 @@ impl<'a> Serializer {
 }
 
 #[proc_macro_derive(ToXml, attributes(xml))]
-pub fn to_xml(input: TokenStream) -> TokenStream {
+pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
-
     let ident = &ast.ident;
     let root_name = ident.to_string();
-    let mut output: proc_macro2::TokenStream = TokenStream::from(quote!("".to_owned())).into();
-
+    let mut missing_prefixes = BTreeSet::new();
     let mut serializer = Serializer::new(&ast.attrs);
+
+    let mut output = TokenStream::new();
+
     serializer.add_header(&root_name, &mut output);
 
     match &ast.data {
@@ -169,7 +199,7 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
             match data.fields {
                 syn::Fields::Named(ref fields) => {
                     fields.named.iter().for_each(|field| {
-                        serializer.process_named_field(field, &mut output);
+                        serializer.process_named_field(field, &mut output, &mut missing_prefixes);
                     });
                 }
                 syn::Fields::Unnamed(_) => todo!(),
@@ -181,22 +211,50 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
 
     serializer.add_footer(&root_name, &mut output);
 
-    TokenStream::from(quote!(
+    let current_prefixes = serializer.keys_set();
+    proc_macro::TokenStream::from(quote!(
         impl ToXml for #ident {
-            fn write_xml<W: ::std::fmt::Write>(&self, write: &mut W) -> Result<(), instant_xml::Error> {
-                write.write_str(&(#output))?;
+            fn serialize<W>(&self, serializer: &mut instant_xml::Serializer<W>, _field_data: Option<&instant_xml::FieldContext>) -> Result<(), instant_xml::Error>
+            where
+                W: std::fmt::Write,
+            {
+                let mut field_context = instant_xml::FieldContext {
+                    name: #root_name,
+                    attribute: None,
+                };
+
+                // Check if prefix exist
+                #(
+                    if serializer.parent_prefixes.get(#missing_prefixes).is_none() {
+                        return Err(instant_xml::Error::WrongPrefix);
+                    }
+                )*;
+
+                // Adding current prefixes
+                let mut to_remove: Vec<&str> = Vec::new();
+                #(if serializer.parent_prefixes.insert(#current_prefixes) {
+                    to_remove.push(#current_prefixes);
+                };)*;
+
+                #output
+
+                // Removing current prefixes
+                for it in to_remove {
+                    serializer.parent_prefixes.remove(it);
+                }
+
                 Ok(())
             }
-        }
+        };
     ))
 }
 
 #[proc_macro_derive(FromXml, attributes(xml))]
-pub fn from_xml(input: TokenStream) -> TokenStream {
+pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::ItemStruct);
     let ident = &ast.ident;
     let name = ident.to_string();
-    TokenStream::from(quote!(
+    proc_macro::TokenStream::from(quote!(
         impl<'xml> FromXml<'xml> for #ident {
             fn from_xml(input: &str) -> Result<Self, ::instant_xml::Error> {
                 use ::instant_xml::parse::Parse;

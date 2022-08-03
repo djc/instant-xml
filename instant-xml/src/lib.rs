@@ -11,12 +11,8 @@ pub mod parse;
 
 pub trait ToXml {
     fn to_xml(&self) -> Result<String, Error> {
-        let mut parent_prefixes = BTreeSet::new();
         let mut output = String::new();
-        let mut serializer = Serializer {
-            parent_prefixes: &mut parent_prefixes,
-            output: &mut output,
-        };
+        let mut serializer = Serializer::new(&mut output);
         self.serialize(&mut serializer, None)?;
         Ok(output)
     }
@@ -115,11 +111,20 @@ pub struct Serializer<'xml, W>
 where
     W: fmt::Write,
 {
-    pub parent_prefixes: &'xml mut BTreeSet<&'xml str>,
+    #[doc(hidden)]
+    pub parent_prefixes: BTreeSet<&'xml str>,
+    #[doc(hidden)]
     pub output: &'xml mut W,
 }
 
 impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
+    pub fn new(output: &'xml mut W) -> Self {
+        Self {
+            parent_prefixes: BTreeSet::new(),
+            output,
+        }
+    }
+
     fn add_open_tag(&mut self, field_context: &FieldContext) -> Result<(), Error> {
         match field_context.attribute {
             Some(FieldAttribute::Prefix(prefix)) => {
@@ -170,7 +175,9 @@ pub enum FieldAttribute<'xml> {
 }
 
 pub struct FieldContext<'xml> {
+    #[doc(hidden)]
     pub name: &'xml str,
+    #[doc(hidden)]
     pub attribute: Option<FieldAttribute<'xml>>,
 }
 

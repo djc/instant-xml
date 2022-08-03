@@ -18,4 +18,11 @@ impl<'xml> FromXml<'xml> for bool {
     {
         deserializer.deserialize_bool(BoolVisitor)
     }
+
+    fn deserialize_attr<D>(deserializer: &mut D, value: &str) -> Result<Self, Error>
+    where
+        D: DeserializeXml<'xml>,
+    {
+        deserializer.deserialize_attribute(BoolVisitor, value)
+    }
 }

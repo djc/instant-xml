@@ -1,5 +1,6 @@
-use crate::Error;
+use crate::{Error, Result};
 pub use crate::{TagData, XmlRecord};
+use std::collections::HashMap;
 use std::iter::Peekable;
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
@@ -16,9 +17,12 @@ impl<'a> XmlParser<'a> {
         }
     }
 
-    fn parse_next(&mut self) -> Result<Option<XmlRecord>, Error> {
-        let mut attributes = None;
+    fn parse_next(&mut self) -> Result<Option<XmlRecord>> {
         let mut key = String::new();
+        let mut prefix_ret = None;
+        let mut default_namespace = None;
+        let mut namespaces: HashMap<String, String> = HashMap::new();
+        let mut attributes: HashMap<String, String> = HashMap::new();
 
         loop {
             let item = match self.internal_iter.next() {
@@ -28,48 +32,72 @@ impl<'a> XmlParser<'a> {
 
             println!("{:?}", &item);
             match item {
-                Ok(Token::ElementStart {
-                    prefix: _, local, ..
-                }) => {
+                Ok(Token::ElementStart { prefix, local, .. }) => {
                     key = local.to_string();
+                    prefix_ret = if prefix.is_empty() {
+                        None
+                    } else {
+                        Some(prefix.to_string())
+                    };
                 }
-                Ok(Token::ElementEnd { end, .. }) => {
-                    match end {
-                        ElementEnd::Open => {
-                            self.stack.push(key.to_owned());
-                            println!(
-                                "Stack size after push: {}, top: {:?}",
-                                self.stack.len(),
-                                &key
-                            );
+                Ok(Token::ElementEnd { end, .. }) => match end {
+                    ElementEnd::Open => {
+                        self.stack.push(key.to_owned());
+                        println!(
+                            "Stack size after push: {}, top: {:?}",
+                            self.stack.len(),
+                            &key
+                        );
 
-                            return Ok(Some(XmlRecord::Open(TagData { attributes, key })));
-                        }
-                        ElementEnd::Close(..) => {
-                            // TODO: Check if close tag equal to tag in top of stack
-                            let last = self.stack.pop();
-
-                            println!("Stack size after pop: {}", self.stack.len());
-                            return Ok(Some(XmlRecord::Close(last.unwrap())));
-                        }
-                        ElementEnd::Empty => {
-                            todo!();
-                        }
+                        return Ok(Some(XmlRecord::Open(TagData {
+                            key,
+                            attributes: Some(attributes),
+                            default_namespace,
+                            namespaces: Some(namespaces),
+                            prefix: prefix_ret,
+                        })));
                     }
-                }
-                Ok(Token::Attribute { prefix: _, .. }) => {
-                    // TODO: Add to attributes map
-                    attributes = Some(Vec::new());
+                    ElementEnd::Close(_, v) => match self.stack.pop() {
+                        Some(last) if last == v.as_str() => {
+                            println!("Stack size after pop: {}", self.stack.len());
+                            return Ok(Some(XmlRecord::Close(last)));
+                        }
+                        _ => return Err(Error::UnexpectedValue),
+                    },
+                    ElementEnd::Empty => {
+                        todo!();
+                    }
+                },
+                Ok(Token::Attribute {
+                    prefix,
+                    local,
+                    value,
+                    ..
+                }) => {
+                    if prefix.is_empty() && local.as_str() == "xmlns" {
+                        // Default namespace
+                        default_namespace = Some(value.to_string());
+                    } else if prefix.as_str() == "xmlns" {
+                        // Namespaces
+                        namespaces.insert(local.to_string(), value.to_string());
+                    } else if prefix.is_empty() {
+                        // Other attributes
+                        attributes.insert(local.to_string(), value.to_string());
+                    } else {
+                        // TODO: Can the attributes have the prefix?
+                        todo!();
+                    }
                 }
                 Ok(Token::Text { text }) => {
                     return Ok(Some(XmlRecord::Element(text.to_string())));
                 }
-                _ => (), // Todo
+                Ok(_) => return Err(Error::UnexpectedToken),
+                Err(e) => return Err(Error::Parse(e)),
             }
         }
     }
 
-    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>, Error> {
+    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>> {
         let item = match self.internal_iter.peek() {
             Some(v) => v,
             None => return Ok(None),
@@ -77,34 +105,48 @@ impl<'a> XmlParser<'a> {
 
         println!("peek: {:?}", &item);
         match item {
-            Ok(Token::ElementStart {
-                prefix: _, local, ..
-            }) => Ok(Some(XmlRecord::Open(TagData {
-                attributes: None,
-                key: local.to_string(),
-            }))),
+            Ok(Token::ElementStart { prefix, local, .. }) => {
+                let prefix_ret = if prefix.is_empty() {
+                    None
+                } else {
+                    Some(prefix.to_string())
+                };
+
+                Ok(Some(XmlRecord::Open(TagData {
+                    key: local.to_string(),
+                    attributes: None,
+                    default_namespace: None,
+                    namespaces: None,
+                    prefix: prefix_ret,
+                })))
+            }
             Ok(Token::ElementEnd { end, .. }) => {
                 if let ElementEnd::Close(..) = end {
+                    if self.stack.is_empty() {
+                        return Err(Error::UnexpectedEndOfStream);
+                    }
+
                     return Ok(Some(XmlRecord::Close(
                         self.stack.last().unwrap().to_string(),
                     )));
                 }
-                panic!("Wrong end type")
+                Err(Error::UnexpectedToken)
             }
-            _ => panic!("Wrong token, expected Start or End"),
+            Ok(_) => Err(Error::UnexpectedToken),
+            Err(e) => Err(Error::Parse(*e)),
         }
     }
 }
 
 impl<'a> Iterator for XmlParser<'a> {
-    type Item = XmlRecord;
+    type Item = Result<XmlRecord>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         match self.parse_next() {
-            Ok(Some(v)) => Some(v),
+            Ok(Some(v)) => Some(Ok(v)),
             Ok(None) => None,
-            Err(_) => todo!(),
+            Err(e) => Some(Err(e)),
         }
     }
 }

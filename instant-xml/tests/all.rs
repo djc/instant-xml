@@ -40,7 +40,10 @@ struct StructWithNamedFields {
 #[derive(Debug, Eq, PartialEq, FromXml, ToXml)]
 #[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
 struct StructWithCustomFieldFromXml {
+    #[xml(namespace(bar))]
     flag: bool,
+    #[xml(attribute)]
+    flag_attribute: bool,
     test: Nested,
 }
 
@@ -94,20 +97,23 @@ fn struct_with_custom_field_wrong_prefix() {
 #[test]
 fn struct_with_custom_field_from_xml() {
     assert_eq!(
-        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><flag>false</flag><Nested><flag>true</flag></Nested></StructWithCustomFieldFromXml>").unwrap(),
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml flag_attribute=\"true\" xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><bar:flag>false</bar:flag><Nested><flag>true</flag></Nested></StructWithCustomFieldFromXml>").unwrap(),
         StructWithCustomFieldFromXml {
             flag: false,
+            flag_attribute: true,
             test: Nested { flag: true }
         }
     );
     // Different order
     assert_eq!(
-        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested><flag>true</flag></Nested><flag>false</flag></StructWithCustomFieldFromXml>").unwrap(),
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" flag_attribute=\"true\"><Nested><flag>true</flag></Nested><flag>false</flag></StructWithCustomFieldFromXml>").unwrap(),
         StructWithCustomFieldFromXml {
             flag: false,
+            flag_attribute: true,
             test: Nested { flag: true }
         }
     );
+
     assert_eq!(
         Nested::from_xml("<Nested><flag>true</flag></Nested>").unwrap(),
         Nested { flag: true }

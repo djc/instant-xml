@@ -214,7 +214,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let current_prefixes = serializer.keys_set();
     proc_macro::TokenStream::from(quote!(
         impl ToXml for #ident {
-            fn serialize<W>(&self, serializer: &mut instant_xml::Serializer<W>, _field_data: Option<&mut instant_xml::FieldContext>) -> Result<(), instant_xml::Error>
+            fn serialize<W>(&self, serializer: &mut instant_xml::Serializer<W>, _field_data: Option<&instant_xml::FieldContext>) -> Result<(), instant_xml::Error>
             where
                 W: std::fmt::Write,
             {

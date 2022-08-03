@@ -24,7 +24,7 @@ pub trait ToXml {
     fn serialize<W>(
         &self,
         serializer: &mut Serializer<W>,
-        field_context: Option<&mut FieldContext>,
+        field_context: Option<&FieldContext>,
     ) -> Result<(), Error>
     where
         W: fmt::Write;
@@ -36,7 +36,7 @@ macro_rules! to_xml_for_number {
             fn serialize<W>(
                 &self,
                 serializer: &mut Serializer<W>,
-                field_context: Option<&mut FieldContext>,
+                field_context: Option<&FieldContext>,
             ) -> Result<(), Error>
             where
                 W: fmt::Write,
@@ -68,7 +68,7 @@ impl ToXml for bool {
     fn serialize<W>(
         &self,
         serializer: &mut Serializer<W>,
-        field_context: Option<&mut FieldContext>,
+        field_context: Option<&FieldContext>,
     ) -> Result<(), Error>
     where
         W: fmt::Write,
@@ -94,7 +94,7 @@ impl ToXml for String {
     fn serialize<W>(
         &self,
         serializer: &mut Serializer<W>,
-        field_context: Option<&mut FieldContext>,
+        field_context: Option<&FieldContext>,
     ) -> Result<(), Error>
     where
         W: fmt::Write,

@@ -1,5 +1,6 @@
 use crate::{Error, Result};
 pub use crate::{TagData, XmlRecord};
+use std::collections::HashMap;
 use std::iter::Peekable;
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
@@ -17,8 +18,11 @@ impl<'a> XmlParser<'a> {
     }
 
     fn parse_next(&mut self) -> Result<Option<XmlRecord>> {
-        let mut attributes = None;
         let mut key = String::new();
+        let mut prefix_ret = None;
+        let mut default_namespace = None;
+        let mut namespaces: HashMap<String, String> = HashMap::new();
+        let mut attributes: HashMap<String, String> = HashMap::new();
 
         loop {
             let item = match self.internal_iter.next() {
@@ -28,10 +32,13 @@ impl<'a> XmlParser<'a> {
 
             println!("{:?}", &item);
             match item {
-                Ok(Token::ElementStart {
-                    prefix: _, local, ..
-                }) => {
+                Ok(Token::ElementStart { prefix, local, .. }) => {
                     key = local.to_string();
+                    prefix_ret = if prefix.is_empty() {
+                        None
+                    } else {
+                        Some(prefix.to_string())
+                    };
                 }
                 Ok(Token::ElementEnd { end, .. }) => match end {
                     ElementEnd::Open => {
@@ -42,7 +49,13 @@ impl<'a> XmlParser<'a> {
                             &key
                         );
 
-                        return Ok(Some(XmlRecord::Open(TagData { attributes, key })));
+                        return Ok(Some(XmlRecord::Open(TagData {
+                            key,
+                            attributes: Some(attributes),
+                            default_namespace,
+                            namespaces: Some(namespaces),
+                            prefix: prefix_ret,
+                        })));
                     }
                     ElementEnd::Close(_, v) => match self.stack.pop() {
                         Some(last) if last == v.as_str() => {
@@ -55,9 +68,25 @@ impl<'a> XmlParser<'a> {
                         todo!();
                     }
                 },
-                Ok(Token::Attribute { prefix: _, .. }) => {
-                    // TODO: Add to attributes map
-                    attributes = Some(Vec::new());
+                Ok(Token::Attribute {
+                    prefix,
+                    local,
+                    value,
+                    ..
+                }) => {
+                    if prefix.is_empty() && local.as_str() == "xmlns" {
+                        // Default namespace
+                        default_namespace = Some(value.to_string());
+                    } else if prefix.as_str() == "xmlns" {
+                        // Namespaces
+                        namespaces.insert(local.to_string(), value.to_string());
+                    } else if prefix.is_empty() {
+                        // Other attributes
+                        attributes.insert(local.to_string(), value.to_string());
+                    } else {
+                        // TODO: Can the attributes have the prefix?
+                        todo!();
+                    }
                 }
                 Ok(Token::Text { text }) => {
                     return Ok(Some(XmlRecord::Element(text.to_string())));
@@ -76,12 +105,21 @@ impl<'a> XmlParser<'a> {
 
         println!("peek: {:?}", &item);
         match item {
-            Ok(Token::ElementStart {
-                prefix: _, local, ..
-            }) => Ok(Some(XmlRecord::Open(TagData {
-                attributes: None,
-                key: local.to_string(),
-            }))),
+            Ok(Token::ElementStart { prefix, local, .. }) => {
+                let prefix_ret = if prefix.is_empty() {
+                    None
+                } else {
+                    Some(prefix.to_string())
+                };
+
+                Ok(Some(XmlRecord::Open(TagData {
+                    key: local.to_string(),
+                    attributes: None,
+                    default_namespace: None,
+                    namespaces: None,
+                    prefix: prefix_ret,
+                })))
+            }
             Ok(Token::ElementEnd { end, .. }) => {
                 if let ElementEnd::Close(..) = end {
                     if self.stack.is_empty() {

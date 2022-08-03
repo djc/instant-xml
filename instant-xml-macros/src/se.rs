@@ -1,7 +1,6 @@
-use crate::{retrieve_attr_list, retrieve_field_attribute, FieldAttribute};
+use crate::{get_namespaces, retrieve_field_attribute, FieldAttribute};
 use quote::quote;
 use std::collections::{BTreeSet, HashMap};
-use syn::{Lit, Meta, NestedMeta};
 
 pub struct Serializer {
     default_namespace: Option<String>,
@@ -10,34 +9,7 @@ pub struct Serializer {
 
 impl<'a> Serializer {
     pub fn new(attributes: &'a Vec<syn::Attribute>) -> Serializer {
-        let mut default_namespace = None;
-        let mut other_namespaces = HashMap::default();
-
-        if let Some(list) = retrieve_attr_list("namespace", attributes) {
-            match list.path.get_ident() {
-                Some(ident) if ident == "namespace" => {
-                    let mut iter = list.nested.iter();
-                    if let Some(NestedMeta::Lit(Lit::Str(v))) = iter.next() {
-                        default_namespace = Some(v.value());
-                    }
-
-                    for item in iter {
-                        match item {
-                            NestedMeta::Meta(Meta::NameValue(key)) => {
-                                if let Lit::Str(value) = &key.lit {
-                                    other_namespaces.insert(
-                                        key.path.get_ident().unwrap().to_string(),
-                                        value.value(),
-                                    );
-                                }
-                            }
-                            _ => todo!(),
-                        }
-                    }
-                }
-                _ => (),
-            }
-        }
+        let (default_namespace, other_namespaces) = get_namespaces(attributes);
 
         Serializer {
             default_namespace,

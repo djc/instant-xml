@@ -5,7 +5,7 @@ mod se;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use syn::parse_macro_input;
 use syn::{Lit, Meta, NestedMeta};
 
@@ -16,32 +16,39 @@ pub(crate) enum FieldAttribute {
     PrefixIdentifier(String),
 }
 
-pub(crate) fn retrieve_attr_list(
-    name: &str,
+pub(crate) fn get_namespaces(
     attributes: &Vec<syn::Attribute>,
-) -> Option<syn::MetaList> {
-    for attr in attributes {
-        if !attr.path.is_ident(XML) {
-            continue;
-        }
+) -> (Option<String>, HashMap<String, String>) {
+    let mut default_namespace = None;
+    let mut other_namespaces = HashMap::default();
 
-        let nested = match attr.parse_meta() {
-            Ok(Meta::List(meta)) => meta.nested,
-            Ok(_) => todo!(),
-            _ => todo!(),
-        };
+    if let Some(list) = retrieve_attr_list("namespace", attributes) {
+        match list.path.get_ident() {
+            Some(ident) if ident == "namespace" => {
+                let mut iter = list.nested.iter();
+                if let Some(NestedMeta::Lit(Lit::Str(v))) = iter.next() {
+                    default_namespace = Some(v.value());
+                }
 
-        let list = match nested.first() {
-            Some(NestedMeta::Meta(Meta::List(list))) => list,
-            _ => todo!(),
-        };
-
-        if list.path.get_ident()? == name {
-            return Some(list.to_owned());
+                for item in iter {
+                    match item {
+                        NestedMeta::Meta(Meta::NameValue(key)) => {
+                            if let Lit::Str(value) = &key.lit {
+                                other_namespaces.insert(
+                                    key.path.get_ident().unwrap().to_string(),
+                                    value.value(),
+                                );
+                            }
+                        }
+                        _ => todo!(),
+                    }
+                }
+            }
+            _ => (),
         }
     }
 
-    None
+    (default_namespace, other_namespaces)
 }
 
 pub(crate) fn retrieve_field_attribute(name: &str, input: &syn::Field) -> Option<FieldAttribute> {
@@ -58,6 +65,55 @@ pub(crate) fn retrieve_field_attribute(name: &str, input: &syn::Field) -> Option
             _ => (),
         };
     }
+    None
+}
+
+pub(crate) fn retrieve_attr(name: &str, attributes: &Vec<syn::Attribute>) -> Option<bool> {
+    for attr in attributes {
+        if !attr.path.is_ident(XML) {
+            continue;
+        }
+
+        let nested = match attr.parse_meta() {
+            Ok(Meta::List(meta)) => meta.nested,
+            _ => return Some(false),
+        };
+
+        let path = match nested.first() {
+            Some(NestedMeta::Meta(Meta::Path(path))) => path,
+            _ => return Some(false),
+        };
+
+        if path.get_ident()? == name {
+            return Some(true);
+        }
+    }
+
+    None
+}
+
+fn retrieve_attr_list(name: &str, attributes: &Vec<syn::Attribute>) -> Option<syn::MetaList> {
+    for attr in attributes {
+        if !attr.path.is_ident(XML) {
+            continue;
+        }
+
+        let nested = match attr.parse_meta() {
+            Ok(Meta::List(meta)) => meta.nested,
+            Ok(_) => todo!(),
+            _ => todo!(),
+        };
+
+        let list = match nested.first() {
+            Some(NestedMeta::Meta(Meta::List(list))) => list,
+            _ => return None,
+        };
+
+        if list.path.get_ident()? == name {
+            return Some(list.to_owned());
+        }
+    }
+
     None
 }
 
@@ -140,9 +196,11 @@ pub fn from_xml(input: TokenStream) -> TokenStream {
 
     let deserializer = de::Deserializer::new(&ast);
     let fn_deserialize = deserializer.fn_deserialize;
+    let fn_from_xml = deserializer.fn_from_xml;
 
     TokenStream::from(quote!(
         impl<'xml> FromXml<'xml> for #ident {
+            #fn_from_xml
             #fn_deserialize
         }
     ))

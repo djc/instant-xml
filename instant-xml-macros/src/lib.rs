@@ -106,25 +106,25 @@ impl<'a> Serializer {
         output: &'a mut TokenStream,
         missing_prefixes: &'a mut BTreeSet<String>,
     ) {
-        let field_name = field.ident.as_ref().unwrap().to_string();
+        let name = field.ident.as_ref().unwrap().to_string();
         let field_value = field.ident.as_ref().unwrap();
 
         output.extend(quote!(
-            let mut field = instant_xml::FieldData {
-                field_name: #field_name,
-                field_attribute: None,
+            let mut field = instant_xml::FieldContext {
+                name: #name,
+                attribute: None,
             };
         ));
 
         match Self::retrieve_field_attribute(field) {
             Some(FieldAttribute::Namespace(namespace_key)) => {
                 output.extend(quote!(
-                    field.field_attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace_key));
+                    field.attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace_key));
                 ));
             }
             Some(FieldAttribute::PrefixIdentifier(prefix_key)) => {
                 output.extend(quote!(
-                    field.field_attribute = Some(instant_xml::FieldAttribute::Prefix(#prefix_key));
+                    field.attribute = Some(instant_xml::FieldAttribute::Prefix(#prefix_key));
                 ));
 
                 if self.other_namespaces.get(&prefix_key).is_none() {
@@ -214,10 +214,10 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let current_prefixes = serializer.keys_set();
     proc_macro::TokenStream::from(quote!(
         impl ToXml for #ident {
-            fn serialize(&self, serializer: &mut instant_xml::Serializer, _field_data: Option<&mut instant_xml::FieldData>) -> Result<(), instant_xml::Error> {
-                let mut field_data = instant_xml::FieldData {
-                    field_name: #root_name,
-                    field_attribute: None,
+            fn serialize(&self, serializer: &mut instant_xml::Serializer, _field_data: Option<&mut instant_xml::FieldContext>) -> Result<(), instant_xml::Error> {
+                let mut field_context = instant_xml::FieldContext {
+                    name: #root_name,
+                    attribute: None,
                 };
 
                 // Check if prefix exist

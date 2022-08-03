@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 use std::fmt;
+use std::fmt::Write;
 
 use thiserror::Error;
 pub use xmlparser;
@@ -24,7 +25,7 @@ pub trait ToXml {
     fn serialize(
         &self,
         serializer: &mut Serializer,
-        field_data: Option<&mut FieldData>,
+        field_context: Option<&mut FieldContext>,
     ) -> Result<(), Error>;
 }
 
@@ -34,21 +35,17 @@ macro_rules! to_xml_for_number {
             fn serialize(
                 &self,
                 serializer: &mut Serializer,
-                field_data: Option<&mut FieldData>,
+                field_context: Option<&mut FieldContext>,
             ) -> Result<(), Error> {
-                let field_data = match field_data {
-                    Some(field_data) => field_data,
-                    None => &FieldData {
-                        field_name: stringify!($typ),
-                        field_attribute: None,
-                    },
-                };
-
-                serializer.add_open_tag(field_data);
-                serializer.output.push_str(&self.to_string());
-                serializer.add_close_tag(field_data);
-
-                Ok(())
+                match field_context {
+                    Some(field_context) => {
+                        serializer.add_open_tag(field_context);
+                        write!(serializer.output, "{}", &self)?;
+                        serializer.add_close_tag(field_context);
+                        Ok(())
+                    }
+                    None => Err(Error::UnexpectedValue),
+                }
             }
         }
     };
@@ -67,26 +64,22 @@ impl ToXml for bool {
     fn serialize(
         &self,
         serializer: &mut Serializer,
-        field_data: Option<&mut FieldData>,
+        field_context: Option<&mut FieldContext>,
     ) -> Result<(), Error> {
         let value = match self {
             true => "true",
             false => "false",
         };
 
-        let field_data = match field_data {
-            Some(field_data) => field_data,
-            None => &FieldData {
-                field_name: "bool",
-                field_attribute: None,
-            },
-        };
-
-        serializer.add_open_tag(field_data);
-        serializer.output.push_str(value);
-        serializer.add_close_tag(field_data);
-
-        Ok(())
+        match field_context {
+            Some(field_context) => {
+                serializer.add_open_tag(field_context);
+                serializer.output.push_str(value);
+                serializer.add_close_tag(field_context);
+                Ok(())
+            }
+            None => Err(Error::UnexpectedValue),
+        }
     }
 }
 
@@ -94,20 +87,17 @@ impl ToXml for String {
     fn serialize<'xml>(
         &self,
         serializer: &mut Serializer,
-        field_data: Option<&mut FieldData>,
+        field_context: Option<&mut FieldContext>,
     ) -> Result<(), Error> {
-        let field_data = match field_data {
-            Some(field_data) => field_data,
-            None => &FieldData {
-                field_name: "String",
-                field_attribute: None,
-            },
-        };
-
-        serializer.add_open_tag(field_data);
-        serializer.output.push_str(self);
-        serializer.add_close_tag(field_data);
-        Ok(())
+        match field_context {
+            Some(field_context) => {
+                serializer.add_open_tag(field_context);
+                serializer.output.push_str(self);
+                serializer.add_close_tag(field_context);
+                Ok(())
+            }
+            None => Err(Error::UnexpectedValue),
+        }
     }
 }
 
@@ -117,42 +107,42 @@ pub struct Serializer<'xml> {
 }
 
 impl<'xml> Serializer<'xml> {
-    fn add_open_tag(&mut self, field_data: &FieldData) {
-        match field_data.field_attribute {
+    fn add_open_tag(&mut self, field_context: &FieldContext) {
+        match field_context.attribute {
             Some(FieldAttribute::Prefix(prefix)) => {
                 self.output.push('<');
                 self.output.push_str(prefix);
                 self.output.push(':');
-                self.output.push_str(field_data.field_name);
+                self.output.push_str(field_context.name);
                 self.output.push('>');
             }
             Some(FieldAttribute::Namespace(namespace)) => {
                 self.output.push('<');
-                self.output.push_str(field_data.field_name);
+                self.output.push_str(field_context.name);
                 self.output.push_str(" xmlns=\"");
                 self.output.push_str(namespace);
                 self.output.push_str("\">");
             }
             _ => {
                 self.output.push('<');
-                self.output.push_str(field_data.field_name);
+                self.output.push_str(field_context.name);
                 self.output.push('>');
             }
         }
     }
 
-    fn add_close_tag(&mut self, field_data: &FieldData) {
-        match field_data.field_attribute {
+    fn add_close_tag(&mut self, field_context: &FieldContext) {
+        match field_context.attribute {
             Some(FieldAttribute::Prefix(prefix)) => {
                 self.output.push_str("</");
                 self.output.push_str(prefix);
                 self.output.push(':');
-                self.output.push_str(field_data.field_name);
+                self.output.push_str(field_context.name);
                 self.output.push('>');
             }
             _ => {
                 self.output.push_str("</");
-                self.output.push_str(field_data.field_name);
+                self.output.push_str(field_context.name);
                 self.output.push('>');
             }
         }
@@ -164,9 +154,9 @@ pub enum FieldAttribute<'xml> {
     Namespace(&'xml str),
 }
 
-pub struct FieldData<'xml> {
-    pub field_name: &'xml str,
-    pub field_attribute: Option<FieldAttribute<'xml>>,
+pub struct FieldContext<'xml> {
+    pub name: &'xml str,
+    pub attribute: Option<FieldAttribute<'xml>>,
 }
 
 pub trait FromXml<'xml>: Sized {

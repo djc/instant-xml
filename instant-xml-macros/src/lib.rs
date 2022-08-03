@@ -63,15 +63,15 @@ impl<'a> Serializer {
 
     fn add_header(&mut self, root_name: &str, output: &'a mut TokenStream) {
         output.extend(quote!(
-            serializer.output.push('<');
-            serializer.output.push_str(#root_name);
+            serializer.output.write_char('<')?;
+            serializer.output.write_str(#root_name)?;
         ));
 
         if let Some(default_namespace) = self.default_namespace.as_ref() {
             output.extend(quote!(
-                serializer.output.push_str(" xmlns=\"");
-                serializer.output.push_str(#default_namespace);
-                serializer.output.push('\"');
+                serializer.output.write_str(" xmlns=\"")?;
+                serializer.output.write_str(#default_namespace)?;
+                serializer.output.write_char('\"')?;
             ));
         }
 
@@ -80,23 +80,23 @@ impl<'a> Serializer {
 
         for (key, val) in sorted_values {
             output.extend(quote!(
-                serializer.output.push_str(" xmlns:");
-                serializer.output.push_str(#key);
-                serializer.output.push_str("=\"");
-                serializer.output.push_str(#val);
-                serializer.output.push('\"');
+                serializer.output.write_str(" xmlns:")?;
+                serializer.output.write_str(#key)?;
+                serializer.output.write_str("=\"")?;
+                serializer.output.write_str(#val)?;
+                serializer.output.write_char('\"')?;
             ));
         }
         output.extend(quote!(
-            serializer.output.push('>');
+            serializer.output.write_char('>')?;
         ));
     }
 
     fn add_footer(&mut self, root_name: &str, output: &'a mut TokenStream) {
         output.extend(quote!(
-            serializer.output.push_str("</");
-            serializer.output.push_str(#root_name);
-            serializer.output.push('>');
+            serializer.output.write_str("</")?;
+            serializer.output.write_str(#root_name)?;
+            serializer.output.write_char('>')?;
         ));
     }
 
@@ -214,7 +214,10 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let current_prefixes = serializer.keys_set();
     proc_macro::TokenStream::from(quote!(
         impl ToXml for #ident {
-            fn serialize(&self, serializer: &mut instant_xml::Serializer, _field_data: Option<&mut instant_xml::FieldContext>) -> Result<(), instant_xml::Error> {
+            fn serialize<W>(&self, serializer: &mut instant_xml::Serializer<W>, _field_data: Option<&mut instant_xml::FieldContext>) -> Result<(), instant_xml::Error>
+            where
+                W: std::fmt::Write,
+            {
                 let mut field_context = instant_xml::FieldContext {
                     name: #root_name,
                     attribute: None,

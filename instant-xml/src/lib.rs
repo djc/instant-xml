@@ -1,6 +1,5 @@
 use std::collections::{BTreeSet, HashMap};
 use std::fmt;
-use std::fmt::Write;
 
 use thiserror::Error;
 pub use xmlparser;
@@ -22,26 +21,31 @@ pub trait ToXml {
         Ok(output)
     }
 
-    fn serialize(
+    fn serialize<W>(
         &self,
-        serializer: &mut Serializer,
+        serializer: &mut Serializer<W>,
         field_context: Option<&mut FieldContext>,
-    ) -> Result<(), Error>;
+    ) -> Result<(), Error>
+    where
+        W: fmt::Write;
 }
 
 macro_rules! to_xml_for_number {
     ($typ:ty) => {
         impl ToXml for $typ {
-            fn serialize(
+            fn serialize<W>(
                 &self,
-                serializer: &mut Serializer,
+                serializer: &mut Serializer<W>,
                 field_context: Option<&mut FieldContext>,
-            ) -> Result<(), Error> {
+            ) -> Result<(), Error>
+            where
+                W: fmt::Write,
+            {
                 match field_context {
                     Some(field_context) => {
-                        serializer.add_open_tag(field_context);
+                        serializer.add_open_tag(field_context)?;
                         write!(serializer.output, "{}", &self)?;
-                        serializer.add_close_tag(field_context);
+                        serializer.add_close_tag(field_context)?;
                         Ok(())
                     }
                     None => Err(Error::UnexpectedValue),
@@ -61,11 +65,14 @@ to_xml_for_number!(u32);
 to_xml_for_number!(u64);
 
 impl ToXml for bool {
-    fn serialize(
+    fn serialize<W>(
         &self,
-        serializer: &mut Serializer,
+        serializer: &mut Serializer<W>,
         field_context: Option<&mut FieldContext>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error>
+    where
+        W: fmt::Write,
+    {
         let value = match self {
             true => "true",
             false => "false",
@@ -73,9 +80,9 @@ impl ToXml for bool {
 
         match field_context {
             Some(field_context) => {
-                serializer.add_open_tag(field_context);
-                serializer.output.push_str(value);
-                serializer.add_close_tag(field_context);
+                serializer.add_open_tag(field_context)?;
+                serializer.output.write_str(value)?;
+                serializer.add_close_tag(field_context)?;
                 Ok(())
             }
             None => Err(Error::UnexpectedValue),
@@ -84,16 +91,19 @@ impl ToXml for bool {
 }
 
 impl ToXml for String {
-    fn serialize<'xml>(
+    fn serialize<W>(
         &self,
-        serializer: &mut Serializer,
+        serializer: &mut Serializer<W>,
         field_context: Option<&mut FieldContext>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error>
+    where
+        W: fmt::Write,
+    {
         match field_context {
             Some(field_context) => {
-                serializer.add_open_tag(field_context);
-                serializer.output.push_str(self);
-                serializer.add_close_tag(field_context);
+                serializer.add_open_tag(field_context)?;
+                serializer.output.write_str(self)?;
+                serializer.add_close_tag(field_context)?;
                 Ok(())
             }
             None => Err(Error::UnexpectedValue),
@@ -101,51 +111,56 @@ impl ToXml for String {
     }
 }
 
-pub struct Serializer<'xml> {
+pub struct Serializer<'xml, W>
+where
+    W: fmt::Write,
+{
     pub parent_prefixes: &'xml mut BTreeSet<&'xml str>,
-    pub output: &'xml mut String,
+    pub output: &'xml mut W,
 }
 
-impl<'xml> Serializer<'xml> {
-    fn add_open_tag(&mut self, field_context: &FieldContext) {
+impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
+    fn add_open_tag(&mut self, field_context: &FieldContext) -> Result<(), Error> {
         match field_context.attribute {
             Some(FieldAttribute::Prefix(prefix)) => {
-                self.output.push('<');
-                self.output.push_str(prefix);
-                self.output.push(':');
-                self.output.push_str(field_context.name);
-                self.output.push('>');
+                self.output.write_char('<')?;
+                self.output.write_str(prefix)?;
+                self.output.write_char(':')?;
+                self.output.write_str(field_context.name)?;
+                self.output.write_char('>')?;
             }
             Some(FieldAttribute::Namespace(namespace)) => {
-                self.output.push('<');
-                self.output.push_str(field_context.name);
-                self.output.push_str(" xmlns=\"");
-                self.output.push_str(namespace);
-                self.output.push_str("\">");
+                self.output.write_char('<')?;
+                self.output.write_str(field_context.name)?;
+                self.output.write_str(" xmlns=\"")?;
+                self.output.write_str(namespace)?;
+                self.output.write_str("\">")?;
             }
             _ => {
-                self.output.push('<');
-                self.output.push_str(field_context.name);
-                self.output.push('>');
+                self.output.write_char('<')?;
+                self.output.write_str(field_context.name)?;
+                self.output.write_char('>')?;
             }
         }
+        Ok(())
     }
 
-    fn add_close_tag(&mut self, field_context: &FieldContext) {
+    fn add_close_tag(&mut self, field_context: &FieldContext) -> Result<(), Error> {
         match field_context.attribute {
             Some(FieldAttribute::Prefix(prefix)) => {
-                self.output.push_str("</");
-                self.output.push_str(prefix);
-                self.output.push(':');
-                self.output.push_str(field_context.name);
-                self.output.push('>');
+                self.output.write_str("</")?;
+                self.output.write_str(prefix)?;
+                self.output.write_char(':')?;
+                self.output.write_str(field_context.name)?;
+                self.output.write_char('>')?;
             }
             _ => {
-                self.output.push_str("</");
-                self.output.push_str(field_context.name);
-                self.output.push('>');
+                self.output.write_str("</")?;
+                self.output.write_str(field_context.name)?;
+                self.output.write_char('>')?;
             }
         }
+        Ok(())
     }
 }
 

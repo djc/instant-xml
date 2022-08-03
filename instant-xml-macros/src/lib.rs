@@ -135,7 +135,7 @@ impl<'a> Serializer {
         };
 
         output.extend(quote!(
-            self.#field_value.serialize(serializer, Some(&mut field))?;
+            self.#field_value.serialize(serializer, Some(&field))?;
         ));
     }
 

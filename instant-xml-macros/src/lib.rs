@@ -3,11 +3,12 @@ extern crate proc_macro;
 mod de;
 mod se;
 
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 use quote::quote;
 use std::collections::{BTreeSet, HashMap};
 use syn::parse_macro_input;
 use syn::{Lit, Meta, NestedMeta};
+use crate::se::Serializer;
 
 const XML: &str = "xml";
 
@@ -118,14 +119,13 @@ fn retrieve_attr_list(name: &str, attributes: &Vec<syn::Attribute>) -> Option<sy
 }
 
 #[proc_macro_derive(ToXml, attributes(xml))]
-pub fn to_xml(input: TokenStream) -> TokenStream {
+pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
     let ident = &ast.ident;
     let root_name = ident.to_string();
-    let mut output: proc_macro2::TokenStream = TokenStream::from(quote!("".to_owned())).into();
     let mut missing_prefixes = BTreeSet::new();
-
-    let mut serializer = se::Serializer::new(&ast.attrs);
+    let mut serializer = Serializer::new(&ast.attrs);
+    let mut output = TokenStream::new();
     serializer.add_header(&root_name, &mut output);
 
     match &ast.data {
@@ -144,53 +144,48 @@ pub fn to_xml(input: TokenStream) -> TokenStream {
     };
 
     serializer.add_footer(&root_name, &mut output);
-
-    let current_prefixes: BTreeSet<&str> = serializer.get_keys_set();
-    TokenStream::from(quote!(
+    
+    let current_prefixes = serializer.keys_set();
+    
+    proc_macro::TokenStream::from(quote!(
         impl ToXml for #ident {
-            fn write_xml<W: ::std::fmt::Write>(&self, write: &mut W, parent_prefixes: Option<&mut std::collections::BTreeSet<&str>>) -> Result<(), instant_xml::Error> {
-                match parent_prefixes {
-                    Some(child_prefixes) => {
-                        let mut to_remove: Vec<&str> = Vec::new();
-                        #(if child_prefixes.insert(#current_prefixes) {
-                            to_remove.push(#current_prefixes);
-                        };)*;
-                        write.write_str(&(#output))?;
+            fn serialize<W>(&self, serializer: &mut instant_xml::Serializer<W>, _field_data: Option<&instant_xml::FieldContext>) -> Result<(), instant_xml::Error>
+            where
+                W: std::fmt::Write,
+            {
+                let mut field_context = instant_xml::FieldContext {
+                    name: #root_name,
+                    attribute: None,
+                };
 
-                        for it in to_remove {
-                            child_prefixes.remove(it);
-                        }
-                    },
-                    None => {
-                        let mut set = std::collections::BTreeSet::<&str>::new();
-                        let child_prefixes = &mut set;
-                        #(child_prefixes.insert(#current_prefixes);)*;
-                        write.write_str(&(#output))?;
+                // Check if prefix exist
+                #(
+                    if serializer.parent_prefixes.get(#missing_prefixes).is_none() {
+                        return Err(instant_xml::Error::UnexpectedPrefix);
                     }
+                )*;
+
+                // Adding current prefixes
+                let mut to_remove: Vec<&str> = Vec::new();
+                #(if serializer.parent_prefixes.insert(#current_prefixes) {
+                    to_remove.push(#current_prefixes);
+                };)*;
+
+                #output
+
+                // Removing current prefixes
+                for it in to_remove {
+                    serializer.parent_prefixes.remove(it);
                 }
+
                 Ok(())
-            }
-
-            fn to_xml(&self, parent_prefixes: Option<&mut std::collections::BTreeSet<&str>>) -> Result<String, instant_xml::Error> {
-                //#(println!("{}", #missing_prefixes);)*;
-                if let Some(parent_prefixes) = parent_prefixes.as_ref() {
-                    #(
-                        if parent_prefixes.get(#missing_prefixes).is_none() {
-                            panic!("wrong prefix");
-                        }
-                    )*;
-                }
-
-                let mut out = String::new();
-                self.write_xml(&mut out, parent_prefixes)?;
-                Ok(out)
             }
         };
     ))
 }
 
 #[proc_macro_derive(FromXml, attributes(xml))]
-pub fn from_xml(input: TokenStream) -> TokenStream {
+pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
     let ident = &ast.ident;
 
@@ -198,7 +193,7 @@ pub fn from_xml(input: TokenStream) -> TokenStream {
     let fn_deserialize = deserializer.fn_deserialize;
     let fn_from_xml = deserializer.fn_from_xml;
 
-    TokenStream::from(quote!(
+    proc_macro::TokenStream::from(quote!(
         impl<'xml> FromXml<'xml> for #ident {
             #fn_from_xml
             #fn_deserialize

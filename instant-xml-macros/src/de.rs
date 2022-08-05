@@ -213,8 +213,7 @@ impl Deserializer {
         is_element: bool,
     ) {
         let field_name = field.ident.as_ref().unwrap().to_string();
-        let const_field_name =
-            Ident::new(&field_name.to_uppercase(), Span::call_site());
+        let const_field_name = Ident::new(&field_name.to_uppercase(), Span::call_site());
         let field_value = field.ident.as_ref().unwrap();
         let field_type = if let syn::Type::Path(v) = &field.ty {
             v.path.get_ident()
@@ -226,7 +225,7 @@ impl Deserializer {
         tokens.enum_.extend(quote!(#enum_name,));
 
         tokens.lets_.extend(quote!(
-            const #const_field_name: &str = match #field_type::TAG_NAME {
+            static #const_field_name: &str = match #field_type::TAG_NAME {
                 ::instant_xml::XMLTagName::FieldName => #field_name,
                 ::instant_xml::XMLTagName::Custom(v) => v,
             };

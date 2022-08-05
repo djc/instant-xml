@@ -211,12 +211,13 @@ pub enum XMLTagName<'xml> {
 }
 
 pub trait FromXml<'xml>: Sized {
+    const TAG_NAME: XMLTagName<'xml>;
+
     fn from_xml(_input: &str) -> Result<Self> {
         unimplemented!();
     }
 
     fn deserialize(deserializer: &mut Deserializer, kind: EntityType) -> Result<Self>;
-    fn tag_name() -> XMLTagName<'xml>;
 }
 
 pub trait Visitor<'xml>: Sized {

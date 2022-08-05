@@ -1,7 +1,9 @@
-use crate::{get_namespaces, retrieve_field_attribute, FieldAttribute};
-use quote::quote;
 use std::collections::{BTreeSet, HashMap};
+
 use proc_macro2::TokenStream;
+use quote::quote;
+
+use crate::{get_namespaces, retrieve_field_attribute, FieldAttribute};
 
 pub struct Serializer {
     default_namespace: Option<String>,
@@ -25,10 +27,10 @@ impl<'a> Serializer {
             .collect()
     }
 
-    pub fn add_header(&mut self, root_name: &str, output: &'a mut TokenStream) {
+    pub fn add_header(&mut self, output: &'a mut TokenStream) {
         output.extend(quote!(
             serializer.output.write_char('<')?;
-            serializer.output.write_str(#root_name)?;
+            serializer.output.write_str(field_context.name)?;
         ));
 
         if let Some(default_namespace) = self.default_namespace.as_ref() {

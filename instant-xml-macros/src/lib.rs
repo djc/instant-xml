@@ -3,12 +3,12 @@ extern crate proc_macro;
 mod de;
 mod se;
 
+use crate::se::Serializer;
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::collections::{BTreeSet, HashMap};
 use syn::parse_macro_input;
 use syn::{Lit, Meta, NestedMeta};
-use crate::se::Serializer;
 
 const XML: &str = "xml";
 
@@ -126,7 +126,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut missing_prefixes = BTreeSet::new();
     let mut serializer = Serializer::new(&ast.attrs);
     let mut output = TokenStream::new();
-    serializer.add_header(&root_name, &mut output);
+    serializer.add_header(&mut output);
 
     match &ast.data {
         syn::Data::Struct(ref data) => {
@@ -144,9 +144,9 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     };
 
     serializer.add_footer(&root_name, &mut output);
-    
+
     let current_prefixes = serializer.keys_set();
-    
+
     proc_macro::TokenStream::from(quote!(
         impl ToXml for #ident {
             fn serialize<W>(&self, serializer: &mut instant_xml::Serializer<W>, _field_data: Option<&instant_xml::FieldContext>) -> Result<(), instant_xml::Error>
@@ -190,13 +190,11 @@ pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ident = &ast.ident;
 
     let deserializer = de::Deserializer::new(&ast);
-    let fn_deserialize = deserializer.fn_deserialize;
-    let fn_from_xml = deserializer.fn_from_xml;
+    let fn_vec = deserializer.fn_vec();
 
     proc_macro::TokenStream::from(quote!(
         impl<'xml> FromXml<'xml> for #ident {
-            #fn_from_xml
-            #fn_deserialize
+            #(#fn_vec)*
         }
     ))
 }

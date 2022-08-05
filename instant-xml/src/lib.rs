@@ -13,7 +13,7 @@ pub mod parse;
 
 pub struct TagData {
     pub key: String,
-    pub attributes: Option<HashMap<String, String>>,
+    pub attributes: Vec<(String, String)>,
 
     // TODO: handle default namespace
     pub default_namespace: Option<String>,
@@ -200,49 +200,23 @@ pub struct FieldContext<'xml> {
     pub attribute: Option<FieldAttribute<'xml>>,
 }
 
+pub enum EntityType {
+    Element,
+    Attribute,
+}
+
+pub enum XMLTagName<'xml> {
+    FieldName,
+    Custom(&'xml str),
+}
+
 pub trait FromXml<'xml>: Sized {
     fn from_xml(_input: &str) -> Result<Self> {
         unimplemented!();
     }
 
-    fn deserialize<D>(deserializer: &mut D) -> Result<Self>
-    where
-        D: DeserializeXml<'xml>;
-
-    fn deserialize_attr<D>(_deserializer: &mut D, _value: &str) -> Result<Self>
-    where
-        D: DeserializeXml<'xml>,
-    {
-        unimplemented!();
-    }
-}
-
-pub trait DeserializeXml<'xml>: Sized {
-    fn deserialize_bool<V>(&mut self, _visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'xml>,
-    {
-        unimplemented!();
-    }
-
-    fn deserialize_struct<V>(
-        &mut self,
-        _visitor: V,
-        _name: &str,
-        _prefixes: &HashMap<&'xml str, &'xml str>,
-    ) -> Result<V::Value>
-    where
-        V: Visitor<'xml>,
-    {
-        unimplemented!();
-    }
-
-    fn deserialize_attribute<V>(&mut self, _visitor: V, _value: &str) -> Result<V::Value>
-    where
-        V: Visitor<'xml>,
-    {
-        unimplemented!();
-    }
+    fn deserialize(deserializer: &mut Deserializer, kind: EntityType) -> Result<Self>;
+    fn tag_name() -> XMLTagName<'xml>;
 }
 
 pub trait Visitor<'xml>: Sized {
@@ -252,35 +226,97 @@ pub trait Visitor<'xml>: Sized {
         unimplemented!();
     }
 
-    fn visit_struct<'a, D>(
-        &self,
-        _deserializer: &mut D,
-        _attributes: Option<&HashMap<String, String>>,
-    ) -> Result<Self::Value>
-    where
-        D: DeserializeXml<'xml> + AccessorXml<'xml>,
-    {
+    fn visit_struct<'a>(&self, _deserializer: &'a mut Deserializer) -> Result<Self::Value> {
         unimplemented!();
     }
 }
 
-pub trait AccessorXml<'xml> {
-    fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>>;
-    fn verify_prefix(&self, prefix_to_verify: &str) -> bool;
-}
-
 pub struct Deserializer<'xml> {
-    pub iter: &'xml mut XmlParser<'xml>,
-    pub prefixes: &'xml mut BTreeSet<&'xml str>,
+    #[doc(hidden)]
+    pub parser: &'xml mut XmlParser<'xml>,
+    #[doc(hidden)]
+    pub namespaces: HashMap<&'xml str, &'xml str>,
+    #[doc(hidden)]
+    pub tag_attributes: Vec<(String, String)>,
 }
 
 impl<'xml> Deserializer<'xml> {
+    pub fn deserialize_bool<V>(&mut self, visitor: V) -> Result<V::Value>
+    where
+        V: Visitor<'xml>,
+    {
+        self.parser.next();
+        if let Some(item) = self.parser.next() {
+            match item? {
+                XmlRecord::Element(v) => {
+                    let ret = visitor.visit_str(v.as_str());
+                    self.parser.next();
+                    ret
+                }
+                _ => Err(Error::UnexpectedTag),
+            }
+        } else {
+            Err(Error::MissingValue)
+        }
+    }
+
+    pub fn deserialize_attribute<V>(&mut self, visitor: V) -> Result<V::Value>
+    where
+        V: Visitor<'xml>,
+    {
+        visitor.visit_str(&self.pop_next_attribute_value()?)
+    }
+
+    pub fn deserialize_struct<V>(
+        &mut self,
+        visitor: V,
+        name: &str,
+        namespaces: &HashMap<&'xml str, &'xml str>,
+    ) -> Result<V::Value>
+    where
+        V: Visitor<'xml>,
+    {
+        let new_namespaces = namespaces
+            .iter()
+            .filter(|(k, v)| self.namespaces.insert(k, v).is_none())
+            .collect::<Vec<_>>();
+
+        self.process_open_tag(name, namespaces)?;
+        let ret = visitor.visit_struct(self)?;
+
+        self.check_close_tag(name)?;
+        let _ = new_namespaces
+            .iter()
+            .map(|(k, _)| self.namespaces.remove(*k));
+
+        Ok(ret)
+    }
+
+    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>> {
+        self.parser.peek_next_tag()
+    }
+
+    pub fn verify_namespace(&self, namespace_to_verify: &str) -> bool {
+        self.namespaces.get(namespace_to_verify).is_some()
+    }
+
+    pub fn peek_next_attribute(&self) -> Option<&(String, String)> {
+        self.tag_attributes.last()
+    }
+
+    pub fn pop_next_attribute_value(&mut self) -> Result<String> {
+        match self.tag_attributes.pop() {
+            Some((_, value)) => Ok(value),
+            None => Err(Error::UnexpectedEndOfStream),
+        }
+    }
+
     fn process_open_tag(
         &mut self,
         name: &str,
         namespaces: &HashMap<&'xml str, &'xml str>,
-    ) -> Result<Option<HashMap<String, String>>> {
-        if let Some(item) = self.iter.next() {
+    ) -> Result<()> {
+        if let Some(item) = self.parser.next() {
             match item? {
                 XmlRecord::Open(v) if v.key == name => {
                     // Check if namespaces from parser are the same as defined in the struct
@@ -294,7 +330,8 @@ impl<'xml> Deserializer<'xml> {
                         }
                     }
 
-                    Ok(v.attributes)
+                    self.tag_attributes = v.attributes;
+                    Ok(())
                 }
                 _ => Err(Error::UnexpectedValue),
             }
@@ -305,7 +342,7 @@ impl<'xml> Deserializer<'xml> {
 
     fn check_close_tag(&mut self, name: &str) -> Result<()> {
         // Close tag
-        if let Some(item) = self.iter.next() {
+        if let Some(item) = self.parser.next() {
             match item? {
                 XmlRecord::Close(v) if v == name => Ok(()),
                 _ => Err(Error::UnexpectedTag),
@@ -313,68 +350,6 @@ impl<'xml> Deserializer<'xml> {
         } else {
             Err(Error::MissingTag)
         }
-    }
-}
-
-impl<'xml> DeserializeXml<'xml> for Deserializer<'xml> {
-    fn deserialize_bool<V>(&mut self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'xml>,
-    {
-        self.iter.next();
-        if let Some(item) = self.iter.next() {
-            match item? {
-                XmlRecord::Element(v) => {
-                    let ret = visitor.visit_str(v.as_str());
-                    self.iter.next();
-                    ret
-                }
-                _ => Err(Error::UnexpectedTag),
-            }
-        } else {
-            Err(Error::MissingValue)
-        }
-    }
-
-    fn deserialize_attribute<V>(&mut self, visitor: V, value: &str) -> Result<V::Value>
-    where
-        V: Visitor<'xml>,
-    {
-        visitor.visit_str(value)
-    }
-
-    // TODO: Validate if other types were already used, tab of &str
-    fn deserialize_struct<V>(
-        &mut self,
-        visitor: V,
-        name: &str,
-        namespaces: &HashMap<&'xml str, &'xml str>,
-    ) -> Result<V::Value>
-    where
-        V: Visitor<'xml>,
-    {
-        let new_prefixes = namespaces
-            .keys()
-            .filter(|v| self.prefixes.insert(v))
-            .collect::<Vec<_>>();
-
-        let attributes = self.process_open_tag(name, namespaces)?;
-        let ret = visitor.visit_struct(self, attributes.as_ref())?;
-
-        self.check_close_tag(name)?;
-        let _ = new_prefixes.iter().map(|v| self.prefixes.remove(*v));
-
-        Ok(ret)
-    }
-}
-
-impl<'xml, 'a> AccessorXml<'xml> for Deserializer<'a> {
-    fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>> {
-        self.iter.peek_next_tag()
-    }
-
-    fn verify_prefix(&self, prefix_to_verify: &str) -> bool {
-        self.prefixes.get(prefix_to_verify).is_some()
     }
 }
 

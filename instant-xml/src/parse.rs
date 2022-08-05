@@ -1,8 +1,10 @@
-use crate::{Error, Result};
-pub use crate::{TagData, XmlRecord};
 use std::collections::HashMap;
 use std::iter::Peekable;
+
 use xmlparser::{ElementEnd, Token, Tokenizer};
+
+use crate::{Error, Result};
+pub use crate::{TagData, XmlRecord};
 
 pub struct XmlParser<'a> {
     stack: Vec<String>,
@@ -21,8 +23,8 @@ impl<'a> XmlParser<'a> {
         let mut key = String::new();
         let mut prefix_ret = None;
         let mut default_namespace = None;
-        let mut namespaces: HashMap<String, String> = HashMap::new();
-        let mut attributes: HashMap<String, String> = HashMap::new();
+        let mut namespaces = HashMap::new();
+        let mut attributes = Vec::new();
 
         loop {
             let item = match self.internal_iter.next() {
@@ -51,7 +53,7 @@ impl<'a> XmlParser<'a> {
 
                         return Ok(Some(XmlRecord::Open(TagData {
                             key,
-                            attributes: Some(attributes),
+                            attributes,
                             default_namespace,
                             namespaces: Some(namespaces),
                             prefix: prefix_ret,
@@ -82,7 +84,7 @@ impl<'a> XmlParser<'a> {
                         namespaces.insert(local.to_string(), value.to_string());
                     } else if prefix.is_empty() {
                         // Other attributes
-                        attributes.insert(local.to_string(), value.to_string());
+                        attributes.push((local.to_string(), value.to_string()));
                     } else {
                         // TODO: Can the attributes have the prefix?
                         todo!();
@@ -114,7 +116,7 @@ impl<'a> XmlParser<'a> {
 
                 Ok(Some(XmlRecord::Open(TagData {
                     key: local.to_string(),
-                    attributes: None,
+                    attributes: Vec::new(),
                     default_namespace: None,
                     namespaces: None,
                     prefix: prefix_ret,

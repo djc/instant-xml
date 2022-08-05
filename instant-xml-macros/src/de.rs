@@ -1,24 +1,30 @@
-use crate::{get_namespaces, retrieve_attr};
-use proc_macro::TokenStream;
-use proc_macro2::{Ident, Span};
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
-pub struct Deserializer<'a> {
-    /// Original input.
-    pub input: &'a syn::DeriveInput,
-    pub fn_deserialize: proc_macro2::TokenStream,
-    pub fn_from_xml: proc_macro2::TokenStream,
+use crate::{get_namespaces, retrieve_attr};
+
+struct Tokens<'a> {
+    enum_: &'a mut TokenStream,
+    lets_: &'a mut TokenStream,
+    names_: &'a mut TokenStream,
+    match_: &'a mut TokenStream,
 }
 
-impl<'a> Deserializer<'a> {
+pub struct Deserializer {
+    fn_vec: Vec<TokenStream>,
+}
+
+impl Deserializer {
     pub fn new(input: &syn::DeriveInput) -> Deserializer {
         let ident = &input.ident;
         let name = ident.to_string();
+        let mut fn_vec = Vec::new();
 
         let (_, other_namespaces) = get_namespaces(&input.attrs);
-        let mut namespaces_map: proc_macro2::TokenStream =
-            TokenStream::from(quote!(let mut namespaces_map = std::collections::HashMap::new();))
-                .into();
+        let mut namespaces_map: TokenStream = proc_macro::TokenStream::from(
+            quote!(let mut namespaces_map = std::collections::HashMap::new();),
+        )
+        .into();
         for (k, v) in other_namespaces.iter() {
             namespaces_map.extend(quote!(
                 namespaces_map.insert(#k, #v);
@@ -26,18 +32,32 @@ impl<'a> Deserializer<'a> {
         }
 
         // Elements
-        let mut elements_enum: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
-        let mut elements_names: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
-        let mut elem_type_match: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
+        let mut elements_enum = TokenStream::new();
+        let mut elements_lets = TokenStream::new();
+        let mut elements_names = TokenStream::new();
+        let mut elem_type_match = TokenStream::new();
+        let mut elements_tokens = Tokens {
+            enum_: &mut elements_enum,
+            lets_: &mut elements_lets,
+            names_: &mut elements_names,
+            match_: &mut elem_type_match,
+        };
 
         // Attributes
-        let mut attributes_enum: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
-        let mut attributes_names: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
-        let mut attr_type_match: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
+        let mut attributes_enum = TokenStream::new();
+        let mut attributes_lets = TokenStream::new();
+        let mut attributes_names = TokenStream::new();
+        let mut attr_type_match = TokenStream::new();
+        let mut attributes_tokens = Tokens {
+            enum_: &mut attributes_enum,
+            lets_: &mut attributes_lets,
+            names_: &mut attributes_names,
+            match_: &mut attr_type_match,
+        };
 
         // Common values
-        let mut declare_values: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
-        let mut return_val: proc_macro2::TokenStream = TokenStream::from(quote!()).into();
+        let mut declare_values = TokenStream::new();
+        let mut return_val = TokenStream::new();
 
         match &input.data {
             syn::Data::Struct(ref data) => {
@@ -45,24 +65,22 @@ impl<'a> Deserializer<'a> {
                     syn::Fields::Named(ref fields) => {
                         fields.named.iter().enumerate().for_each(|(index, field)| {
                             if let Some(true) = retrieve_attr("attribute", &field.attrs) {
-                                Self::process_attribute(
+                                Self::process_field(
                                     field,
                                     index,
-                                    &mut attributes_enum,
-                                    &mut attributes_names,
-                                    &mut attr_type_match,
+                                    &mut attributes_tokens,
                                     &mut declare_values,
                                     &mut return_val,
+                                    false,
                                 );
                             } else {
-                                Self::process_element(
+                                Self::process_field(
                                     field,
                                     index,
-                                    &mut elements_enum,
-                                    &mut elements_names,
-                                    &mut elem_type_match,
+                                    &mut elements_tokens,
                                     &mut declare_values,
                                     &mut return_val,
+                                    true,
                                 );
                             }
                         });
@@ -74,27 +92,26 @@ impl<'a> Deserializer<'a> {
             _ => todo!(),
         };
 
-        let fn_from_xml: proc_macro2::TokenStream = TokenStream::from(quote!(
-            fn from_xml<'a>(input: &'a str) -> Result<Self, ::instant_xml::Error> {
-                let mut xml_parser = ::instant_xml::parse::XmlParser::new(input);
-                let mut prefixes_set = std::collections::BTreeSet::new();
-                let mut deserializer = ::instant_xml::Deserializer {
-                    iter: &mut xml_parser,
-                    prefixes: &mut prefixes_set,
-                };
-                Self::deserialize(&mut deserializer)
-            }
-        ))
-        .into();
+        fn_vec.push(
+            proc_macro::TokenStream::from(quote!(
+                fn from_xml<'a>(input: &'a str) -> Result<Self, ::instant_xml::Error> {
+                    let mut xml_parser = ::instant_xml::parse::XmlParser::new(input);
+                    let mut deserializer = ::instant_xml::Deserializer {
+                        parser: &mut xml_parser,
+                        namespaces: std::collections::HashMap::new(),
+                        tag_attributes: Vec::new(),
+                    };
+                    Self::deserialize(&mut deserializer, ::instant_xml::EntityType::Element)
+                }
+            ))
+            .into(),
+        );
 
-        let fn_deserialize: proc_macro2::TokenStream = TokenStream::from(quote!(
-            fn deserialize<D>(deserializer: &mut D) -> Result<Self, ::instant_xml::Error>
-            where
-                D: ::instant_xml::DeserializeXml<'xml>,
-            {
+        fn_vec.push(proc_macro::TokenStream::from(quote!(
+            fn deserialize(deserializer: &mut ::instant_xml::Deserializer, _kind: ::instant_xml::EntityType) -> Result<Self, ::instant_xml::Error> {
                 println!("deserialize: {}", #name);
                 use ::instant_xml::parse::XmlRecord;
-                use ::instant_xml::{Deserializer, DeserializeXml, Visitor} ;
+                use ::instant_xml::{EntityType, Deserializer, Visitor} ;
 
                 enum __Elements {
                     #elements_enum
@@ -102,10 +119,9 @@ impl<'a> Deserializer<'a> {
                 }
 
                 fn get_element(value: &str) -> __Elements {
-                    match value {
-                        #elements_names
-                        _ => __Elements::__Ignore,
-                    }
+                    #elements_lets
+                    #elements_names
+                    __Elements::__Ignore
                 }
 
                 enum __Attributes {
@@ -114,22 +130,26 @@ impl<'a> Deserializer<'a> {
                 }
 
                 fn get_attribute(value: &str) -> __Attributes {
-                    match value {
-                        #attributes_names
-                        _ => __Attributes::__Ignore,
-                    }
+                    #attributes_lets
+                    #attributes_names
+                    __Attributes::__Ignore
                 }
 
                 struct StructVisitor;
                 impl<'xml> Visitor<'xml> for StructVisitor {
                     type Value = #ident;
 
-                    fn visit_struct<'a, D>(&self, deserializer: &mut D, attributes: Option<&std::collections::HashMap<String, String>>) -> Result<Self::Value, ::instant_xml::Error>
-                    where
-                        D: ::instant_xml::DeserializeXml<'xml> + ::instant_xml::AccessorXml<'xml>,
+                    fn visit_struct<'a>(&self, deserializer: &mut ::instant_xml::Deserializer) -> Result<Self::Value, ::instant_xml::Error>
                     {
                         #declare_values
                         println!("visit struct");
+
+                        while let Some(( key, _ )) = deserializer.peek_next_attribute() {
+                            match get_attribute(&key) {
+                                #attr_type_match
+                                __Attributes::__Ignore => todo!(),
+                            }
+                        }
                         while let Some(item) = &deserializer.peek_next_tag()? {
                             match item {
                                 XmlRecord::Open(item) => {
@@ -141,7 +161,7 @@ impl<'a> Deserializer<'a> {
                                     // Verify prefix
                                     if let Some(prefix) = &item.prefix {
                                         // Check if such prefix exist
-                                        if !deserializer.verify_prefix(&prefix) {
+                                        if !deserializer.verify_namespace(&prefix) {
                                             return Err(::instant_xml::Error::UnexpectedPrefix);
                                         }
                                         // TODO: Check if prefix is equel to declared prefix
@@ -157,15 +177,6 @@ impl<'a> Deserializer<'a> {
                             }
                         }
 
-                        if let Some(attributes_map) = &attributes {
-                            for (key, value) in attributes_map.iter() {
-                                match get_attribute(&key) {
-                                    #attr_type_match
-                                    __Attributes::__Ignore => todo!(),
-                                }
-                            }
-                        }
-
                         println!("return");
                         Ok(Self::Value {
                             #return_val
@@ -177,29 +188,34 @@ impl<'a> Deserializer<'a> {
                 deserializer.deserialize_struct(StructVisitor{}, #name, &namespaces_map)
             }
         ))
-        .into();
+        .into());
 
-        Deserializer {
-            input,
-            fn_deserialize,
-            fn_from_xml,
-        }
+        fn_vec.push(
+            proc_macro::TokenStream::from(quote!(
+                fn tag_name() -> ::instant_xml::XMLTagName<'xml> {
+                    println!("Name: {}", #name);
+                    ::instant_xml::XMLTagName::Custom(#name)
+                }
+            ))
+            .into(),
+        );
+
+        Deserializer { fn_vec }
     }
 
-    fn is_scalar(value: &str) -> bool {
-        matches!(value, "bool" | "i8" | "i16" | "i32" | "i64" | "u8") // TODO: Fill up
+    pub fn fn_vec(&self) -> &Vec<TokenStream> {
+        &self.fn_vec
     }
 
-    fn process_element(
+    fn process_field(
         field: &syn::Field,
         index: usize,
-        elements_enum: &mut proc_macro2::TokenStream,
-        elements_names: &mut proc_macro2::TokenStream,
-        elem_type_match: &mut proc_macro2::TokenStream,
-        declare_values: &mut proc_macro2::TokenStream,
-        return_val: &mut proc_macro2::TokenStream,
+        tokens: &mut Tokens,
+        declare_values: &mut TokenStream,
+        return_val: &mut TokenStream,
+        is_element: bool,
     ) {
-        let mut field_name = field.ident.as_ref().unwrap().to_string();
+        let field_name = field.ident.as_ref().unwrap().to_string();
         let field_value = field.ident.as_ref().unwrap();
         let field_type = if let syn::Type::Path(v) = &field.ty {
             v.path.get_ident()
@@ -208,79 +224,52 @@ impl<'a> Deserializer<'a> {
         };
 
         let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
-        let is_scalar = Self::is_scalar(field_type.as_ref().unwrap().to_string().as_str());
+        tokens.enum_.extend(quote!(#enum_name,));
 
-        elements_enum.extend(quote!(#enum_name,));
-
-        if !is_scalar {
-            field_name = field_type.as_ref().unwrap().to_string();
-        }
-
-        elements_names.extend(quote!(
-            #field_name => __Elements::#enum_name,
+        tokens.lets_.extend(quote!(
+            let #field_value: &'static str = match #field_type::tag_name() {
+                ::instant_xml::XMLTagName::FieldName => #field_name,
+                ::instant_xml::XMLTagName::Custom(v) => v,
+            };
         ));
 
-        declare_values.extend(quote!(
-            let mut #enum_name: Option<#field_type> = None;
-        ));
-
-        elem_type_match.extend(quote!(
-            __Elements::#enum_name => {
-                if( #enum_name.is_some() ) {
-                    panic!("duplicated value");
-                }
-                #enum_name = Some(#field_type::deserialize(deserializer)?);
-            },
-        ));
-
-        return_val.extend(quote!(
-            #field_value: #enum_name.expect("Expected some value"),
-        ));
-    }
-
-    fn process_attribute(
-        field: &syn::Field,
-        index: usize,
-        attributes_enum: &mut proc_macro2::TokenStream,
-        attributes_names: &mut proc_macro2::TokenStream,
-        attr_type_match: &mut proc_macro2::TokenStream,
-        declare_values: &mut proc_macro2::TokenStream,
-        return_val: &mut proc_macro2::TokenStream,
-    ) {
-        let mut field_name = field.ident.as_ref().unwrap().to_string();
-        let field_value = field.ident.as_ref().unwrap();
-        let field_type = if let syn::Type::Path(v) = &field.ty {
-            v.path.get_ident()
+        if is_element {
+            tokens.names_.extend(quote!(
+                if( value == #field_value ) {
+                    return __Elements::#enum_name;
+                };
+            ));
         } else {
-            todo!();
-        };
-        println!("feilds name {}", field_name);
-
-        let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
-        let is_scalar = Self::is_scalar(field_type.as_ref().unwrap().to_string().as_str());
-
-        attributes_enum.extend(quote!(#enum_name,));
-
-        if !is_scalar {
-            field_name = field_type.as_ref().unwrap().to_string();
+            tokens.names_.extend(quote!(
+                if( value == #field_value ) {
+                    return __Attributes::#enum_name;
+                };
+            ));
         }
-
-        attributes_names.extend(quote!(
-            #field_name => __Attributes::#enum_name,
-        ));
 
         declare_values.extend(quote!(
             let mut #enum_name: Option<#field_type> = None;
         ));
 
-        attr_type_match.extend(quote!(
-            __Attributes::#enum_name => {
-                if( #enum_name.is_some() ) {
-                    panic!("duplicated value");
-                }
-                #enum_name = Some(#field_type::deserialize_attr(deserializer, value)?);
-            },
-        ));
+        if is_element {
+            tokens.match_.extend(quote!(
+                __Elements::#enum_name => {
+                    if( #enum_name.is_some() ) {
+                        panic!("duplicated value");
+                    }
+                    #enum_name = Some(#field_type::deserialize(deserializer, ::instant_xml::EntityType::Element)?);
+                },
+            ));
+        } else {
+            tokens.match_.extend(quote!(
+                __Attributes::#enum_name => {
+                    if( #enum_name.is_some() ) {
+                        panic!("duplicated value");
+                    }
+                    #enum_name = Some(#field_type::deserialize(deserializer, ::instant_xml::EntityType::Attribute)?);
+                },
+            ));
+        }
 
         return_val.extend(quote!(
             #field_value: #enum_name.expect("Expected some value"),

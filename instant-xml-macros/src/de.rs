@@ -5,7 +5,7 @@ use crate::{get_namespaces, retrieve_attr};
 
 struct Tokens<'a> {
     enum_: &'a mut TokenStream,
-    lets_: &'a mut TokenStream,
+    consts_: &'a mut TokenStream,
     names_: &'a mut TokenStream,
     match_: &'a mut TokenStream,
 }
@@ -38,7 +38,7 @@ impl Deserializer {
         let mut elem_type_match = TokenStream::new();
         let mut elements_tokens = Tokens {
             enum_: &mut elements_enum,
-            lets_: &mut elements_lets,
+            consts_: &mut elements_lets,
             names_: &mut elements_names,
             match_: &mut elem_type_match,
         };
@@ -50,7 +50,7 @@ impl Deserializer {
         let mut attr_type_match = TokenStream::new();
         let mut attributes_tokens = Tokens {
             enum_: &mut attributes_enum,
-            lets_: &mut attributes_lets,
+            consts_: &mut attributes_lets,
             names_: &mut attributes_names,
             match_: &mut attr_type_match,
         };
@@ -224,8 +224,8 @@ impl Deserializer {
         let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
         tokens.enum_.extend(quote!(#enum_name,));
 
-        tokens.lets_.extend(quote!(
-            static #const_field_name: &str = match #field_type::TAG_NAME {
+        tokens.consts_.extend(quote!(
+            const #const_field_name: &str = match #field_type::TAG_NAME {
                 ::instant_xml::XMLTagName::FieldName => #field_name,
                 ::instant_xml::XMLTagName::Custom(v) => v,
             };

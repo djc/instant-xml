@@ -95,12 +95,7 @@ impl Deserializer {
         fn_vec.push(
             proc_macro::TokenStream::from(quote!(
                 fn from_xml<'a>(input: &'a str) -> Result<Self, ::instant_xml::Error> {
-                    let mut xml_parser = ::instant_xml::parse::XmlParser::new(input);
-                    let mut deserializer = ::instant_xml::Deserializer {
-                        parser: &mut xml_parser,
-                        namespaces: std::collections::HashMap::new(),
-                        tag_attributes: Vec::new(),
-                    };
+                    let mut deserializer = ::instant_xml::Deserializer::new(input);
                     Self::deserialize(&mut deserializer, ::instant_xml::EntityType::Element)
                 }
             ))

@@ -3,12 +3,14 @@ extern crate proc_macro;
 mod de;
 mod se;
 
-use crate::se::Serializer;
+use std::collections::{BTreeSet, HashMap};
+
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::collections::{BTreeSet, HashMap};
 use syn::parse_macro_input;
 use syn::{Lit, Meta, NestedMeta};
+
+use crate::se::Serializer;
 
 const XML: &str = "xml";
 

@@ -304,7 +304,7 @@ impl<'xml> Deserializer<'xml> {
         V: Visitor<'xml>,
     {
         match self.tag_attributes.pop() {
-            Some((_, value)) => visitor.visit_str(&value),
+            Some((_, value)) => visitor.visit_str(value),
             None => Err(Error::UnexpectedEndOfStream),
         }
     }

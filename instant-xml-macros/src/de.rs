@@ -101,16 +101,6 @@ impl Deserializer {
             _ => todo!(),
         };
 
-        fn_vec.push(
-            proc_macro::TokenStream::from(quote!(
-                fn from_xml<'a>(input: &'a str) -> Result<Self, ::instant_xml::Error> {
-                    let mut deserializer = ::instant_xml::Deserializer::new(input);
-                    Self::deserialize(&mut deserializer, ::instant_xml::EntityType::Element)
-                }
-            ))
-            .into(),
-        );
-
         fn_vec.push(proc_macro::TokenStream::from(quote!(
             fn deserialize(deserializer: &mut ::instant_xml::Deserializer, _kind: ::instant_xml::EntityType) -> Result<Self, ::instant_xml::Error> {
                 println!("deserialize: {}", #name);

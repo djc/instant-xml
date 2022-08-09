@@ -213,8 +213,9 @@ pub enum XMLTagName<'xml> {
 pub trait FromXml<'xml>: Sized {
     const TAG_NAME: XMLTagName<'xml>;
 
-    fn from_xml(_input: &str) -> Result<Self, Error> {
-        unimplemented!();
+    fn from_xml(input: &str) -> Result<Self, Error> {
+        let mut deserializer = Deserializer::new(input);
+        Self::deserialize(&mut deserializer, EntityType::Element)
     }
 
     fn deserialize(deserializer: &mut Deserializer, kind: EntityType) -> Result<Self, Error>;

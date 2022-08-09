@@ -77,18 +77,18 @@ impl Deserializer {
                                 Self::process_field(
                                     field,
                                     index,
-                                    &mut attributes_tokens,
                                     &mut declare_values,
                                     &mut return_val,
+                                    &mut attributes_tokens,
                                     false,
                                 );
                             } else {
                                 Self::process_field(
                                     field,
                                     index,
-                                    &mut elements_tokens,
                                     &mut declare_values,
                                     &mut return_val,
+                                    &mut elements_tokens,
                                     true,
                                 );
                             }
@@ -192,9 +192,9 @@ impl Deserializer {
     fn process_field(
         field: &syn::Field,
         index: usize,
-        tokens: &mut Tokens,
         declare_values: &mut TokenStream,
         return_val: &mut TokenStream,
+        tokens: &mut Tokens,
         is_element: bool,
     ) {
         let field_name = field.ident.as_ref().unwrap().to_string();

@@ -33,24 +33,24 @@ impl Deserializer {
 
         // Elements
         let mut elements_enum = TokenStream::new();
-        let mut elements_lets = TokenStream::new();
+        let mut elements_consts = TokenStream::new();
         let mut elements_names = TokenStream::new();
         let mut elem_type_match = TokenStream::new();
         let mut elements_tokens = Tokens {
             enum_: &mut elements_enum,
-            consts_: &mut elements_lets,
+            consts_: &mut elements_consts,
             names_: &mut elements_names,
             match_: &mut elem_type_match,
         };
 
         // Attributes
         let mut attributes_enum = TokenStream::new();
-        let mut attributes_lets = TokenStream::new();
+        let mut attributes_consts = TokenStream::new();
         let mut attributes_names = TokenStream::new();
         let mut attr_type_match = TokenStream::new();
         let mut attributes_tokens = Tokens {
             enum_: &mut attributes_enum,
-            consts_: &mut attributes_lets,
+            consts_: &mut attributes_consts,
             names_: &mut attributes_names,
             match_: &mut attr_type_match,
         };
@@ -114,9 +114,11 @@ impl Deserializer {
                 }
 
                 fn get_element(value: &str) -> __Elements {
-                    #elements_lets
-                    #elements_names
-                    __Elements::__Ignore
+                    #elements_consts
+                    match value {
+                        #elements_names
+                        _ => __Elements::__Ignore
+                    }
                 }
 
                 enum __Attributes {
@@ -125,9 +127,11 @@ impl Deserializer {
                 }
 
                 fn get_attribute(value: &str) -> __Attributes {
-                    #attributes_lets
-                    #attributes_names
-                    __Attributes::__Ignore
+                    #attributes_consts
+                    match value {
+                        #attributes_names
+                        _ => __Attributes::__Ignore
+                    }
                 }
 
                 struct StructVisitor;
@@ -228,15 +232,11 @@ impl Deserializer {
 
         if is_element {
             tokens.names_.extend(quote!(
-                if( value == #const_field_name ) {
-                    return __Elements::#enum_name;
-                };
+                #const_field_name => __Elements::#enum_name,
             ));
         } else {
             tokens.names_.extend(quote!(
-                if( value == #const_field_name ) {
-                    return __Attributes::#enum_name;
-                };
+                #const_field_name => __Attributes::#enum_name,
             ));
         }
 

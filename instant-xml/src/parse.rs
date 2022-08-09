@@ -3,7 +3,7 @@ use std::iter::Peekable;
 
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
-use crate::{Error, Result};
+use crate::Error;
 pub use crate::{TagData, XmlRecord};
 
 pub struct XmlParser<'a> {
@@ -19,7 +19,7 @@ impl<'a> XmlParser<'a> {
         }
     }
 
-    fn parse_next(&mut self) -> Result<Option<XmlRecord>> {
+    fn parse_next(&mut self) -> Result<Option<XmlRecord>, Error> {
         let mut key = String::new();
         let mut prefix_ret = None;
         let mut default_namespace = None;
@@ -99,7 +99,7 @@ impl<'a> XmlParser<'a> {
         }
     }
 
-    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>> {
+    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>, Error> {
         let item = match self.internal_iter.peek() {
             Some(v) => v,
             None => return Ok(None),
@@ -141,7 +141,7 @@ impl<'a> XmlParser<'a> {
 }
 
 impl<'a> Iterator for XmlParser<'a> {
-    type Item = Result<XmlRecord>;
+    type Item = Result<XmlRecord, Error>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {

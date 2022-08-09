@@ -29,7 +29,7 @@ pub enum XmlRecord {
 }
 
 pub trait ToXml {
-    fn to_xml(&self) -> Result<String> {
+    fn to_xml(&self) -> Result<String, Error> {
         let mut output = String::new();
         let mut serializer = Serializer::new(&mut output);
         self.serialize(&mut serializer, None)?;
@@ -40,7 +40,7 @@ pub trait ToXml {
         &self,
         serializer: &mut Serializer<W>,
         field_context: Option<&FieldContext>,
-    ) -> Result<()>
+    ) -> Result<(), Error>
     where
         W: fmt::Write;
 }
@@ -52,7 +52,7 @@ macro_rules! to_xml_for_number {
                 &self,
                 serializer: &mut Serializer<W>,
                 field_context: Option<&FieldContext>,
-            ) -> Result<()>
+            ) -> Result<(), Error>
             where
                 W: fmt::Write,
             {
@@ -84,7 +84,7 @@ impl ToXml for bool {
         &self,
         serializer: &mut Serializer<W>,
         field_context: Option<&FieldContext>,
-    ) -> Result<()>
+    ) -> Result<(), Error>
     where
         W: fmt::Write,
     {
@@ -110,7 +110,7 @@ impl ToXml for String {
         &self,
         serializer: &mut Serializer<W>,
         field_context: Option<&FieldContext>,
-    ) -> Result<()>
+    ) -> Result<(), Error>
     where
         W: fmt::Write,
     {
@@ -144,7 +144,7 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
         }
     }
 
-    fn add_open_tag(&mut self, field_context: &FieldContext) -> Result<()> {
+    fn add_open_tag(&mut self, field_context: &FieldContext) -> Result<(), Error> {
         match field_context.attribute {
             Some(FieldAttribute::Prefix(prefix)) => {
                 self.output.write_char('<')?;
@@ -169,7 +169,7 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
         Ok(())
     }
 
-    fn add_close_tag(&mut self, field_context: &FieldContext) -> Result<()> {
+    fn add_close_tag(&mut self, field_context: &FieldContext) -> Result<(), Error> {
         match field_context.attribute {
             Some(FieldAttribute::Prefix(prefix)) => {
                 self.output.write_str("</")?;
@@ -213,21 +213,21 @@ pub enum XMLTagName<'xml> {
 pub trait FromXml<'xml>: Sized {
     const TAG_NAME: XMLTagName<'xml>;
 
-    fn from_xml(_input: &str) -> Result<Self> {
+    fn from_xml(_input: &str) -> Result<Self, Error> {
         unimplemented!();
     }
 
-    fn deserialize(deserializer: &mut Deserializer, kind: EntityType) -> Result<Self>;
+    fn deserialize(deserializer: &mut Deserializer, kind: EntityType) -> Result<Self, Error>;
 }
 
 pub trait Visitor<'xml>: Sized {
     type Value;
 
-    fn visit_str(self, _value: &str) -> Result<Self::Value> {
+    fn visit_str(self, _value: &str) -> Result<Self::Value, Error> {
         unimplemented!();
     }
 
-    fn visit_struct<'a>(&self, _deserializer: &'a mut Deserializer) -> Result<Self::Value> {
+    fn visit_struct<'a>(&self, _deserializer: &'a mut Deserializer) -> Result<Self::Value, Error> {
         unimplemented!();
     }
 }
@@ -247,7 +247,7 @@ impl<'xml> Deserializer<'xml> {
         }
     }
 
-    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>> {
+    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>, Error> {
         self.parser.peek_next_tag()
     }
 
@@ -264,7 +264,7 @@ impl<'xml> Deserializer<'xml> {
         visitor: V,
         name: &str,
         namespaces: &HashMap<&'xml str, &'xml str>,
-    ) -> Result<V::Value>
+    ) -> Result<V::Value, Error>
     where
         V: Visitor<'xml>,
     {
@@ -284,35 +284,26 @@ impl<'xml> Deserializer<'xml> {
         Ok(ret)
     }
 
-    fn deserialize_bool<V>(&mut self, visitor: V) -> Result<V::Value>
+    fn deserialize_bool<V>(&mut self, visitor: V) -> Result<V::Value, Error>
     where
         V: Visitor<'xml>,
     {
         self.parser.next();
-        if let Some(item) = self.parser.next() {
-            match item? {
-                XmlRecord::Element(v) => {
-                    let ret = visitor.visit_str(v.as_str());
-                    self.parser.next();
-                    ret
-                }
-                _ => Err(Error::UnexpectedTag),
-            }
+        if let Some(Ok(XmlRecord::Element(v))) = self.parser.next() {
+            let ret = visitor.visit_str(v.as_str());
+            self.parser.next();
+            ret
         } else {
-            Err(Error::MissingValue)
+            Err(Error::UnexpectedValue)
         }
     }
 
-    fn deserialize_attribute<V>(&mut self, visitor: V) -> Result<V::Value>
+    fn deserialize_attribute<V>(&mut self, visitor: V) -> Result<V::Value, Error>
     where
         V: Visitor<'xml>,
     {
-        visitor.visit_str(&self.pop_next_attribute_value()?)
-    }
-
-    fn pop_next_attribute_value(&mut self) -> Result<String> {
         match self.tag_attributes.pop() {
-            Some((_, value)) => Ok(value),
+            Some((_, value)) => visitor.visit_str(&value),
             None => Err(Error::UnexpectedEndOfStream),
         }
     }
@@ -321,32 +312,28 @@ impl<'xml> Deserializer<'xml> {
         &mut self,
         name: &str,
         namespaces: &HashMap<&'xml str, &'xml str>,
-    ) -> Result<()> {
-        if let Some(item) = self.parser.next() {
-            match item? {
-                XmlRecord::Open(v) if v.key == name => {
-                    // Check if namespaces from parser are the same as defined in the struct
-                    for (k, v) in v.namespaces.unwrap() {
-                        if let Some(item) = namespaces.get(k.as_str()) {
-                            if *item != v.as_str() {
-                                return Err(Error::UnexpectedPrefix);
-                            }
-                        } else {
-                            return Err(Error::MissingdPrefix);
+    ) -> Result<(), Error> {
+        if let Some(Ok(XmlRecord::Open(item))) = self.parser.next() {
+            if item.key == name {
+                for (k, v) in item.namespaces.unwrap() {
+                    if let Some(item) = namespaces.get(k.as_str()) {
+                        if *item != v.as_str() {
+                            return Err(Error::UnexpectedPrefix);
                         }
+                    } else {
+                        return Err(Error::MissingdPrefix);
                     }
-
-                    self.tag_attributes = v.attributes;
-                    Ok(())
                 }
-                _ => Err(Error::UnexpectedValue),
+
+                self.tag_attributes = item.attributes;
+                return Ok(());
             }
-        } else {
-            Err(Error::UnexpectedTag)
         }
+
+        Err(Error::UnexpectedValue)
     }
 
-    fn check_close_tag(&mut self, name: &str) -> Result<()> {
+    fn check_close_tag(&mut self, name: &str) -> Result<(), Error> {
         // Close tag
         if let Some(item) = self.parser.next() {
             match item? {
@@ -365,8 +352,6 @@ pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}
 struct State<'a> {
     prefix: HashMap<&'a str, &'a str>,
 }
-
-pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error {

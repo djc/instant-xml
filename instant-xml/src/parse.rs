@@ -28,10 +28,9 @@ impl<'a> XmlParser<'a> {
         println!("peek: {:?}", &item);
         match item {
             Ok(Token::ElementStart { prefix, local, .. }) => {
-                let prefix_ret = if prefix.is_empty() {
-                    None
-                } else {
-                    Some(prefix.as_str())
+                let prefix = match prefix.is_empty() {
+                    true => None,
+                    false => Some(prefix.as_str()),
                 };
 
                 Ok(Some(XmlRecord::Open(TagData {
@@ -39,7 +38,7 @@ impl<'a> XmlParser<'a> {
                     attributes: Vec::new(),
                     default_namespace: None,
                     namespaces: None,
-                    prefix: prefix_ret,
+                    prefix,
                 })))
             }
             Ok(Token::ElementEnd { end, .. }) => {
@@ -79,10 +78,9 @@ impl<'xml> Iterator for XmlParser<'xml> {
             match item {
                 Ok(Token::ElementStart { prefix, local, .. }) => {
                     key = Some(local.as_str());
-                    prefix_ret = if prefix.is_empty() {
-                        None
-                    } else {
-                        Some(prefix.as_str())
+                    prefix_ret = match prefix.is_empty() {
+                        true => None,
+                        false => Some(prefix.as_str()),
                     };
                 }
                 Ok(Token::ElementEnd { end, .. }) => match end {

@@ -14,6 +14,15 @@ pub struct Deserializer {
     fn_vec: Vec<TokenStream>,
 }
 
+impl quote::ToTokens for Deserializer {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let vec = &self.fn_vec;
+        tokens.extend(quote!(
+            #(#vec)*
+        ));
+    }
+}
+
 impl Deserializer {
     pub fn new(input: &syn::DeriveInput) -> Deserializer {
         let ident = &input.ident;
@@ -188,10 +197,6 @@ impl Deserializer {
         );
 
         Deserializer { fn_vec }
-    }
-
-    pub fn fn_vec(&self) -> &Vec<TokenStream> {
-        &self.fn_vec
     }
 
     fn process_field(

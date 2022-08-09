@@ -192,11 +192,9 @@ pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ident = &ast.ident;
 
     let deserializer = de::Deserializer::new(&ast);
-    let fn_vec = deserializer.fn_vec();
-
     proc_macro::TokenStream::from(quote!(
         impl<'xml> FromXml<'xml> for #ident {
-            #(#fn_vec)*
+            #deserializer
         }
     ))
 }

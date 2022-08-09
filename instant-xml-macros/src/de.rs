@@ -5,8 +5,8 @@ use crate::{get_namespaces, retrieve_attr};
 
 struct Tokens<'a> {
     enum_: &'a mut TokenStream,
-    consts_: &'a mut TokenStream,
-    names_: &'a mut TokenStream,
+    consts: &'a mut TokenStream,
+    names: &'a mut TokenStream,
     match_: &'a mut TokenStream,
 }
 
@@ -38,8 +38,8 @@ impl Deserializer {
         let mut elem_type_match = TokenStream::new();
         let mut elements_tokens = Tokens {
             enum_: &mut elements_enum,
-            consts_: &mut elements_consts,
-            names_: &mut elements_names,
+            consts: &mut elements_consts,
+            names: &mut elements_names,
             match_: &mut elem_type_match,
         };
 
@@ -50,8 +50,8 @@ impl Deserializer {
         let mut attr_type_match = TokenStream::new();
         let mut attributes_tokens = Tokens {
             enum_: &mut attributes_enum,
-            consts_: &mut attributes_consts,
-            names_: &mut attributes_names,
+            consts: &mut attributes_consts,
+            names: &mut attributes_names,
             match_: &mut attr_type_match,
         };
 
@@ -156,19 +156,10 @@ impl Deserializer {
                                         #elem_type_match
                                         __Elements::__Ignore => todo!(),
                                     }
-
-                                    // Verify prefix
-                                    if let Some(prefix) = &item.prefix {
-                                        // Check if such prefix exist
-                                        if !deserializer.verify_namespace(&prefix) {
-                                            return Err(::instant_xml::Error::UnexpectedPrefix);
-                                        }
-                                        // TODO: Check if prefix is equel to declared prefix
-                                    }
                                  }
                                  XmlRecord::Close(tag) => {
                                     println!("Close: {}", tag);
-                                    if tag == #name {
+                                    if tag == &#name {
                                         break;
                                     }
                                 },
@@ -223,7 +214,7 @@ impl Deserializer {
         let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
         tokens.enum_.extend(quote!(#enum_name,));
 
-        tokens.consts_.extend(quote!(
+        tokens.consts.extend(quote!(
             const #const_field_name: &str = match #field_type::TAG_NAME {
                 ::instant_xml::XMLTagName::FieldName => #field_name,
                 ::instant_xml::XMLTagName::Custom(v) => v,
@@ -231,11 +222,11 @@ impl Deserializer {
         ));
 
         if is_element {
-            tokens.names_.extend(quote!(
+            tokens.names.extend(quote!(
                 #const_field_name => __Elements::#enum_name,
             ));
         } else {
-            tokens.names_.extend(quote!(
+            tokens.names.extend(quote!(
                 #const_field_name => __Attributes::#enum_name,
             ));
         }
@@ -247,18 +238,25 @@ impl Deserializer {
         if is_element {
             tokens.match_.extend(quote!(
                 __Elements::#enum_name => {
-                    if( #enum_name.is_some() ) {
+                    if #enum_name.is_some() {
                         panic!("duplicated value");
                     }
+
+                    if item.prefix.is_some() {
+                        let prefix = item.prefix.unwrap().to_string();
+                        deserializer.verify_namespace(&prefix);
+                    }
+
                     #enum_name = Some(#field_type::deserialize(deserializer, ::instant_xml::EntityType::Element)?);
                 },
             ));
         } else {
             tokens.match_.extend(quote!(
                 __Attributes::#enum_name => {
-                    if( #enum_name.is_some() ) {
+                    if #enum_name.is_some() {
                         panic!("duplicated value");
                     }
+
                     #enum_name = Some(#field_type::deserialize(deserializer, ::instant_xml::EntityType::Attribute)?);
                 },
             ));

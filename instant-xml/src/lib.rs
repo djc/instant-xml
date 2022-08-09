@@ -11,21 +11,21 @@ pub mod impls;
 #[doc(hidden)]
 pub mod parse;
 
-pub struct TagData {
-    pub key: String,
-    pub attributes: Vec<(String, String)>,
+pub struct TagData<'xml> {
+    pub key: &'xml str,
+    pub attributes: Vec<(&'xml str, &'xml str)>,
 
     // TODO: handle default namespace
-    pub default_namespace: Option<String>,
+    pub default_namespace: Option<&'xml str>,
 
-    pub namespaces: Option<HashMap<String, String>>,
-    pub prefix: Option<String>,
+    pub namespaces: Option<HashMap<&'xml str, &'xml str>>,
+    pub prefix: Option<&'xml str>,
 }
 
-pub enum XmlRecord {
-    Open(TagData),
-    Element(String),
-    Close(String),
+pub enum XmlRecord<'xml> {
+    Open(TagData<'xml>),
+    Element(&'xml str),
+    Close(&'xml str),
 }
 
 pub trait ToXml {
@@ -235,7 +235,7 @@ pub trait Visitor<'xml>: Sized {
 pub struct Deserializer<'xml> {
     parser: XmlParser<'xml>,
     namespaces: HashMap<&'xml str, &'xml str>,
-    tag_attributes: Vec<(String, String)>,
+    tag_attributes: Vec<(&'xml str, &'xml str)>,
 }
 
 impl<'xml> Deserializer<'xml> {
@@ -255,7 +255,7 @@ impl<'xml> Deserializer<'xml> {
         self.namespaces.get(namespace_to_verify).is_some()
     }
 
-    pub fn peek_next_attribute(&self) -> Option<&(String, String)> {
+    pub fn peek_next_attribute(&self) -> Option<&(&'xml str, &'xml str)> {
         self.tag_attributes.last()
     }
 
@@ -290,7 +290,7 @@ impl<'xml> Deserializer<'xml> {
     {
         self.parser.next();
         if let Some(Ok(XmlRecord::Element(v))) = self.parser.next() {
-            let ret = visitor.visit_str(v.as_str());
+            let ret = visitor.visit_str(v);
             self.parser.next();
             ret
         } else {
@@ -316,8 +316,8 @@ impl<'xml> Deserializer<'xml> {
         if let Some(Ok(XmlRecord::Open(item))) = self.parser.next() {
             if item.key == name {
                 for (k, v) in item.namespaces.unwrap() {
-                    if let Some(item) = namespaces.get(k.as_str()) {
-                        if *item != v.as_str() {
+                    if let Some(item) = namespaces.get(k) {
+                        if *item != v {
                             return Err(Error::UnexpectedPrefix);
                         }
                     } else {

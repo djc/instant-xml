@@ -16,7 +16,7 @@ impl<'xml> FromXml<'xml> for bool {
     const TAG_NAME: XMLTagName<'xml> = XMLTagName::FieldName;
 
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
-        match deserializer.consume_next_kind()? {
+        match deserializer.consume_next_type()? {
             EntityType::Element => deserializer.deserialize_bool(BoolVisitor),
             EntityType::Attribute => deserializer.deserialize_attribute(BoolVisitor),
         }

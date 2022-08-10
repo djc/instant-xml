@@ -118,7 +118,7 @@ impl Deserializer {
                 use ::instant_xml::parse::XmlRecord;
                 use ::instant_xml::{EntityType, Error, Deserializer, Visitor} ;
 
-                match deserializer.consume_next_kind()? {
+                match deserializer.consume_next_type()? {
                     EntityType::Element => (),
                     EntityType::Attribute => return Err(Error::UnexpectedState),
                 };
@@ -259,7 +259,7 @@ impl Deserializer {
                         deserializer.verify_namespace(&prefix);
                     }
 
-                    deserializer.set_next_kind(::instant_xml::EntityType::Element)?;
+                    deserializer.set_next_type(::instant_xml::EntityType::Element)?;
                     #enum_name = Some(#field_type::deserialize(deserializer)?);
                 },
             ));
@@ -270,7 +270,7 @@ impl Deserializer {
                         panic!("duplicated value");
                     }
 
-                    deserializer.set_next_kind(::instant_xml::EntityType::Attribute)?;
+                    deserializer.set_next_type(::instant_xml::EntityType::Attribute)?;
                     #enum_name = Some(#field_type::deserialize(deserializer)?);
                 },
             ));

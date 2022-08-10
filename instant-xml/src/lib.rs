@@ -238,7 +238,7 @@ pub struct Deserializer<'xml> {
     parser: XmlParser<'xml>,
     namespaces: HashMap<&'xml str, &'xml str>,
     tag_attributes: Vec<(&'xml str, &'xml str)>,
-    next_kind: Option<EntityType>,
+    next_type: Option<EntityType>,
 }
 
 impl<'xml> Deserializer<'xml> {
@@ -247,7 +247,7 @@ impl<'xml> Deserializer<'xml> {
             parser: XmlParser::new(input),
             namespaces: std::collections::HashMap::new(),
             tag_attributes: Vec::new(),
-            next_kind: Some(EntityType::Element),
+            next_type: Some(EntityType::Element),
         }
     }
 
@@ -288,22 +288,22 @@ impl<'xml> Deserializer<'xml> {
         Ok(ret)
     }
 
-    pub fn set_next_kind(&mut self, kind: EntityType) -> Result<(), Error> {
-        if self.next_kind.is_some() {
+    pub fn set_next_type(&mut self, kind: EntityType) -> Result<(), Error> {
+        if self.next_type.is_some() {
             return Err(Error::UnexpectedState);
         }
 
-        self.next_kind = Some(kind);
+        self.next_type = Some(kind);
         Ok(())
     }
 
-    pub fn consume_next_kind(&mut self) -> Result<EntityType, Error> {
-        if self.next_kind.is_none() {
+    pub fn consume_next_type(&mut self) -> Result<EntityType, Error> {
+        if self.next_type.is_none() {
             return Err(Error::UnexpectedState);
         }
 
-        let ret = self.next_kind.as_ref().unwrap().clone();
-        self.next_kind = None;
+        let ret = self.next_type.as_ref().unwrap().clone();
+        self.next_type = None;
         Ok(ret)
     }
 
@@ -350,6 +350,7 @@ impl<'xml> Deserializer<'xml> {
             }
         }
 
+        println!("default namespace: {:?}", &item.default_namespace);
         self.tag_attributes = item.attributes;
         Ok(())
     }

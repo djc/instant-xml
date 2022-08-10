@@ -41,15 +41,15 @@ impl<'a> XmlParser<'a> {
                     prefix,
                 })))
             }
-            Ok(Token::ElementEnd { end, .. }) => {
-                if let ElementEnd::Close(..) = end {
-                    if self.stack.is_empty() {
-                        return Err(Error::UnexpectedEndOfStream);
-                    }
-
-                    return Ok(Some(XmlRecord::Close(self.stack.last().unwrap())));
+            Ok(Token::ElementEnd {
+                end: ElementEnd::Close(..),
+                ..
+            }) => {
+                if self.stack.is_empty() {
+                    return Err(Error::UnexpectedEndOfStream);
                 }
-                Err(Error::UnexpectedToken)
+
+                return Ok(Some(XmlRecord::Close(self.stack.last().unwrap())));
             }
             Ok(_) => Err(Error::UnexpectedToken),
             Err(e) => Err(Error::Parse(*e)),

@@ -16,7 +16,7 @@ impl Tokens {
         self.consts.extend(tokens.consts);
         self.names.extend(tokens.names);
         self.match_.extend(tokens.match_);
-    } 
+    }
 }
 
 impl Default for Tokens {
@@ -86,10 +86,10 @@ impl Deserializer {
                             ) {
                                 FieldType::Element(tokens) => {
                                     elements_tokens.extend(tokens);
-                                },
+                                }
                                 FieldType::Attribute(tokens) => {
                                     attributes_tokens.extend(tokens);
-                                },
+                                }
                             }
                         });
                     }
@@ -100,7 +100,7 @@ impl Deserializer {
             _ => todo!(),
         };
 
-         // Elements
+        // Elements
         let elements_enum = elements_tokens.enum_;
         let elements_consts = elements_tokens.consts;
         let elements_names = elements_tokens.names;

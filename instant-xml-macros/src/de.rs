@@ -113,10 +113,15 @@ impl Deserializer {
         let attr_type_match = attributes_tokens.match_;
 
         out.extend(quote!(
-            fn deserialize(deserializer: &mut ::instant_xml::Deserializer, _kind: ::instant_xml::EntityType) -> Result<Self, ::instant_xml::Error> {
+            fn deserialize(deserializer: &mut ::instant_xml::Deserializer) -> Result<Self, ::instant_xml::Error> {
                 println!("deserialize: {}", #name);
                 use ::instant_xml::parse::XmlRecord;
-                use ::instant_xml::{EntityType, Deserializer, Visitor} ;
+                use ::instant_xml::{EntityType, Error, Deserializer, Visitor} ;
+
+                match deserializer.consume_next_kind()? {
+                    EntityType::Element => (),
+                    EntityType::Attribute => return Err(Error::UnexpectedState),
+                };
 
                 enum __Elements {
                     #elements_enum
@@ -254,7 +259,8 @@ impl Deserializer {
                         deserializer.verify_namespace(&prefix);
                     }
 
-                    #enum_name = Some(#field_type::deserialize(deserializer, ::instant_xml::EntityType::Element)?);
+                    deserializer.set_next_kind(::instant_xml::EntityType::Element)?;
+                    #enum_name = Some(#field_type::deserialize(deserializer)?);
                 },
             ));
         } else {
@@ -264,7 +270,8 @@ impl Deserializer {
                         panic!("duplicated value");
                     }
 
-                    #enum_name = Some(#field_type::deserialize(deserializer, ::instant_xml::EntityType::Attribute)?);
+                    deserializer.set_next_kind(::instant_xml::EntityType::Attribute)?;
+                    #enum_name = Some(#field_type::deserialize(deserializer)?);
                 },
             ));
         }

@@ -290,12 +290,13 @@ impl<'xml> Deserializer<'xml> {
         V: Visitor<'xml>,
     {
         self.parser.next();
-        if let Some(Ok(XmlRecord::Element(v))) = self.parser.next() {
-            let ret = visitor.visit_str(v);
-            self.parser.next();
-            ret
-        } else {
-            Err(Error::UnexpectedValue)
+        match self.parser.next() {
+            Some(Ok(XmlRecord::Element(v))) => {
+                let ret = visitor.visit_str(v);
+                self.parser.next();
+                ret
+            }
+            _ => Err(Error::UnexpectedValue),
         }
     }
 
@@ -314,35 +315,33 @@ impl<'xml> Deserializer<'xml> {
         name: &str,
         namespaces: &HashMap<&'xml str, &'xml str>,
     ) -> Result<(), Error> {
-        if let Some(Ok(XmlRecord::Open(item))) = self.parser.next() {
-            if item.key == name {
-                for (k, v) in item.namespaces.unwrap() {
-                    if let Some(item) = namespaces.get(k) {
-                        if *item != v {
-                            return Err(Error::UnexpectedPrefix);
-                        }
-                    } else {
-                        return Err(Error::MissingdPrefix);
-                    }
-                }
+        let item = match self.parser.next() {
+            Some(Ok(XmlRecord::Open(item))) if item.key == name => item,
+            _ => return Err(Error::UnexpectedValue),
+        };
 
-                self.tag_attributes = item.attributes;
-                return Ok(());
+        for (k, v) in item.namespaces.unwrap() {
+            match namespaces.get(k) {
+                Some(item) if *item != v => return Err(Error::UnexpectedPrefix),
+                None => return Err(Error::MissingdPrefix),
+                _ => (),
             }
         }
 
-        Err(Error::UnexpectedValue)
+        self.tag_attributes = item.attributes;
+        return Ok(());
     }
 
     fn check_close_tag(&mut self, name: &str) -> Result<(), Error> {
         // Close tag
-        if let Some(item) = self.parser.next() {
-            match item? {
-                XmlRecord::Close(v) if v == name => Ok(()),
-                _ => Err(Error::UnexpectedTag),
-            }
-        } else {
-            Err(Error::MissingTag)
+        let item = match self.parser.next() {
+            Some(item) => item?,
+            None => return Err(Error::MissingTag),
+        };
+
+        match item {
+            XmlRecord::Close(v) if v == name => Ok(()),
+            _ => Err(Error::UnexpectedTag),
         }
     }
 }

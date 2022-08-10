@@ -3,22 +3,33 @@ use quote::quote;
 
 use crate::{get_namespaces, retrieve_attr};
 
-struct Tokens<'a> {
-    enum_: &'a mut TokenStream,
-    consts: &'a mut TokenStream,
-    names: &'a mut TokenStream,
-    match_: &'a mut TokenStream,
+struct Tokens {
+    enum_: TokenStream,
+    consts: TokenStream,
+    names: TokenStream,
+    match_: TokenStream,
+}
+
+impl Default for Tokens {
+    fn default() -> Self {
+        Self {
+            enum_: TokenStream::new(),
+            consts: TokenStream::new(),
+            names: TokenStream::new(),
+            match_: TokenStream::new(),
+        }
+    }
 }
 
 pub struct Deserializer {
-    fn_vec: Vec<TokenStream>,
+    out: TokenStream,
 }
 
 impl quote::ToTokens for Deserializer {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let vec = &self.fn_vec;
+        let vec = &self.out;
         tokens.extend(quote!(
-            #(#vec)*
+            #vec
         ));
     }
 }
@@ -27,7 +38,7 @@ impl Deserializer {
     pub fn new(input: &syn::DeriveInput) -> Deserializer {
         let ident = &input.ident;
         let name = ident.to_string();
-        let mut fn_vec = Vec::new();
+        let mut out = TokenStream::new();
 
         let (_, other_namespaces) = get_namespaces(&input.attrs);
         let mut namespaces_map: TokenStream = proc_macro::TokenStream::from(
@@ -40,29 +51,9 @@ impl Deserializer {
             ))
         }
 
-        // Elements
-        let mut elements_enum = TokenStream::new();
-        let mut elements_consts = TokenStream::new();
-        let mut elements_names = TokenStream::new();
-        let mut elem_type_match = TokenStream::new();
-        let mut elements_tokens = Tokens {
-            enum_: &mut elements_enum,
-            consts: &mut elements_consts,
-            names: &mut elements_names,
-            match_: &mut elem_type_match,
-        };
-
-        // Attributes
-        let mut attributes_enum = TokenStream::new();
-        let mut attributes_consts = TokenStream::new();
-        let mut attributes_names = TokenStream::new();
-        let mut attr_type_match = TokenStream::new();
-        let mut attributes_tokens = Tokens {
-            enum_: &mut attributes_enum,
-            consts: &mut attributes_consts,
-            names: &mut attributes_names,
-            match_: &mut attr_type_match,
-        };
+        // Varying values
+        let mut elements_tokens = Tokens::default();
+        let mut attributes_tokens = Tokens::default();
 
         // Common values
         let mut declare_values = TokenStream::new();
@@ -101,7 +92,19 @@ impl Deserializer {
             _ => todo!(),
         };
 
-        fn_vec.push(proc_macro::TokenStream::from(quote!(
+         // Elements
+        let elements_enum = elements_tokens.enum_;
+        let elements_consts = elements_tokens.consts;
+        let elements_names = elements_tokens.names;
+        let elem_type_match = elements_tokens.match_;
+
+        // Attributes
+        let attributes_enum = attributes_tokens.enum_;
+        let attributes_consts = attributes_tokens.consts;
+        let attributes_names = attributes_tokens.names;
+        let attr_type_match = attributes_tokens.match_;
+
+        out.extend(quote!(
             fn deserialize(deserializer: &mut ::instant_xml::Deserializer, _kind: ::instant_xml::EntityType) -> Result<Self, ::instant_xml::Error> {
                 println!("deserialize: {}", #name);
                 use ::instant_xml::parse::XmlRecord;
@@ -176,17 +179,14 @@ impl Deserializer {
                 #namespaces_map;
                 deserializer.deserialize_struct(StructVisitor{}, #name, &namespaces_map)
             }
-        ))
-        .into());
+        ));
 
-        fn_vec.push(
-            proc_macro::TokenStream::from(quote!(
+        out.extend(quote!(
                 const TAG_NAME: ::instant_xml::XMLTagName<'xml> = ::instant_xml::XMLTagName::Custom(#name);
-            ))
-            .into(),
+            )
         );
 
-        Deserializer { fn_vec }
+        Deserializer { out }
     }
 
     fn process_field(

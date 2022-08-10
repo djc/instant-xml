@@ -329,7 +329,7 @@ impl<'xml> Deserializer<'xml> {
         }
 
         self.tag_attributes = item.attributes;
-        return Ok(());
+        Ok(())
     }
 
     fn check_close_tag(&mut self, name: &str) -> Result<(), Error> {

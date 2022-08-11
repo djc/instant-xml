@@ -96,7 +96,7 @@ impl<'xml> Iterator for XmlParser<'xml> {
                             key: key.unwrap(),
                             attributes,
                             default_namespace,
-                            namespaces: namespaces,
+                            namespaces,
                             prefix: prefix_ret,
                         })));
                     }

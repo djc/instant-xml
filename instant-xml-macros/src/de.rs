@@ -64,25 +64,26 @@ impl Deserializer {
                 match data.fields {
                     syn::Fields::Named(ref fields) => {
                         fields.named.iter().enumerate().for_each(|(index, field)| {
-                            if let Some(true) = retrieve_attr("attribute", &field.attrs) {
-                                Self::process_field(
-                                    field,
-                                    index,
-                                    &mut declare_values,
-                                    &mut return_val,
-                                    &mut attributes_tokens,
-                                    false,
-                                );
-                            } else {
-                                Self::process_field(
-                                    field,
-                                    index,
-                                    &mut declare_values,
-                                    &mut return_val,
-                                    &mut elements_tokens,
-                                    true,
-                                );
-                            }
+                            let is_element;
+                            let tokens = match retrieve_attr("attribute", &field.attrs) {
+                                Some(true) => {
+                                    is_element = false;
+                                    &mut attributes_tokens
+                                }
+                                _ => {
+                                    is_element = true;
+                                    &mut elements_tokens
+                                }
+                            };
+
+                            Self::process_field(
+                                field,
+                                index,
+                                &mut declare_values,
+                                &mut return_val,
+                                tokens,
+                                is_element,
+                            );
                         });
                     }
                     syn::Fields::Unnamed(_) => todo!(),

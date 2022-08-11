@@ -10,15 +10,6 @@ struct Tokens {
     match_: TokenStream,
 }
 
-impl Tokens {
-    fn extend(&mut self, tokens: Tokens) {
-        self.enum_.extend(tokens.enum_);
-        self.consts.extend(tokens.consts);
-        self.names.extend(tokens.names);
-        self.match_.extend(tokens.match_);
-    }
-}
-
 impl Default for Tokens {
     fn default() -> Self {
         Self {
@@ -41,11 +32,6 @@ impl quote::ToTokens for Deserializer {
             #vec
         ));
     }
-}
-
-enum FieldType {
-    Attribute(Tokens),
-    Element(Tokens),
 }
 
 impl Deserializer {
@@ -78,18 +64,24 @@ impl Deserializer {
                 match data.fields {
                     syn::Fields::Named(ref fields) => {
                         fields.named.iter().enumerate().for_each(|(index, field)| {
-                            match Self::process_field(
-                                field,
-                                index,
-                                &mut declare_values,
-                                &mut return_val,
-                            ) {
-                                FieldType::Element(tokens) => {
-                                    elements_tokens.extend(tokens);
-                                }
-                                FieldType::Attribute(tokens) => {
-                                    attributes_tokens.extend(tokens);
-                                }
+                            if let Some(true) = retrieve_attr("attribute", &field.attrs) {
+                                Self::process_field(
+                                    field,
+                                    index,
+                                    &mut declare_values,
+                                    &mut return_val,
+                                    &mut attributes_tokens,
+                                    false,
+                                );
+                            } else {
+                                Self::process_field(
+                                    field,
+                                    index,
+                                    &mut declare_values,
+                                    &mut return_val,
+                                    &mut elements_tokens,
+                                    true,
+                                );
                             }
                         });
                     }
@@ -207,13 +199,9 @@ impl Deserializer {
         index: usize,
         declare_values: &mut TokenStream,
         return_val: &mut TokenStream,
-    ) -> FieldType {
-        let mut tokens = Tokens::default();
-        let mut is_element = true;
-        if let Some(true) = retrieve_attr("attribute", &field.attrs) {
-            is_element = false
-        }
-
+        tokens: &mut Tokens,
+        is_element: bool,
+    ) {
         let field_name = field.ident.as_ref().unwrap().to_string();
         let const_field_name = Ident::new(&field_name.to_uppercase(), Span::call_site());
         let field_value = field.ident.as_ref().unwrap();
@@ -279,11 +267,5 @@ impl Deserializer {
         return_val.extend(quote!(
             #field_value: #enum_name.expect("Expected some value"),
         ));
-
-        if is_element {
-            FieldType::Element(tokens)
-        } else {
-            FieldType::Attribute(tokens)
-        }
     }
 }

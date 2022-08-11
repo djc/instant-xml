@@ -352,7 +352,7 @@ impl<'xml> Deserializer<'xml> {
 
         println!("default namespace: {:?}", &item.default_namespace);
         self.tag_attributes = item.attributes;
-        Ok(())
+        return Ok(());
     }
 
     fn check_close_tag(&mut self, name: &str) -> Result<(), Error> {

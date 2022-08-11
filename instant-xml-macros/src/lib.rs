@@ -121,8 +121,10 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let root_name = ident.to_string();
     let mut missing_prefixes = BTreeSet::new();
     let mut serializer = Serializer::new(&ast.attrs);
+    
     let mut output = TokenStream::new();
-    serializer.add_header(&mut output);
+
+    serializer.add_header(&root_name, &mut output);
 
     match &ast.data {
         syn::Data::Struct(ref data) => {
@@ -142,7 +144,6 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     serializer.add_footer(&root_name, &mut output);
 
     let current_prefixes = serializer.keys_set();
-
     proc_macro::TokenStream::from(quote!(
         impl ToXml for #ident {
             fn serialize<W>(&self, serializer: &mut instant_xml::Serializer<W>, _field_data: Option<&instant_xml::FieldContext>) -> Result<(), instant_xml::Error>
@@ -195,17 +196,17 @@ impl<'a> Serializer {
         }
     }
 
-    pub fn keys_set(&self) -> BTreeSet<&str> {
+    fn keys_set(&self) -> BTreeSet<&str> {
         self.other_namespaces
             .iter()
             .map(|(k, _)| k.as_str())
             .collect()
     }
 
-    pub fn add_header(&mut self, output: &'a mut TokenStream) {
+    fn add_header(&mut self, root_name: &str, output: &'a mut TokenStream) {
         output.extend(quote!(
             serializer.output.write_char('<')?;
-            serializer.output.write_str(field_context.name)?;
+            serializer.output.write_str(#root_name)?;
         ));
 
         if let Some(default_namespace) = self.default_namespace.as_ref() {
@@ -233,7 +234,7 @@ impl<'a> Serializer {
         ));
     }
 
-    pub fn add_footer(&mut self, root_name: &str, output: &'a mut TokenStream) {
+    fn add_footer(&mut self, root_name: &str, output: &'a mut TokenStream) {
         output.extend(quote!(
             serializer.output.write_str("</")?;
             serializer.output.write_str(#root_name)?;
@@ -241,7 +242,7 @@ impl<'a> Serializer {
         ));
     }
 
-    pub fn process_named_field(
+    fn process_named_field(
         &mut self,
         field: &syn::Field,
         output: &'a mut TokenStream,

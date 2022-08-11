@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
-use crate::{get_namespaces, retrieve_attr};
+use crate::{get_namespaces, retrieve_attr, retrieve_field_attribute, FieldAttribute};
 
 struct Tokens {
     enum_: TokenStream,
@@ -54,11 +54,12 @@ impl Deserializer {
         let name = ident.to_string();
         let mut out = TokenStream::new();
 
-        let (_, other_namespaces) = get_namespaces(&input.attrs);
+        let (default_namespace, other_namespaces) = get_namespaces(&input.attrs);
         let mut namespaces_map: TokenStream = proc_macro::TokenStream::from(
             quote!(let mut namespaces_map = std::collections::HashMap::new();),
         )
         .into();
+
         for (k, v) in other_namespaces.iter() {
             namespaces_map.extend(quote!(
                 namespaces_map.insert(#k, #v);
@@ -190,7 +191,7 @@ impl Deserializer {
                 }
 
                 #namespaces_map;
-                deserializer.deserialize_struct(StructVisitor{}, #name, &namespaces_map)
+                deserializer.deserialize_struct(StructVisitor{}, #name, #default_namespace, &namespaces_map)
             }
         ));
 
@@ -248,6 +249,14 @@ impl Deserializer {
         ));
 
         if is_element {
+            let def_prefix = match retrieve_field_attribute("namespace", field) {
+                Some(FieldAttribute::Namespace(_)) => {
+                    todo!();
+                }
+                Some(FieldAttribute::PrefixIdentifier(prefix)) => prefix,
+                _ => String::new(),
+            };
+
             tokens.match_.extend(quote!(
                 __Elements::#enum_name => {
                     if #enum_name.is_some() {
@@ -256,7 +265,15 @@ impl Deserializer {
 
                     if item.prefix.is_some() {
                         let prefix = item.prefix.unwrap().to_string();
-                        deserializer.verify_namespace(&prefix);
+                        if deserializer.get_parser_namespace(&prefix)
+                            != deserializer.get_def_namespace(&#def_prefix) {
+                                return Err(Error::UnexpectedPrefix)
+                        }
+                    } else {
+                        // Check default namespace
+                        if !deserializer.compare_parser_and_def_default_namespaces() {
+                            return Err(Error::WrongNamespace)
+                        }
                     }
 
                     deserializer.set_next_type(::instant_xml::EntityType::Element)?;

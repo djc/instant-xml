@@ -21,8 +21,8 @@ pub(crate) enum FieldAttribute {
 
 pub(crate) fn get_namespaces(
     attributes: &Vec<syn::Attribute>,
-) -> (Option<String>, HashMap<String, String>) {
-    let mut default_namespace = None;
+) -> (String, HashMap<String, String>) {
+    let mut default_namespace = String::new();
     let mut other_namespaces = HashMap::default();
 
     let list = match retrieve_attr_list("namespace", attributes) {
@@ -33,7 +33,7 @@ pub(crate) fn get_namespaces(
     if list.path.get_ident().unwrap() == "namespace" {
         let mut iter = list.nested.iter();
         if let Some(NestedMeta::Lit(Lit::Str(v))) = iter.next() {
-            default_namespace = Some(v.value());
+            default_namespace = v.value();
         }
 
         for item in iter {

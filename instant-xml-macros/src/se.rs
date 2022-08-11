@@ -6,7 +6,7 @@ use quote::quote;
 use crate::{get_namespaces, retrieve_field_attribute, FieldAttribute};
 
 pub struct Serializer {
-    default_namespace: Option<String>,
+    default_namespace: String,
     other_namespaces: HashMap<String, String>,
 }
 
@@ -33,7 +33,8 @@ impl<'a> Serializer {
             serializer.output.write_str(field_context.name)?;
         ));
 
-        if let Some(default_namespace) = self.default_namespace.as_ref() {
+        if !self.default_namespace.is_empty() {
+            let default_namespace = &self.default_namespace;
             output.extend(quote!(
                 serializer.output.write_str(" xmlns=\"")?;
                 serializer.output.write_str(#default_namespace)?;

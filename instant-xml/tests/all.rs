@@ -112,6 +112,16 @@ fn struct_with_custom_field_from_xml() {
         }
     );
 
+    // Different prefixes then in definition
+    assert_eq!(
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml flag_attribute=\"true\" xmlns=\"URI\" xmlns:grr=\"BAZ\" xmlns:foo=\"BAR\"><grr:flag>false</grr:flag><Nested><flag>true</flag></Nested></StructWithCustomFieldFromXml>").unwrap(),
+        StructWithCustomFieldFromXml {
+            flag: false,
+            flag_attribute: true,
+            test: Nested { flag: true }
+        }
+    );
+
     assert_eq!(
         Nested::from_xml("<Nested><flag>true</flag></Nested>").unwrap(),
         Nested { flag: true }

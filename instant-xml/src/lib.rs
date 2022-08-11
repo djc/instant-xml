@@ -16,9 +16,9 @@ pub struct TagData<'xml> {
     pub attributes: Vec<(&'xml str, &'xml str)>,
 
     // TODO: handle default namespace
-    pub default_namespace: Option<&'xml str>,
+    pub default_namespace: &'xml str,
 
-    pub namespaces: Option<HashMap<&'xml str, &'xml str>>,
+    pub namespaces: HashMap<&'xml str, &'xml str>,
     pub prefix: Option<&'xml str>,
 }
 
@@ -236,7 +236,10 @@ pub trait Visitor<'xml>: Sized {
 
 pub struct Deserializer<'xml> {
     parser: XmlParser<'xml>,
-    namespaces: HashMap<&'xml str, &'xml str>,
+    def_namespaces: HashMap<&'xml str, &'xml str>,
+    parser_namespaces: HashMap<&'xml str, &'xml str>,
+    def_defualt_namespace: &'xml str,
+    parser_defualt_namespace: &'xml str,
     tag_attributes: Vec<(&'xml str, &'xml str)>,
     next_type: Option<EntityType>,
 }
@@ -245,7 +248,10 @@ impl<'xml> Deserializer<'xml> {
     pub fn new(input: &'xml str) -> Self {
         Self {
             parser: XmlParser::new(input),
-            namespaces: std::collections::HashMap::new(),
+            def_namespaces: std::collections::HashMap::new(),
+            parser_namespaces: std::collections::HashMap::new(),
+            def_defualt_namespace: "",
+            parser_defualt_namespace: "",
             tag_attributes: Vec::new(),
             next_type: Some(EntityType::Element),
         }
@@ -255,8 +261,16 @@ impl<'xml> Deserializer<'xml> {
         self.parser.peek_next_tag()
     }
 
-    pub fn verify_namespace(&self, namespace_to_verify: &str) -> bool {
-        self.namespaces.get(namespace_to_verify).is_some()
+    pub fn get_def_namespace(&self, prefix: &str) -> Option<&&str> {
+        self.def_namespaces.get(prefix)
+    }
+
+    pub fn get_parser_namespace(&self, prefix: &str) -> Option<&&str> {
+        self.parser_namespaces.get(prefix)
+    }
+
+    pub fn compare_parser_and_def_default_namespaces(&self) -> bool {
+        self.parser_defualt_namespace == self.def_defualt_namespace
     }
 
     pub fn peek_next_attribute(&self) -> Option<&(&'xml str, &'xml str)> {
@@ -267,24 +281,58 @@ impl<'xml> Deserializer<'xml> {
         &mut self,
         visitor: V,
         name: &str,
-        namespaces: &HashMap<&'xml str, &'xml str>,
+        def_default_namespace: &'xml str,
+        def_namespaces: &HashMap<&'xml str, &'xml str>,
     ) -> Result<V::Value, Error>
     where
         V: Visitor<'xml>,
     {
-        let new_namespaces = namespaces
+        // Setting current defined default namespace
+        let def_namespace_to_revert = self.def_defualt_namespace;
+        self.def_defualt_namespace = def_default_namespace;
+
+        // Adding struct defined namespaces
+        let new_def_namespaces = def_namespaces
             .iter()
-            .filter(|(k, v)| self.namespaces.insert(k, v).is_none())
+            .filter(|(k, v)| self.def_namespaces.insert(k, v).is_none())
             .collect::<Vec<_>>();
 
-        self.process_open_tag(name, namespaces)?;
-        let ret = visitor.visit_struct(self)?;
+        // Process open tag
+        let tag_data = match self.parser.next() {
+            Some(Ok(XmlRecord::Open(item))) if item.key == name => item,
+            _ => return Err(Error::UnexpectedValue),
+        };
+        self.tag_attributes = tag_data.attributes;
 
-        self.check_close_tag(name)?;
-        let _ = new_namespaces
+        // Setting current defined default namespace
+        let parser_namespace_to_revert = self.parser_defualt_namespace;
+        self.parser_defualt_namespace = tag_data.default_namespace;
+
+        // Adding parser namespaces
+        let new_parser_namespaces = tag_data
+            .namespaces
             .iter()
-            .map(|(k, _)| self.namespaces.remove(*k));
+            .filter(|(k, v)| self.parser_namespaces.insert(k, v).is_none())
+            .collect::<Vec<_>>();
 
+        let ret = visitor.visit_struct(self)?;
+        self.check_close_tag(name)?;
+
+        // Removing parser namespaces
+        let _ = new_parser_namespaces
+            .iter()
+            .map(|(k, _)| self.parser_namespaces.remove(*k));
+
+        // Removing struct defined namespaces
+        let _ = new_def_namespaces
+            .iter()
+            .map(|(k, _)| self.def_namespaces.remove(*k));
+
+        // Retriving old defined namespace
+        self.def_defualt_namespace = def_namespace_to_revert;
+
+        // Retriving old parser namespace
+        self.parser_defualt_namespace = parser_namespace_to_revert;
         Ok(ret)
     }
 
@@ -332,28 +380,36 @@ impl<'xml> Deserializer<'xml> {
         }
     }
 
-    fn process_open_tag(
-        &mut self,
-        name: &str,
-        namespaces: &HashMap<&'xml str, &'xml str>,
-    ) -> Result<(), Error> {
-        let item = match self.parser.next() {
-            Some(Ok(XmlRecord::Open(item))) if item.key == name => item,
-            _ => return Err(Error::UnexpectedValue),
-        };
+    // fn process_open_tag(
+    //     &mut self,
+    //     name: &str,
+    // ) -> Result<&'xml TagData, Error> {
+    //     let item = match self.parser.next() {
+    //         Some(Ok(XmlRecord::Open(item))) if item.key == name => &item,
+    //         _ => return Err(Error::UnexpectedValue),
+    //     };
 
-        for (k, v) in item.namespaces.unwrap() {
-            match namespaces.get(k) {
-                Some(item) if *item != v => return Err(Error::UnexpectedPrefix),
-                None => return Err(Error::MissingdPrefix),
-                _ => (),
-            }
-        }
+    //     // if !def_default_namespace.is_empty() && def_default_namespace != item.default_namespace.unwrap() {
+    //     //     return Err(Error::UnexpectedValue);
+    //     // }
 
-        println!("default namespace: {:?}", &item.default_namespace);
-        self.tag_attributes = item.attributes;
-        Ok(())
-    }
+    //     // Here we need to check if namespace is defined in the struct, regardless of its key.
+    //     // for (_, v) in item.namespaces.unwrap() {
+    //     //     match def_namespaces.get(v) {
+    //     //         Some(_) => (),
+    //     //         None => return Err(Error::MissingdPrefix),
+    //     //     }
+    //     // }
+
+    //     // let new_parser_namespaces = item.namespaces
+    //     //     .iter()
+    //     //     .filter(|(k, v)| self.parser_namespaces.insert(k, v).is_none())
+    //     //     .collect::<Vec<_>>();
+
+    //     // println!("default namespace: {:?}", &item.default_namespace);
+    //     //self.tag_attributes = item.attributes;
+    //     Ok(item)
+    // }
 
     fn check_close_tag(&mut self, name: &str) -> Result<(), Error> {
         let item = match self.parser.next() {
@@ -399,4 +455,6 @@ pub enum Error {
     UnexpectedPrefix,
     #[error("unexpected state")]
     UnexpectedState,
+    #[error("wrong namespace")]
+    WrongNamespace,
 }

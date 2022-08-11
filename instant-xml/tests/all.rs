@@ -82,7 +82,7 @@ fn struct_with_custom_field_wrong_prefix() {
     .unwrap();
 }
 
-#[derive(Debug, Eq, PartialEq, FromXml)]
+#[derive(Debug, Eq, PartialEq, FromXml, ToXml)]
 #[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
 struct StructWithCustomFieldFromXml {
     #[xml(namespace(bar))]

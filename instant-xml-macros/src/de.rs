@@ -253,7 +253,7 @@ impl Deserializer {
                         panic!("duplicated value");
                     }
 
-                    deserializer.set_next_as_attribute()?;
+                    deserializer.set_next_type_as_attribute()?;
                     #enum_name = Some(#field_type::deserialize(deserializer)?);
                 },
             ));

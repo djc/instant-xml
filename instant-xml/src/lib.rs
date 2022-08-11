@@ -288,7 +288,7 @@ impl<'xml> Deserializer<'xml> {
         Ok(ret)
     }
 
-    pub fn set_next_as_attribute(&mut self) -> Result<(), Error> {
+    pub fn set_next_type_as_attribute(&mut self) -> Result<(), Error> {
         if self.next_type == EntityType::Attribute {
             return Err(Error::UnexpectedState);
         }

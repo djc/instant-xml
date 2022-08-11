@@ -10,15 +10,6 @@ struct Tokens {
     match_: TokenStream,
 }
 
-impl Tokens {
-    fn extend(&mut self, tokens: Tokens) {
-        self.enum_.extend(tokens.enum_);
-        self.consts.extend(tokens.consts);
-        self.names.extend(tokens.names);
-        self.match_.extend(tokens.match_);
-    }
-}
-
 impl Default for Tokens {
     fn default() -> Self {
         Self {
@@ -41,11 +32,6 @@ impl quote::ToTokens for Deserializer {
             #vec
         ));
     }
-}
-
-enum FieldType {
-    Attribute(Tokens),
-    Element(Tokens),
 }
 
 impl Deserializer {
@@ -79,19 +65,26 @@ impl Deserializer {
                 match data.fields {
                     syn::Fields::Named(ref fields) => {
                         fields.named.iter().enumerate().for_each(|(index, field)| {
-                            match Self::process_field(
+                            let is_element;
+                            let tokens = match retrieve_attr("attribute", &field.attrs) {
+                                Some(true) => {
+                                    is_element = false;
+                                    &mut attributes_tokens
+                                }
+                                _ => {
+                                    is_element = true;
+                                    &mut elements_tokens
+                                }
+                            };
+
+                            Self::process_field(
                                 field,
                                 index,
                                 &mut declare_values,
                                 &mut return_val,
-                            ) {
-                                FieldType::Element(tokens) => {
-                                    elements_tokens.extend(tokens);
-                                }
-                                FieldType::Attribute(tokens) => {
-                                    attributes_tokens.extend(tokens);
-                                }
-                            }
+                                tokens,
+                                is_element,
+                            );
                         });
                     }
                     syn::Fields::Unnamed(_) => todo!(),
@@ -117,12 +110,7 @@ impl Deserializer {
             fn deserialize(deserializer: &mut ::instant_xml::Deserializer) -> Result<Self, ::instant_xml::Error> {
                 println!("deserialize: {}", #name);
                 use ::instant_xml::parse::XmlRecord;
-                use ::instant_xml::{EntityType, Error, Deserializer, Visitor} ;
-
-                match deserializer.consume_next_type()? {
-                    EntityType::Element => (),
-                    EntityType::Attribute => return Err(Error::UnexpectedState),
-                };
+                use ::instant_xml::{Error, Deserializer, Visitor} ;
 
                 enum __Elements {
                     #elements_enum
@@ -208,13 +196,9 @@ impl Deserializer {
         index: usize,
         declare_values: &mut TokenStream,
         return_val: &mut TokenStream,
-    ) -> FieldType {
-        let mut tokens = Tokens::default();
-        let mut is_element = true;
-        if let Some(true) = retrieve_attr("attribute", &field.attrs) {
-            is_element = false
-        }
-
+        tokens: &mut Tokens,
+        is_element: bool,
+    ) {
         let field_name = field.ident.as_ref().unwrap().to_string();
         let const_field_name = Ident::new(&field_name.to_uppercase(), Span::call_site());
         let field_value = field.ident.as_ref().unwrap();
@@ -276,7 +260,6 @@ impl Deserializer {
                         }
                     }
 
-                    deserializer.set_next_type(::instant_xml::EntityType::Element)?;
                     #enum_name = Some(#field_type::deserialize(deserializer)?);
                 },
             ));
@@ -287,7 +270,7 @@ impl Deserializer {
                         panic!("duplicated value");
                     }
 
-                    deserializer.set_next_type(::instant_xml::EntityType::Attribute)?;
+                    deserializer.set_next_type_as_attribute()?;
                     #enum_name = Some(#field_type::deserialize(deserializer)?);
                 },
             ));
@@ -296,11 +279,5 @@ impl Deserializer {
         return_val.extend(quote!(
             #field_value: #enum_name.expect("Expected some value"),
         ));
-
-        if is_element {
-            FieldType::Element(tokens)
-        } else {
-            FieldType::Attribute(tokens)
-        }
     }
 }

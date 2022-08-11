@@ -27,10 +27,7 @@ pub struct Deserializer {
 
 impl quote::ToTokens for Deserializer {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let vec = &self.out;
-        tokens.extend(quote!(
-            #vec
-        ));
+        tokens.extend(self.out.clone());
     }
 }
 
@@ -41,10 +38,7 @@ impl Deserializer {
         let mut out = TokenStream::new();
 
         let (_, other_namespaces) = get_namespaces(&input.attrs);
-        let mut namespaces_map: TokenStream = proc_macro::TokenStream::from(
-            quote!(let mut namespaces_map = std::collections::HashMap::new();),
-        )
-        .into();
+        let mut namespaces_map = quote!(let mut namespaces_map = std::collections::HashMap::new(););
         for (k, v) in other_namespaces.iter() {
             namespaces_map.extend(quote!(
                 namespaces_map.insert(#k, #v);
@@ -183,9 +177,8 @@ impl Deserializer {
         ));
 
         out.extend(quote!(
-                const TAG_NAME: ::instant_xml::XMLTagName<'xml> = ::instant_xml::XMLTagName::Custom(#name);
-            )
-        );
+            const TAG_NAME: ::instant_xml::TagName<'xml> = ::instant_xml::TagName::Custom(#name);
+        ));
 
         Deserializer { out }
     }
@@ -201,10 +194,9 @@ impl Deserializer {
         let field_name = field.ident.as_ref().unwrap().to_string();
         let const_field_name = Ident::new(&field_name.to_uppercase(), Span::call_site());
         let field_value = field.ident.as_ref().unwrap();
-        let field_type = if let syn::Type::Path(v) = &field.ty {
-            v.path.get_ident()
-        } else {
-            todo!();
+        let field_type = match &field.ty {
+            syn::Type::Path(v) => v.path.get_ident(),
+            _ => todo!(),
         };
 
         let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
@@ -212,8 +204,8 @@ impl Deserializer {
 
         tokens.consts.extend(quote!(
             const #const_field_name: &str = match #field_type::TAG_NAME {
-                ::instant_xml::XMLTagName::FieldName => #field_name,
-                ::instant_xml::XMLTagName::Custom(v) => v,
+                ::instant_xml::TagName::FieldName => #field_name,
+                ::instant_xml::TagName::Custom(v) => v,
             };
         ));
 
@@ -238,8 +230,8 @@ impl Deserializer {
                         panic!("duplicated value");
                     }
 
-                    if item.prefix.is_some() {
-                        let prefix = item.prefix.unwrap().to_string();
+                    if let Some(item) = item.prefix {
+                        let prefix = item.to_owned();
                         deserializer.verify_namespace(&prefix);
                     }
 

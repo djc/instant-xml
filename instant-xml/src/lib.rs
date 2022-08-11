@@ -206,13 +206,13 @@ pub enum EntityType {
     Attribute,
 }
 
-pub enum XMLTagName<'xml> {
+pub enum TagName<'xml> {
     FieldName,
     Custom(&'xml str),
 }
 
 pub trait FromXml<'xml>: Sized {
-    const TAG_NAME: XMLTagName<'xml>;
+    const TAG_NAME: TagName<'xml>;
 
     fn from_xml(input: &str) -> Result<Self, Error> {
         let mut deserializer = Deserializer::new(input);
@@ -377,6 +377,8 @@ pub enum Error {
     Format(#[from] fmt::Error),
     #[error("parse: {0}")]
     Parse(#[from] xmlparser::Error),
+    #[error("other: {0}")]
+    Other(std::string::String),
     #[error("unexpected end of stream")]
     UnexpectedEndOfStream,
     #[error("unexpected value")]

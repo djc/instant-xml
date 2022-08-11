@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::{Deserializer, EntityType, Error, FromXml, Visitor, XMLTagName};
+use crate::{Deserializer, EntityType, Error, FromXml, TagName, Visitor};
 
 struct BoolVisitor;
 
@@ -8,12 +8,15 @@ impl<'de> Visitor<'de> for BoolVisitor {
     type Value = bool;
 
     fn visit_str<'a>(self, value: &str) -> Result<Self::Value, Error> {
-        Ok(FromStr::from_str(value).unwrap())
+        match FromStr::from_str(value) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(Error::Other(e.to_string())),
+        }
     }
 }
 
 impl<'xml> FromXml<'xml> for bool {
-    const TAG_NAME: XMLTagName<'xml> = XMLTagName::FieldName;
+    const TAG_NAME: TagName<'xml> = TagName::FieldName;
 
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
         match deserializer.consume_next_type() {

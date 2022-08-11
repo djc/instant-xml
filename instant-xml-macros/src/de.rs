@@ -109,12 +109,7 @@ impl Deserializer {
             fn deserialize(deserializer: &mut ::instant_xml::Deserializer) -> Result<Self, ::instant_xml::Error> {
                 println!("deserialize: {}", #name);
                 use ::instant_xml::parse::XmlRecord;
-                use ::instant_xml::{EntityType, Error, Deserializer, Visitor} ;
-
-                match deserializer.consume_next_type()? {
-                    EntityType::Element => (),
-                    EntityType::Attribute => return Err(Error::UnexpectedState),
-                };
+                use ::instant_xml::{Error, Deserializer, Visitor} ;
 
                 enum __Elements {
                     #elements_enum
@@ -248,7 +243,6 @@ impl Deserializer {
                         deserializer.verify_namespace(&prefix);
                     }
 
-                    deserializer.set_next_type(::instant_xml::EntityType::Element)?;
                     #enum_name = Some(#field_type::deserialize(deserializer)?);
                 },
             ));
@@ -259,7 +253,7 @@ impl Deserializer {
                         panic!("duplicated value");
                     }
 
-                    deserializer.set_next_type(::instant_xml::EntityType::Attribute)?;
+                    deserializer.set_next_as_attribute()?;
                     #enum_name = Some(#field_type::deserialize(deserializer)?);
                 },
             ));

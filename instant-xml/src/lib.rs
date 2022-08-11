@@ -200,7 +200,7 @@ pub struct FieldContext<'xml> {
     pub attribute: Option<FieldAttribute<'xml>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum EntityType {
     Element,
     Attribute,
@@ -238,7 +238,7 @@ pub struct Deserializer<'xml> {
     parser: XmlParser<'xml>,
     namespaces: HashMap<&'xml str, &'xml str>,
     tag_attributes: Vec<(&'xml str, &'xml str)>,
-    next_type: Option<EntityType>,
+    next_type: EntityType,
 }
 
 impl<'xml> Deserializer<'xml> {
@@ -247,7 +247,7 @@ impl<'xml> Deserializer<'xml> {
             parser: XmlParser::new(input),
             namespaces: std::collections::HashMap::new(),
             tag_attributes: Vec::new(),
-            next_type: Some(EntityType::Element),
+            next_type: EntityType::Element,
         }
     }
 
@@ -288,23 +288,19 @@ impl<'xml> Deserializer<'xml> {
         Ok(ret)
     }
 
-    pub fn set_next_type(&mut self, kind: EntityType) -> Result<(), Error> {
-        if self.next_type.is_some() {
+    pub fn set_next_as_attribute(&mut self) -> Result<(), Error> {
+        if self.next_type == EntityType::Attribute {
             return Err(Error::UnexpectedState);
         }
 
-        self.next_type = Some(kind);
+        self.next_type = EntityType::Attribute;
         Ok(())
     }
 
-    pub fn consume_next_type(&mut self) -> Result<EntityType, Error> {
-        if self.next_type.is_none() {
-            return Err(Error::UnexpectedState);
-        }
-
-        let ret = self.next_type.as_ref().unwrap().clone();
-        self.next_type = None;
-        Ok(ret)
+    pub fn consume_next_type(&mut self) -> EntityType {
+        let ret = self.next_type.clone();
+        self.next_type = EntityType::Element;
+        ret
     }
 
     fn deserialize_bool<V>(&mut self, visitor: V) -> Result<V::Value, Error>

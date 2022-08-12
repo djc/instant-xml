@@ -27,10 +27,7 @@ pub struct Deserializer {
 
 impl quote::ToTokens for Deserializer {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let vec = &self.out;
-        tokens.extend(quote!(
-            #vec
-        ));
+        tokens.extend(self.out.clone());
     }
 }
 
@@ -41,10 +38,7 @@ impl Deserializer {
         let mut out = TokenStream::new();
 
         let (default_namespace, other_namespaces) = get_namespaces(&input.attrs);
-        let mut namespaces_map: TokenStream = proc_macro::TokenStream::from(
-            quote!(let mut namespaces_map = std::collections::HashMap::new();),
-        )
-        .into();
+        let mut namespaces_map = quote!(let mut namespaces_map = std::collections::HashMap::new(););
 
         for (k, v) in other_namespaces.iter() {
             namespaces_map.extend(quote!(
@@ -184,9 +178,8 @@ impl Deserializer {
         ));
 
         out.extend(quote!(
-                const TAG_NAME: ::instant_xml::XMLTagName<'xml> = ::instant_xml::XMLTagName::Custom(#name);
-            )
-        );
+            const TAG_NAME: ::instant_xml::TagName<'xml> = ::instant_xml::TagName::Custom(#name);
+        ));
 
         Deserializer { out }
     }
@@ -199,32 +192,31 @@ impl Deserializer {
         tokens: &mut Tokens,
         is_element: bool,
     ) {
-        let field_name = field.ident.as_ref().unwrap().to_string();
-        let const_field_name = Ident::new(&field_name.to_uppercase(), Span::call_site());
-        let field_value = field.ident.as_ref().unwrap();
-        let field_type = if let syn::Type::Path(v) = &field.ty {
-            v.path.get_ident()
-        } else {
-            todo!();
+        let field_var = field.ident.as_ref().unwrap();
+        let field_var_str = field_var.to_string();
+        let const_field_var_str = Ident::new(&field_var_str.to_uppercase(), Span::call_site());
+        let field_type = match &field.ty {
+            syn::Type::Path(v) => v.path.get_ident(),
+            _ => todo!(),
         };
 
         let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
         tokens.enum_.extend(quote!(#enum_name,));
 
         tokens.consts.extend(quote!(
-            const #const_field_name: &str = match #field_type::TAG_NAME {
-                ::instant_xml::XMLTagName::FieldName => #field_name,
-                ::instant_xml::XMLTagName::Custom(v) => v,
+            const #const_field_var_str: &str = match #field_type::TAG_NAME {
+                ::instant_xml::TagName::FieldName => #field_var_str,
+                ::instant_xml::TagName::Custom(v) => v,
             };
         ));
 
         if is_element {
             tokens.names.extend(quote!(
-                #const_field_name => __Elements::#enum_name,
+                #const_field_var_str => __Elements::#enum_name,
             ));
         } else {
             tokens.names.extend(quote!(
-                #const_field_name => __Attributes::#enum_name,
+                #const_field_var_str => __Attributes::#enum_name,
             ));
         }
 
@@ -247,11 +239,11 @@ impl Deserializer {
                         panic!("duplicated value");
                     }
 
-                    if item.prefix.is_some() {
-                        let prefix = item.prefix.unwrap().to_string();
-                        if deserializer.get_parser_namespace(&prefix)
+                    if let Some(item) = item.prefix {
+                        let prefix = item.to_owned();
+                        if deserializer.get_parser_namespace(&prefix) 
                             != deserializer.get_def_namespace(&#def_prefix) {
-                                return Err(Error::UnexpectedPrefix)
+                            return Err(Error::UnexpectedPrefix)
                         }
                     } else {
                         // Check default namespace
@@ -277,7 +269,7 @@ impl Deserializer {
         }
 
         return_val.extend(quote!(
-            #field_value: #enum_name.expect("Expected some value"),
+            #field_var: #enum_name.expect("Expected some value"),
         ));
     }
 }

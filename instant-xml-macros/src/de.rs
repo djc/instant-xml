@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
-use crate::{get_namespaces, retrieve_attr, retrieve_field_attribute, FieldAttribute};
+use crate::{get_namespaces, retrieve_field_attribute, FieldAttribute};
 
 struct Tokens {
     enum_: TokenStream,
@@ -59,16 +59,20 @@ impl Deserializer {
                 match data.fields {
                     syn::Fields::Named(ref fields) => {
                         fields.named.iter().enumerate().for_each(|(index, field)| {
-                            let is_element;
-                            let tokens = match retrieve_attr("attribute", &field.attrs) {
-                                Some(true) => {
-                                    is_element = false;
-                                    &mut attributes_tokens
+                            let (tokens, def_prefix, is_element) = match retrieve_field_attribute(field) {
+                                Some(FieldAttribute::Namespace(_)) => {
+                                    todo!();
                                 }
-                                _ => {
-                                    is_element = true;
-                                    &mut elements_tokens
+                                Some(FieldAttribute::PrefixIdentifier(def_prefix)) => {
+                                    (&mut elements_tokens, Some(def_prefix), true)
+                                },
+                                Some(FieldAttribute::Attribute) => {
+                                    (&mut attributes_tokens, None, false)
                                 }
+                                None => {
+                                    (&mut elements_tokens, None, true)
+                                },
+
                             };
 
                             Self::process_field(
@@ -78,6 +82,7 @@ impl Deserializer {
                                 &mut return_val,
                                 tokens,
                                 is_element,
+                                def_prefix,
                             );
                         });
                     }
@@ -191,6 +196,7 @@ impl Deserializer {
         return_val: &mut TokenStream,
         tokens: &mut Tokens,
         is_element: bool,
+        def_prefix: Option<String>,
     ) {
         let field_var = field.ident.as_ref().unwrap();
         let field_var_str = field_var.to_string();
@@ -224,31 +230,39 @@ impl Deserializer {
             let mut #enum_name: Option<#field_type> = None;
         ));
 
-        if is_element {
-            let def_prefix = match retrieve_field_attribute("namespace", field) {
-                Some(FieldAttribute::Namespace(_)) => {
-                    todo!();
-                }
-                Some(FieldAttribute::PrefixIdentifier(prefix)) => prefix,
-                _ => String::new(),
-            };
+        
+        let def_prefix = match def_prefix {
+            Some(def_prefix) => quote!(let def_prefix: Option<&str> = Some(#def_prefix);),
+            None => quote!(let def_prefix: Option<&str> = None;),
+        };
 
+        if is_element {
             tokens.match_.extend(quote!(
                 __Elements::#enum_name => {
                     if #enum_name.is_some() {
                         panic!("duplicated value");
                     }
 
-                    if let Some(item) = item.prefix {
-                        let prefix = item.to_owned();
-                        if deserializer.get_parser_namespace(&prefix)
-                            != deserializer.get_def_namespace(&#def_prefix) {
-                            return Err(Error::UnexpectedPrefix)
+                    match item.prefix {
+                        Some(item) => {
+                            let parser_prefix = item.to_owned();
+                            #def_prefix
+                            match def_prefix {
+                                Some(def_prefix) => {
+                                    if deserializer.get_parser_namespace(&parser_prefix)
+                                        != deserializer.get_def_namespace(def_prefix) {
+                                        return Err(Error::UnexpectedPrefix)
+                                    }
+                                } 
+                                None => {
+                                    return Err(Error::WrongNamespace)
+                                }
+                            }
                         }
-                    } else {
-                        // Check default namespace
-                        if !deserializer.compare_parser_and_def_default_namespaces() {
-                            return Err(Error::WrongNamespace)
+                        None => {
+                            if !deserializer.compare_parser_and_def_default_namespaces() {
+                                return Err(Error::WrongNamespace)
+                            }
                         }
                     }
 

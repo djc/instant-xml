@@ -14,10 +14,7 @@ pub mod parse;
 pub struct TagData<'xml> {
     pub key: &'xml str,
     pub attributes: Vec<(&'xml str, &'xml str)>,
-
-    // TODO: handle default namespace
     pub default_namespace: &'xml str,
-
     pub namespaces: HashMap<&'xml str, &'xml str>,
     pub prefix: Option<&'xml str>,
 }

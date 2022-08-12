@@ -191,9 +191,9 @@ impl Deserializer {
         tokens: &mut Tokens,
         is_element: bool,
     ) {
-        let field_name = field.ident.as_ref().unwrap().to_string();
-        let const_field_name = Ident::new(&field_name.to_uppercase(), Span::call_site());
-        let field_value = field.ident.as_ref().unwrap();
+        let field_var = field.ident.as_ref().unwrap();
+        let field_var_str = field_var.to_string();
+        let const_field_var_str = Ident::new(&field_var_str.to_uppercase(), Span::call_site());  
         let field_type = match &field.ty {
             syn::Type::Path(v) => v.path.get_ident(),
             _ => todo!(),
@@ -203,19 +203,19 @@ impl Deserializer {
         tokens.enum_.extend(quote!(#enum_name,));
 
         tokens.consts.extend(quote!(
-            const #const_field_name: &str = match #field_type::TAG_NAME {
-                ::instant_xml::TagName::FieldName => #field_name,
+            const #const_field_var_str: &str = match #field_type::TAG_NAME {
+                ::instant_xml::TagName::FieldName => #field_var_str,
                 ::instant_xml::TagName::Custom(v) => v,
             };
         ));
 
         if is_element {
             tokens.names.extend(quote!(
-                #const_field_name => __Elements::#enum_name,
+                #const_field_var_str => __Elements::#enum_name,
             ));
         } else {
             tokens.names.extend(quote!(
-                #const_field_name => __Attributes::#enum_name,
+                #const_field_var_str => __Attributes::#enum_name,
             ));
         }
 
@@ -252,7 +252,7 @@ impl Deserializer {
         }
 
         return_val.extend(quote!(
-            #field_value: #enum_name.expect("Expected some value"),
+            #field_var: #enum_name.expect("Expected some value"),
         ));
     }
 }

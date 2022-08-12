@@ -193,7 +193,7 @@ impl Deserializer {
     ) {
         let field_var = field.ident.as_ref().unwrap();
         let field_var_str = field_var.to_string();
-        let const_field_var_str = Ident::new(&field_var_str.to_uppercase(), Span::call_site());  
+        let const_field_var_str = Ident::new(&field_var_str.to_uppercase(), Span::call_site());
         let field_type = match &field.ty {
             syn::Type::Path(v) => v.path.get_ident(),
             _ => todo!(),

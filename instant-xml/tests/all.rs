@@ -1,6 +1,7 @@
 use instant_xml::{FromXml, ToXml};
 
 #[derive(Debug, Eq, PartialEq, ToXml, FromXml)]
+#[xml(namespace("URI", bar = "BAZ"))]
 struct Nested {
     #[xml(namespace(bar))]
     flag: bool,
@@ -126,4 +127,49 @@ fn struct_with_custom_field_from_xml() {
         Nested::from_xml("<Nested><flag>true</flag></Nested>").unwrap(),
         Nested { flag: true }
     );
+}
+
+#[derive(Debug, Eq, PartialEq, ToXml, FromXml)]
+struct NestedWrongNamespace {
+    flag: bool,
+}
+
+#[derive(Debug, Eq, PartialEq, FromXml)]
+#[xml(namespace("URI"))]
+struct StructWithCorrectNestedNamespace {
+    test: Nested,
+}
+
+#[derive(Debug, Eq, PartialEq, FromXml)]
+struct StructWithWrongNestedNamespace {
+    test: NestedWrongNamespace,
+}
+
+#[test]
+fn default_namespaces() {
+    assert_eq!(
+        StructWithCorrectNestedNamespace::from_xml("<StructWithCorrectNestedNamespace xmlns=\"URI\"><Nested><flag>true</flag></Nested></StructWithCorrectNestedNamespace>").unwrap(),
+        StructWithCorrectNestedNamespace {
+            test: Nested { flag: true }
+        }
+    );
+
+    assert_eq!(
+        StructWithWrongNestedNamespace::from_xml("<StructWithCorrectNestedNamespace xmlns=\"URI\"><NestedWrongNamespace xmlns=\"\"><flag>true</flag></NestedWrongNamespace></StructWithCorrectNestedNamespace>").unwrap(),
+        StructWithWrongNestedNamespace {
+            test: NestedWrongNamespace { flag: true }
+        }
+    );
+}
+
+#[derive(Debug, Eq, PartialEq, FromXml)]
+#[xml(namespace("URI", bar = "BAZ"))]
+struct StructWithWrongNestedPrefix {
+    test: NestedWrongNamespace,
+}
+
+#[test]
+#[should_panic]
+fn wrong_child_prefix() {
+    StructWithCorrectNestedNamespace::from_xml("<NestedWrongPrefix xmlns=\"URI\" xmlns:dar=\"BAZ\"><NestedWrongPrefix><dar:flag>true</dar:flag></NestedWrongPrefix></StructWithCorrectNestedNamespace>").unwrap();
 }

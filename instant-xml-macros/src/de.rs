@@ -241,7 +241,7 @@ impl Deserializer {
 
                     if let Some(item) = item.prefix {
                         let prefix = item.to_owned();
-                        if deserializer.get_parser_namespace(&prefix) 
+                        if deserializer.get_parser_namespace(&prefix)
                             != deserializer.get_def_namespace(&#def_prefix) {
                             return Err(Error::UnexpectedPrefix)
                         }

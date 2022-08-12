@@ -61,9 +61,13 @@ impl Deserializer {
                         fields.named.iter().enumerate().for_each(|(index, field)| {
                             let (tokens, def_prefix, is_element) = match retrieve_field_attribute(field) {
                                 Some(FieldAttribute::Namespace(_)) => {
-                                    todo!();
+                                    panic!("tutaj");
                                 }
                                 Some(FieldAttribute::PrefixIdentifier(def_prefix)) => {
+                                    if other_namespaces.get(&def_prefix).is_none() {
+                                        panic!("Namespace with such prefix do not exist for this struct");
+                                    }
+
                                     (&mut elements_tokens, Some(def_prefix), true)
                                 },
                                 Some(FieldAttribute::Attribute) => {
@@ -86,11 +90,11 @@ impl Deserializer {
                             );
                         });
                     }
-                    syn::Fields::Unnamed(_) => todo!(),
+                    syn::Fields::Unnamed(_) => panic!("unamed"),
                     syn::Fields::Unit => {}
                 };
             }
-            _ => todo!(),
+            _ => panic!("sdfss"),
         };
 
         // Elements
@@ -149,7 +153,7 @@ impl Deserializer {
                         while let Some(( key, _ )) = deserializer.peek_next_attribute() {
                             match get_attribute(&key) {
                                 #attr_type_match
-                                __Attributes::__Ignore => todo!(),
+                                __Attributes::__Ignore => panic!("No such attribute"),
                             }
                         }
                         while let Some(item) = &deserializer.peek_next_tag()? {
@@ -157,7 +161,7 @@ impl Deserializer {
                                 XmlRecord::Open(item) => {
                                     match get_element(&item.key.as_ref()) {
                                         #elem_type_match
-                                        __Elements::__Ignore => todo!(),
+                                        __Elements::__Ignore => panic!("No such element"),
                                     }
                                  }
                                  XmlRecord::Close(tag) => {
@@ -203,7 +207,7 @@ impl Deserializer {
         let const_field_var_str = Ident::new(&field_var_str.to_uppercase(), Span::call_site());
         let field_type = match &field.ty {
             syn::Type::Path(v) => v.path.get_ident(),
-            _ => todo!(),
+            _ => panic!("ss"),
         };
 
         let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
@@ -230,7 +234,6 @@ impl Deserializer {
             let mut #enum_name: Option<#field_type> = None;
         ));
 
-        
         let def_prefix = match def_prefix {
             Some(def_prefix) => quote!(let def_prefix: Option<&str> = Some(#def_prefix);),
             None => quote!(let def_prefix: Option<&str> = None;),
@@ -253,16 +256,16 @@ impl Deserializer {
                                         != deserializer.get_def_namespace(def_prefix) {
                                         return Err(Error::UnexpectedPrefix)
                                     }
-                                } 
+                                }
                                 None => {
                                     return Err(Error::WrongNamespace)
                                 }
                             }
                         }
                         None => {
-                            if !deserializer.compare_parser_and_def_default_namespaces() {
-                                return Err(Error::WrongNamespace)
-                            }
+                            // if !deserializer.compare_parser_and_def_default_namespaces() {
+                            //     return Err(Error::WrongNamespace)
+                            // }
                         }
                     }
 

@@ -14,7 +14,7 @@ pub mod parse;
 pub struct TagData<'xml> {
     pub key: &'xml str,
     pub attributes: Vec<(&'xml str, &'xml str)>,
-    pub default_namespace: &'xml str,
+    pub default_namespace: Option<&'xml str>,
     pub namespaces: HashMap<&'xml str, &'xml str>,
     pub prefix: Option<&'xml str>,
 }
@@ -267,6 +267,10 @@ impl<'xml> Deserializer<'xml> {
     }
 
     pub fn compare_parser_and_def_default_namespaces(&self) -> bool {
+        println!(
+            "parser: {}, def: {}",
+            self.parser_defualt_namespace, self.def_defualt_namespace
+        );
         self.parser_defualt_namespace == self.def_defualt_namespace
     }
 
@@ -284,9 +288,19 @@ impl<'xml> Deserializer<'xml> {
     where
         V: Visitor<'xml>,
     {
+        println!("deserialize_struct");
+        // if !self.compare_parser_and_def_default_namespaces() {
+        //     return Err(Error::WrongNamespace);
+        // }
         // Setting current defined default namespace
         let def_namespace_to_revert = self.def_defualt_namespace;
         self.def_defualt_namespace = def_default_namespace;
+        println!(
+            "def: {}, revert def: {}",
+            &self.def_defualt_namespace, &def_namespace_to_revert
+        );
+
+        // Check if parent default namespace equels to current if so
 
         // Adding struct defined namespaces
         let new_def_namespaces = def_namespaces
@@ -301,9 +315,22 @@ impl<'xml> Deserializer<'xml> {
         };
         self.tag_attributes = tag_data.attributes;
 
-        // Setting current defined default namespace
+        // Setting current parser default namespace
         let parser_namespace_to_revert = self.parser_defualt_namespace;
-        self.parser_defualt_namespace = tag_data.default_namespace;
+        match tag_data.default_namespace {
+            Some(namespace) => {
+                self.parser_defualt_namespace = namespace;
+            }
+            None => {
+                if def_namespace_to_revert != self.def_defualt_namespace {
+                    return Err(Error::WrongNamespace);
+                }
+            }
+        }
+        println!(
+            "parsr: {}, revert: {}",
+            &self.parser_defualt_namespace, &parser_namespace_to_revert
+        );
 
         // Adding parser namespaces
         let new_parser_namespaces = tag_data
@@ -424,7 +451,7 @@ struct State<'a> {
     prefix: HashMap<&'a str, &'a str>,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum Error {
     #[error("format: {0}")]
     Format(#[from] fmt::Error),

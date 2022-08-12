@@ -67,36 +67,12 @@ pub(crate) fn retrieve_field_attribute(input: &syn::Field) -> Option<FieldAttrib
             }
             "attribute" => {
                 return Some(FieldAttribute::Attribute);
-            },
+            }
             _ => panic!("unexpected parameter"),
-         }
+        }
     }
     None
 }
-
-// pub(crate) fn retrieve_attr(name: &str, attributes: &Vec<syn::Attribute>) -> Option<bool> {
-//     for attr in attributes {
-//         if !attr.path.is_ident(XML) {
-//             continue;
-//         }
-
-//         let nested = match attr.parse_meta() {
-//             Ok(Meta::List(meta)) => meta.nested,
-//             _ => return Some(false),
-//         };
-
-//         let path = match nested.first() {
-//             Some(NestedMeta::Meta(Meta::Path(path))) => path,
-//             _ => return Some(false),
-//         };
-
-//         if path.get_ident()? == name {
-//             return Some(true);
-//         }
-//     }
-
-//     None
-// }
 
 fn retrieve_attr_list(attributes: &Vec<syn::Attribute>) -> Option<(syn::MetaList, String)> {
     for attr in attributes {

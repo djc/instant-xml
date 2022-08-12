@@ -36,7 +36,7 @@ impl<'a> XmlParser<'a> {
                 Ok(Some(XmlRecord::Open(TagData {
                     key: local,
                     attributes: Vec::new(),
-                    default_namespace: "",
+                    default_namespace: Some(""),
                     namespaces: HashMap::new(),
                     prefix,
                 })))
@@ -64,7 +64,7 @@ impl<'xml> Iterator for XmlParser<'xml> {
     fn next(&mut self) -> Option<Self::Item> {
         let mut key: Option<&str> = None;
         let mut prefix_ret: Option<&str> = None;
-        let mut default_namespace = "";
+        let mut default_namespace = None;
         let mut namespaces = HashMap::new();
         let mut attributes = Vec::new();
 
@@ -119,7 +119,7 @@ impl<'xml> Iterator for XmlParser<'xml> {
                 }) => {
                     if prefix.is_empty() && local.as_str() == "xmlns" {
                         // Default namespace
-                        default_namespace = value.as_str();
+                        default_namespace = Some(value.as_str());
                     } else if prefix.as_str() == "xmlns" {
                         // Namespaces
                         namespaces.insert(local.as_str(), value.as_str());

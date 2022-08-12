@@ -1,7 +1,6 @@
 extern crate proc_macro;
 
 mod de;
-mod se;
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -9,8 +8,6 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse_macro_input;
 use syn::{Lit, Meta, NestedMeta};
-
-use crate::se::Serializer;
 
 const XML: &str = "xml";
 
@@ -49,23 +46,6 @@ pub(crate) fn get_namespaces(
     }
 
     (default_namespace, other_namespaces)
-}
-
-pub(crate) fn retrieve_field_attribute(name: &str, input: &syn::Field) -> Option<FieldAttribute> {
-    if let Some(list) = retrieve_attr_list(name, &input.attrs) {
-        match list.nested.first() {
-            Some(NestedMeta::Lit(Lit::Str(v))) => {
-                return Some(FieldAttribute::Namespace(v.value()));
-            }
-            Some(NestedMeta::Meta(Meta::Path(v))) => {
-                if let Some(ident) = v.get_ident() {
-                    return Some(FieldAttribute::PrefixIdentifier(ident.to_string()));
-                }
-            }
-            _ => (),
-        };
-    }
-    None
 }
 
 pub(crate) fn retrieve_attr(name: &str, attributes: &Vec<syn::Attribute>) -> Option<bool> {
@@ -117,6 +97,176 @@ fn retrieve_attr_list(name: &str, attributes: &Vec<syn::Attribute>) -> Option<sy
     None
 }
 
+struct Serializer {
+    default_namespace: Option<String>,
+    other_namespaces: HashMap<String, String>,
+}
+
+impl<'a> Serializer {
+    pub fn new(attributes: &'a Vec<syn::Attribute>) -> Serializer {
+        let mut default_namespace = None;
+        let mut other_namespaces = HashMap::default();
+
+        if let Some(list) = Self::retrieve_namespace_list(attributes) {
+            match list.path.get_ident() {
+                Some(ident) if ident == "namespace" => {
+                    let mut iter = list.nested.iter();
+                    if let Some(NestedMeta::Lit(Lit::Str(v))) = iter.next() {
+                        default_namespace = Some(v.value());
+                    }
+
+                    for item in iter {
+                        match item {
+                            NestedMeta::Meta(Meta::NameValue(key)) => {
+                                if let Lit::Str(value) = &key.lit {
+                                    other_namespaces.insert(
+                                        key.path.get_ident().unwrap().to_string(),
+                                        value.value(),
+                                    );
+                                }
+                            }
+                            _ => todo!(),
+                        }
+                    }
+                }
+                _ => (),
+            }
+        }
+
+        Serializer {
+            default_namespace,
+            other_namespaces,
+        }
+    }
+
+    fn keys_set(&self) -> BTreeSet<&str> {
+        self.other_namespaces
+            .iter()
+            .map(|(k, _)| k.as_str())
+            .collect()
+    }
+
+    fn add_header(&mut self, root_name: &str, output: &'a mut TokenStream) {
+        output.extend(quote!(
+            serializer.output.write_char('<')?;
+            serializer.output.write_str(#root_name)?;
+        ));
+
+        if let Some(default_namespace) = self.default_namespace.as_ref() {
+            output.extend(quote!(
+                serializer.output.write_str(" xmlns=\"")?;
+                serializer.output.write_str(#default_namespace)?;
+                serializer.output.write_char('\"')?;
+            ));
+        }
+
+        let mut sorted_values: Vec<_> = self.other_namespaces.iter().collect();
+        sorted_values.sort();
+
+        for (key, val) in sorted_values {
+            output.extend(quote!(
+                serializer.output.write_str(" xmlns:")?;
+                serializer.output.write_str(#key)?;
+                serializer.output.write_str("=\"")?;
+                serializer.output.write_str(#val)?;
+                serializer.output.write_char('\"')?;
+            ));
+        }
+        output.extend(quote!(
+            serializer.output.write_char('>')?;
+        ));
+    }
+
+    fn add_footer(&mut self, root_name: &str, output: &'a mut TokenStream) {
+        output.extend(quote!(
+            serializer.output.write_str("</")?;
+            serializer.output.write_str(#root_name)?;
+            serializer.output.write_char('>')?;
+        ));
+    }
+
+    fn process_named_field(
+        &mut self,
+        field: &syn::Field,
+        output: &'a mut TokenStream,
+        missing_prefixes: &'a mut BTreeSet<String>,
+    ) {
+        let name = field.ident.as_ref().unwrap().to_string();
+        let field_value = field.ident.as_ref().unwrap();
+
+        output.extend(quote!(
+            let mut field = instant_xml::FieldContext {
+                name: #name,
+                attribute: None,
+            };
+        ));
+
+        match Self::retrieve_field_attribute(field) {
+            Some(FieldAttribute::Namespace(namespace_key)) => {
+                output.extend(quote!(
+                    field.attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace_key));
+                ));
+            }
+            Some(FieldAttribute::PrefixIdentifier(prefix_key)) => {
+                output.extend(quote!(
+                    field.attribute = Some(instant_xml::FieldAttribute::Prefix(#prefix_key));
+                ));
+
+                if self.other_namespaces.get(&prefix_key).is_none() {
+                    missing_prefixes.insert(prefix_key);
+                };
+            }
+            _ => {}
+        };
+
+        output.extend(quote!(
+            self.#field_value.serialize(serializer, Some(&field))?;
+        ));
+    }
+
+    fn retrieve_namespace_list(attributes: &Vec<syn::Attribute>) -> Option<syn::MetaList> {
+        for attr in attributes {
+            if !attr.path.is_ident(XML) {
+                continue;
+            }
+
+            let nested = match attr.parse_meta() {
+                Ok(Meta::List(meta)) => meta.nested,
+                Ok(_) => todo!(),
+                _ => todo!(),
+            };
+
+            let list = match nested.first() {
+                Some(NestedMeta::Meta(Meta::List(list))) => list,
+                _ => todo!(),
+            };
+
+            if list.path.get_ident()? == "namespace" {
+                return Some(list.to_owned());
+            }
+        }
+
+        None
+    }
+
+    fn retrieve_field_attribute(input: &syn::Field) -> Option<FieldAttribute> {
+        if let Some(list) = Self::retrieve_namespace_list(&input.attrs) {
+            match list.nested.first() {
+                Some(NestedMeta::Lit(Lit::Str(v))) => {
+                    return Some(FieldAttribute::Namespace(v.value()));
+                }
+                Some(NestedMeta::Meta(Meta::Path(v))) => {
+                    if let Some(ident) = v.get_ident() {
+                        return Some(FieldAttribute::PrefixIdentifier(ident.to_string()));
+                    }
+                }
+                _ => (),
+            };
+        }
+        None
+    }
+}
+
 #[proc_macro_derive(ToXml, attributes(xml))]
 pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
@@ -124,8 +274,10 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let root_name = ident.to_string();
     let mut missing_prefixes = BTreeSet::new();
     let mut serializer = Serializer::new(&ast.attrs);
+
     let mut output = TokenStream::new();
-    serializer.add_header(&mut output);
+
+    serializer.add_header(&root_name, &mut output);
 
     match &ast.data {
         syn::Data::Struct(ref data) => {
@@ -145,7 +297,6 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     serializer.add_footer(&root_name, &mut output);
 
     let current_prefixes = serializer.keys_set();
-
     proc_macro::TokenStream::from(quote!(
         impl ToXml for #ident {
             fn serialize<W>(&self, serializer: &mut instant_xml::Serializer<W>, _field_data: Option<&instant_xml::FieldContext>) -> Result<(), instant_xml::Error>

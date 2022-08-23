@@ -289,9 +289,6 @@ impl<'xml> Deserializer<'xml> {
         V: Visitor<'xml>,
     {
         println!("deserialize_struct");
-        // if !self.compare_parser_and_def_default_namespaces() {
-        //     return Err(Error::WrongNamespace);
-        // }
         // Setting current defined default namespace
         let def_namespace_to_revert = self.def_defualt_namespace;
         self.def_defualt_namespace = def_default_namespace;
@@ -330,6 +327,11 @@ impl<'xml> Deserializer<'xml> {
                 }
             }
         }
+
+        if !self.compare_parser_and_def_default_namespaces() {
+            return Err(Error::WrongNamespace);
+        }
+
         println!(
             "parsr: {}, revert: {}",
             &self.parser_defualt_namespace, &parser_namespace_to_revert

@@ -151,6 +151,7 @@ struct StructWithWrongNestedNamespace {
 
 #[test]
 fn default_namespaces() {
+    // Default namespace not-nested
     assert_eq!(
         Nested::from_xml(
             "<Nested xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></Nested>"
@@ -159,11 +160,30 @@ fn default_namespaces() {
         Nested { flag: true }
     );
 
+    // Default namespace not-nested - wrong namespace
+    assert_eq!(
+        Nested::from_xml(
+            "<Nested xmlns=\"WRONG\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></Nested>"
+        )
+        .unwrap_err(),
+        Error::WrongNamespace
+    );
+
     // Correct child prefix
     assert_eq!(
         StructWithCorrectNestedNamespace::from_xml("<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><Nested><bar:flag>true</bar:flag></Nested></StructWithCorrectNestedNamespace>").unwrap(),
         StructWithCorrectNestedNamespace {
             test: Nested { flag: true }
+        }
+    );
+
+    // Different child namespace
+    assert_eq!(
+        StructWithWrongNestedNamespace::from_xml("<StructWithWrongNestedNamespace xmlns=\"URI\" xmlns:dar=\"BAZ\"><NestedWrongNamespace xmlns=\"\"><flag>true</flag></NestedWrongNamespace></StructWithWrongNestedNamespace>").unwrap(),
+        StructWithWrongNestedNamespace {
+            test: NestedWrongNamespace {
+                flag: true
+            }
         }
     );
 

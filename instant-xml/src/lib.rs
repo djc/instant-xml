@@ -314,6 +314,9 @@ impl<'xml> Deserializer<'xml> {
             _ => return Err(Error::UnexpectedValue),
         };
         self.tag_attributes = tag_data.attributes;
+        for (v, k) in &self.tag_attributes {
+            println!("attribute: {}, {}", v, k);
+        }
 
         // Setting current parser default namespace
         let parser_namespace_to_revert = self.parser_defualt_namespace;

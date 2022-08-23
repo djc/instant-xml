@@ -62,7 +62,7 @@ fn struct_with_custom_field() {
         }
         .to_xml()
         .unwrap(),
-        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested><bar:flag>true</bar:flag></Nested></StructWithCustomField>"
+        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></Nested></StructWithCustomField>"
 
     );
 }
@@ -124,7 +124,10 @@ fn struct_with_custom_field_from_xml() {
     );
 
     assert_eq!(
-        Nested::from_xml("<Nested><flag>true</flag></Nested>").unwrap(),
+        Nested::from_xml(
+            "<Nested xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></Nested>"
+        )
+        .unwrap(),
         Nested { flag: true }
     );
 }

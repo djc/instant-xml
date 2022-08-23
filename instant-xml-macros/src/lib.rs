@@ -24,8 +24,9 @@ pub(crate) fn get_namespaces(
     let mut other_namespaces = HashMap::default();
 
     let (list, name) = match retrieve_attr_list(attributes) {
-        Some((list, name)) => (list, name),
+        Some((Some(list), name)) => (list, name),
         None => return (default_namespace, other_namespaces),
+        _ => panic!("wrong parameters"),
     };
 
     if name == "namespace" {
@@ -50,31 +51,25 @@ pub(crate) fn get_namespaces(
 }
 
 pub(crate) fn retrieve_field_attribute(input: &syn::Field) -> Option<FieldAttribute> {
-    if let Some((list, name)) = retrieve_attr_list(&input.attrs) {
-        match name.as_str() {
-            "namespace" => {
-                match list.nested.first() {
-                    Some(NestedMeta::Lit(Lit::Str(v))) => {
-                        return Some(FieldAttribute::Namespace(v.value()));
-                    }
-                    Some(NestedMeta::Meta(Meta::Path(v))) => {
-                        if let Some(ident) = v.get_ident() {
-                            return Some(FieldAttribute::PrefixIdentifier(ident.to_string()));
-                        }
-                    }
-                    _ => (),
-                };
-            }
-            "attribute" => {
-                return Some(FieldAttribute::Attribute);
+    match retrieve_attr_list(&input.attrs) {
+        Some((Some(list), name)) if name.as_str() == "namespace" => match list.nested.first() {
+            Some(NestedMeta::Lit(Lit::Str(v))) => Some(FieldAttribute::Namespace(v.value())),
+            Some(NestedMeta::Meta(Meta::Path(v))) => {
+                if let Some(ident) = v.get_ident() {
+                    Some(FieldAttribute::PrefixIdentifier(ident.to_string()))
+                } else {
+                    panic!("unexpected parameter");
+                }
             }
             _ => panic!("unexpected parameter"),
-        }
+        },
+        Some((None, name)) if name.as_str() == "attribute" => Some(FieldAttribute::Attribute),
+        None => None,
+        _ => panic!("unexpected parameter"),
     }
-    None
 }
 
-fn retrieve_attr_list(attributes: &Vec<syn::Attribute>) -> Option<(syn::MetaList, String)> {
+fn retrieve_attr_list(attributes: &Vec<syn::Attribute>) -> Option<(Option<syn::MetaList>, String)> {
     for attr in attributes {
         if !attr.path.is_ident(XML) {
             continue;
@@ -88,10 +83,13 @@ fn retrieve_attr_list(attributes: &Vec<syn::Attribute>) -> Option<(syn::MetaList
 
         let list = match nested.first() {
             Some(NestedMeta::Meta(Meta::List(list))) => list,
+            Some(NestedMeta::Meta(Meta::Path(path))) => {
+                return Some((None, path.get_ident()?.to_string()))
+            }
             _ => return None,
         };
 
-        return Some((list.to_owned(), list.path.get_ident()?.to_string()));
+        return Some((Some(list.to_owned()), list.path.get_ident()?.to_string()));
     }
 
     None

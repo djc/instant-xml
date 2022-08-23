@@ -151,6 +151,7 @@ impl Deserializer {
                         println!("visit struct");
 
                         while let Some(( key, _ )) = deserializer.peek_next_attribute() {
+                            println!("key: {}", key);
                             match get_attribute(&key) {
                                 #attr_type_match
                                 __Attributes::__Ignore => panic!("No such attribute"),

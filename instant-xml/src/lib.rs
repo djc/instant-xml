@@ -297,8 +297,6 @@ impl<'xml> Deserializer<'xml> {
             &self.def_defualt_namespace, &def_namespace_to_revert
         );
 
-        // Check if parent default namespace equels to current if so
-
         // Adding struct defined namespaces
         let new_def_namespaces = def_namespaces
             .iter()
@@ -343,6 +341,19 @@ impl<'xml> Deserializer<'xml> {
             .iter()
             .filter(|(k, v)| self.parser_namespaces.insert(k, v).is_none())
             .collect::<Vec<_>>();
+
+        // Check if namespace is defined, regardless of its key.
+        for (_, v) in &self.parser_namespaces {
+            println!("parser namespace value: {}", v);
+            for (k, v) in &self.def_namespaces {
+                println!("k: {}, v: {}", k, v);
+            }
+
+            match self.def_namespaces.iter().find(|(_, def_v)| def_v == &v) {
+                Some(_) => continue,
+                None => return Err(Error::MissingdPrefix),
+            }
+        }
 
         let ret = visitor.visit_struct(self)?;
         self.check_close_tag(name)?;

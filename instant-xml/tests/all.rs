@@ -196,26 +196,32 @@ fn default_namespaces() {
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
 #[xml(namespace("URI", bar = "BAZ"))]
-struct NestedWrongOtherNamespace {
+struct NestedOtherNamespace {
     #[xml(namespace(bar))]
     flag: bool,
+}
+
+#[derive(Debug, Eq, PartialEq, FromXml)]
+#[xml(namespace("URI", bar = "BAZ"))]
+struct StructOtherNamespace {
+    test: NestedOtherNamespace,
 }
 
 #[test]
 fn other_namespaces() {
     // Other namespace not-nested
     assert_eq!(
-        NestedWrongOtherNamespace::from_xml(
-            "<NestedWrongOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedWrongOtherNamespace>"
+        NestedOtherNamespace::from_xml(
+            "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedOtherNamespace>"
         )
         .unwrap(),
-        NestedWrongOtherNamespace { flag: true }
+        NestedOtherNamespace { flag: true }
     );
 
     // Other namespace not-nested - wrong defined namespace
     assert_eq!(
-        NestedWrongOtherNamespace::from_xml(
-            "<NestedWrongOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><wrong:flag>true</wrong:flag></NestedWrongOtherNamespace>"
+        NestedOtherNamespace::from_xml(
+            "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><wrong:flag>true</wrong:flag></NestedOtherNamespace>"
         )
         .unwrap_err(),
         Error::UnexpectedPrefix
@@ -223,8 +229,8 @@ fn other_namespaces() {
 
     // Other namespace not-nested - wrong parser namespace
     assert_eq!(
-        NestedWrongOtherNamespace::from_xml(
-            "<NestedWrongOtherNamespace xmlns=\"URI\" xmlns:bar=\"WRONG\"><bar:flag>true</bar:flag></NestedWrongOtherNamespace>"
+        NestedOtherNamespace::from_xml(
+            "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"WRONG\"><bar:flag>true</bar:flag></NestedOtherNamespace>"
         )
         .unwrap_err(),
         Error::MissingdPrefix
@@ -232,10 +238,45 @@ fn other_namespaces() {
 
     // Other namespace not-nested - missing parser prefix
     assert_eq!(
-        NestedWrongOtherNamespace::from_xml(
-            "<NestedWrongOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAR\"><flag>true</flag></NestedWrongOtherNamespace>"
+        NestedOtherNamespace::from_xml(
+            "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAR\"><flag>true</flag></NestedOtherNamespace>"
         )
         .unwrap_err(),
         Error::MissingdPrefix
+    );
+
+    // Correct child other namespace
+    assert_eq!(
+        StructOtherNamespace::from_xml(
+            "<StructOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedOtherNamespace></StructOtherNamespace>"
+        )
+        .unwrap(),
+        StructOtherNamespace {
+            test: NestedOtherNamespace {
+                flag: true,
+            }
+        }
+    );
+
+    // Correct child other namespace - without child redefinition
+    assert_eq!(
+        StructOtherNamespace::from_xml(
+            "<StructOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedOtherNamespace><bar:flag>true</bar:flag></NestedOtherNamespace></StructOtherNamespace>"
+        )
+        .unwrap(),
+        StructOtherNamespace {
+            test: NestedOtherNamespace {
+                flag: true,
+            }
+        }
+    );
+
+    // Wrong child other namespace - without child redefinition
+    assert_eq!(
+        StructOtherNamespace::from_xml(
+            "<StructOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedOtherNamespace><wrong:flag>true</wrong:flag></NestedOtherNamespace></StructOtherNamespace>"
+        )
+        .unwrap_err(),
+        Error::UnexpectedPrefix
     );
 }

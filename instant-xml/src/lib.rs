@@ -343,7 +343,7 @@ impl<'xml> Deserializer<'xml> {
             .collect::<Vec<_>>();
 
         // Check if namespace is defined, regardless of its key.
-        for (_, v) in &self.parser_namespaces {
+        for v in self.parser_namespaces.values() {
             println!("parser namespace value: {}", v);
             for (k, v) in &self.def_namespaces {
                 println!("k: {}, v: {}", k, v);

@@ -1,48 +1,134 @@
-use xmlparser::{ElementEnd, Token};
+use std::collections::HashMap;
+use std::iter::Peekable;
 
-use super::Error;
+use xmlparser::{ElementEnd, Token, Tokenizer};
 
-impl<'a> Parse for Option<Result<xmlparser::Token<'a>, xmlparser::Error>> {
-    fn element_start(self, ns: Option<&str>, tag: &str) -> Result<(), Error> {
-        match self {
-            Some(Ok(Token::ElementStart { prefix, local, .. })) => {
-                let prefix_ns = prefix.as_str();
-                let (has_prefix, expect_prefix) = (!prefix_ns.is_empty(), ns.is_some());
-                if has_prefix != expect_prefix {
-                    return dbg!(Err(Error::UnexpectedValue));
-                }
+use crate::Error;
+pub use crate::{TagData, XmlRecord};
 
-                if has_prefix && Some(prefix_ns) != ns {
-                    return dbg!(Err(Error::UnexpectedValue));
-                }
+pub struct XmlParser<'xml> {
+    stack: Vec<&'xml str>,
+    iter: Peekable<Tokenizer<'xml>>,
+}
 
-                if local.as_str() != tag {
-                    return dbg!(Err(Error::UnexpectedValue));
-                }
-
-                Ok(())
-            }
-            Some(Ok(_)) => Err(Error::UnexpectedValue),
-            Some(Err(err)) => Err(err.into()),
-            None => Err(Error::UnexpectedEndOfStream),
+impl<'a> XmlParser<'a> {
+    pub fn new(input: &'a str) -> XmlParser<'a> {
+        XmlParser {
+            stack: Vec::new(),
+            iter: Tokenizer::from(input).peekable(),
         }
     }
 
-    fn element_end(self, _: Option<&str>, _: &str) -> Result<(), Error> {
-        match self {
-            Some(Ok(Token::ElementEnd { end, .. })) => match end {
-                ElementEnd::Open => todo!(),
-                ElementEnd::Close(_, _) => todo!(),
-                ElementEnd::Empty => Ok(()),
-            },
-            Some(Ok(_)) => Err(Error::UnexpectedValue),
-            Some(Err(err)) => Err(err.into()),
-            None => Err(Error::UnexpectedEndOfStream),
+    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>, Error> {
+        let item = match self.iter.peek() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        match item {
+            Ok(Token::ElementStart { prefix, local, .. }) => {
+                let prefix = match prefix.is_empty() {
+                    true => None,
+                    false => Some(prefix.as_str()),
+                };
+
+                Ok(Some(XmlRecord::Open(TagData {
+                    key: local,
+                    attributes: Vec::new(),
+                    default_namespace: None,
+                    namespaces: None,
+                    prefix,
+                })))
+            }
+            Ok(Token::ElementEnd {
+                end: ElementEnd::Close(..),
+                ..
+            }) => {
+                if self.stack.is_empty() {
+                    return Err(Error::UnexpectedEndOfStream);
+                }
+
+                return Ok(Some(XmlRecord::Close(self.stack.last().unwrap())));
+            }
+            Ok(_) => Err(Error::UnexpectedToken),
+            Err(e) => Err(Error::Parse(*e)),
         }
     }
 }
 
-pub trait Parse {
-    fn element_start(self, ns: Option<&str>, tag: &str) -> Result<(), Error>;
-    fn element_end(self, ns: Option<&str>, tag: &str) -> Result<(), Error>;
+impl<'xml> Iterator for XmlParser<'xml> {
+    type Item = Result<XmlRecord<'xml>, Error>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut key: Option<&str> = None;
+        let mut prefix_ret: Option<&str> = None;
+        let mut default_namespace = None;
+        let mut namespaces = HashMap::new();
+        let mut attributes = Vec::new();
+
+        loop {
+            let item = match self.iter.next() {
+                Some(v) => v,
+                None => return None,
+            };
+
+            match item {
+                Ok(Token::ElementStart { prefix, local, .. }) => {
+                    key = Some(local.as_str());
+                    prefix_ret = match prefix.is_empty() {
+                        true => None,
+                        false => Some(prefix.as_str()),
+                    };
+                }
+                Ok(Token::ElementEnd { end, .. }) => match end {
+                    ElementEnd::Open => {
+                        self.stack.push(key.unwrap());
+
+                        return Some(Ok(XmlRecord::Open(TagData {
+                            key: key.unwrap(),
+                            attributes,
+                            default_namespace,
+                            namespaces: Some(namespaces),
+                            prefix: prefix_ret,
+                        })));
+                    }
+                    ElementEnd::Close(_, v) => match self.stack.pop() {
+                        Some(last) if last == v.as_str() => {
+                            return Some(Ok(XmlRecord::Close(last)));
+                        }
+                        _ => return Some(Err(Error::UnexpectedValue)),
+                    },
+                    ElementEnd::Empty => {
+                        todo!();
+                    }
+                },
+                Ok(Token::Attribute {
+                    prefix,
+                    local,
+                    value,
+                    ..
+                }) => {
+                    if prefix.is_empty() && local.as_str() == "xmlns" {
+                        // Default namespace
+                        default_namespace = Some(value.as_str());
+                    } else if prefix.as_str() == "xmlns" {
+                        // Namespaces
+                        namespaces.insert(local.as_str(), value.as_str());
+                    } else if prefix.is_empty() {
+                        // Other attributes
+                        attributes.push((local.as_str(), value.as_str()));
+                    } else {
+                        // TODO: Can the attributes have the prefix?
+                        todo!();
+                    }
+                }
+                Ok(Token::Text { text }) => {
+                    return Some(Ok(XmlRecord::Element(text.as_str())));
+                }
+                Ok(_) => return Some(Err(Error::UnexpectedToken)),
+                Err(e) => return Some(Err(Error::Parse(e))),
+            }
+        }
+    }
 }

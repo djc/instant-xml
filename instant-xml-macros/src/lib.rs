@@ -1,5 +1,6 @@
 extern crate proc_macro;
 
+mod de;
 mod se;
 
 use std::collections::{BTreeSet, HashMap};
@@ -12,7 +13,7 @@ use crate::se::Serializer;
 
 const XML: &str = "xml";
 
-enum FieldAttribute {
+pub(crate) enum FieldAttribute {
     Namespace(String),
     PrefixIdentifier(String),
 }
@@ -66,6 +67,30 @@ pub(crate) fn retrieve_field_attribute(name: &str, input: &syn::Field) -> Option
     None
 }
 
+pub(crate) fn retrieve_attr(name: &str, attributes: &Vec<syn::Attribute>) -> Option<bool> {
+    for attr in attributes {
+        if !attr.path.is_ident(XML) {
+            continue;
+        }
+
+        let nested = match attr.parse_meta() {
+            Ok(Meta::List(meta)) => meta.nested,
+            _ => return Some(false),
+        };
+
+        let path = match nested.first() {
+            Some(NestedMeta::Meta(Meta::Path(path))) => path,
+            _ => return Some(false),
+        };
+
+        if path.get_ident()? == name {
+            return Some(true);
+        }
+    }
+
+    None
+}
+
 fn retrieve_attr_list(name: &str, attributes: &Vec<syn::Attribute>) -> Option<syn::MetaList> {
     for attr in attributes {
         if !attr.path.is_ident(XML) {
@@ -74,8 +99,7 @@ fn retrieve_attr_list(name: &str, attributes: &Vec<syn::Attribute>) -> Option<sy
 
         let nested = match attr.parse_meta() {
             Ok(Meta::List(meta)) => meta.nested,
-            Ok(_) => todo!(),
-            _ => todo!(),
+            _ => return None,
         };
 
         let list = match nested.first() {
@@ -134,7 +158,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 // Check if prefix exist
                 #(
                     if serializer.parent_prefixes.get(#missing_prefixes).is_none() {
-                        return Err(instant_xml::Error::WrongPrefix);
+                        return Err(instant_xml::Error::UnexpectedPrefix);
                     }
                 )*;
 
@@ -159,18 +183,13 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 #[proc_macro_derive(FromXml, attributes(xml))]
 pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let ast = parse_macro_input!(input as syn::ItemStruct);
+    let ast = parse_macro_input!(input as syn::DeriveInput);
     let ident = &ast.ident;
-    let name = ident.to_string();
+
+    let deserializer = de::Deserializer::new(&ast);
     proc_macro::TokenStream::from(quote!(
         impl<'xml> FromXml<'xml> for #ident {
-            fn from_xml(input: &str) -> Result<Self, ::instant_xml::Error> {
-                use ::instant_xml::parse::Parse;
-                let mut iter = ::instant_xml::xmlparser::Tokenizer::from(input);
-                iter.next().element_start(None, #name)?;
-                iter.next().element_end(None, #name)?;
-                Ok(Self)
-            }
+            #deserializer
         }
     ))
 }

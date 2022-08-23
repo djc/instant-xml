@@ -1,30 +1,24 @@
 use instant_xml::{FromXml, ToXml};
 
-#[derive(Debug, Eq, FromXml, PartialEq, ToXml)]
-struct Unit;
-
-#[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
-struct StructWithCustomField {
-    test: Nested,
-}
-
-#[derive(Debug, Eq, PartialEq, ToXml)]
+#[derive(Debug, Eq, PartialEq, ToXml, FromXml)]
 struct Nested {
     #[xml(namespace(bar))]
     flag: bool,
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
-struct StructWithCustomFieldWrongPrefix {
-    test: NestedWrongPrefix,
-}
-
-#[derive(Debug, Eq, PartialEq, ToXml)]
 struct NestedWrongPrefix {
     #[xml(namespace(dar))]
     flag: bool,
+}
+
+#[derive(Debug, Eq, PartialEq, ToXml)]
+struct Unit;
+
+#[test]
+fn unit() {
+    assert_eq!(Unit.to_xml().unwrap(), "<Unit></Unit>");
+    //assert_eq!(Unit::from_xml("<Unit/>").unwrap(), Unit);
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
@@ -35,12 +29,6 @@ struct StructWithNamedFields {
     string: String,
     #[xml(namespace("typo"))]
     number: i32,
-}
-
-#[test]
-fn unit() {
-    assert_eq!(Unit.to_xml().unwrap(), "<Unit></Unit>");
-    assert_eq!(Unit::from_xml("<Unit/>").unwrap(), Unit);
 }
 
 #[test]
@@ -55,6 +43,12 @@ fn struct_with_named_fields() {
         .unwrap(),
         "<StructWithNamedFields xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><flag>true</flag><bar:string>test</bar:string><number xmlns=\"typo\">1</number></StructWithNamedFields>"
     );
+}
+
+#[derive(Debug, Eq, PartialEq, ToXml)]
+#[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
+struct StructWithCustomField {
+    test: Nested,
 }
 
 #[test]
@@ -72,6 +66,12 @@ fn struct_with_custom_field() {
     );
 }
 
+#[derive(Debug, Eq, PartialEq, ToXml)]
+#[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
+struct StructWithCustomFieldWrongPrefix {
+    test: NestedWrongPrefix,
+}
+
 #[test]
 #[should_panic]
 fn struct_with_custom_field_wrong_prefix() {
@@ -80,4 +80,40 @@ fn struct_with_custom_field_wrong_prefix() {
     }
     .to_xml()
     .unwrap();
+}
+
+#[derive(Debug, Eq, PartialEq, FromXml)]
+#[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
+struct StructWithCustomFieldFromXml {
+    #[xml(namespace(bar))]
+    flag: bool,
+    #[xml(attribute)]
+    flag_attribute: bool,
+    test: Nested,
+}
+
+#[test]
+fn struct_with_custom_field_from_xml() {
+    assert_eq!(
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml flag_attribute=\"true\" xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><bar:flag>false</bar:flag><Nested><flag>true</flag></Nested></StructWithCustomFieldFromXml>").unwrap(),
+        StructWithCustomFieldFromXml {
+            flag: false,
+            flag_attribute: true,
+            test: Nested { flag: true }
+        }
+    );
+    // Different order
+    assert_eq!(
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" flag_attribute=\"true\"><Nested><flag>true</flag></Nested><flag>false</flag></StructWithCustomFieldFromXml>").unwrap(),
+        StructWithCustomFieldFromXml {
+            flag: false,
+            flag_attribute: true,
+            test: Nested { flag: true }
+        }
+    );
+
+    assert_eq!(
+        Nested::from_xml("<Nested><flag>true</flag></Nested>").unwrap(),
+        Nested { flag: true }
+    );
 }

@@ -5,9 +5,28 @@ use thiserror::Error;
 pub use xmlparser;
 
 pub use macros::{FromXml, ToXml};
+use parse::XmlParser;
 
+pub mod impls;
 #[doc(hidden)]
 pub mod parse;
+
+pub struct TagData<'xml> {
+    pub key: &'xml str,
+    pub attributes: Vec<(&'xml str, &'xml str)>,
+
+    // TODO: handle default namespace
+    pub default_namespace: Option<&'xml str>,
+
+    pub namespaces: Option<HashMap<&'xml str, &'xml str>>,
+    pub prefix: Option<&'xml str>,
+}
+
+pub enum XmlRecord<'xml> {
+    Open(TagData<'xml>),
+    Element(&'xml str),
+    Close(&'xml str),
+}
 
 pub trait ToXml {
     fn to_xml(&self) -> Result<String, Error> {
@@ -181,8 +200,167 @@ pub struct FieldContext<'xml> {
     pub attribute: Option<FieldAttribute<'xml>>,
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub enum EntityType {
+    Element,
+    Attribute,
+}
+
+pub enum TagName<'xml> {
+    FieldName,
+    Custom(&'xml str),
+}
+
 pub trait FromXml<'xml>: Sized {
-    fn from_xml(input: &str) -> Result<Self, Error>;
+    const TAG_NAME: TagName<'xml>;
+
+    fn from_xml(input: &str) -> Result<Self, Error> {
+        let mut deserializer = Deserializer::new(input);
+        Self::deserialize(&mut deserializer)
+    }
+
+    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error>;
+}
+
+pub trait Visitor<'xml>: Sized {
+    type Value;
+
+    fn visit_str(self, _value: &str) -> Result<Self::Value, Error> {
+        unimplemented!();
+    }
+
+    fn visit_struct<'a>(&self, _deserializer: &'a mut Deserializer) -> Result<Self::Value, Error> {
+        unimplemented!();
+    }
+}
+
+pub struct Deserializer<'xml> {
+    parser: XmlParser<'xml>,
+    namespaces: HashMap<&'xml str, &'xml str>,
+    tag_attributes: Vec<(&'xml str, &'xml str)>,
+    next_type: EntityType,
+}
+
+impl<'xml> Deserializer<'xml> {
+    pub fn new(input: &'xml str) -> Self {
+        Self {
+            parser: XmlParser::new(input),
+            namespaces: std::collections::HashMap::new(),
+            tag_attributes: Vec::new(),
+            next_type: EntityType::Element,
+        }
+    }
+
+    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>, Error> {
+        self.parser.peek_next_tag()
+    }
+
+    pub fn verify_namespace(&self, namespace_to_verify: &str) -> bool {
+        self.namespaces.get(namespace_to_verify).is_some()
+    }
+
+    pub fn peek_next_attribute(&self) -> Option<&(&'xml str, &'xml str)> {
+        self.tag_attributes.last()
+    }
+
+    pub fn deserialize_struct<V>(
+        &mut self,
+        visitor: V,
+        name: &str,
+        namespaces: &HashMap<&'xml str, &'xml str>,
+    ) -> Result<V::Value, Error>
+    where
+        V: Visitor<'xml>,
+    {
+        let new_namespaces = namespaces
+            .iter()
+            .filter(|(k, v)| self.namespaces.insert(k, v).is_none())
+            .collect::<Vec<_>>();
+
+        self.process_open_tag(name, namespaces)?;
+        let ret = visitor.visit_struct(self)?;
+
+        self.check_close_tag(name)?;
+        let _ = new_namespaces
+            .iter()
+            .map(|(k, _)| self.namespaces.remove(*k));
+
+        Ok(ret)
+    }
+
+    pub fn set_next_type_as_attribute(&mut self) -> Result<(), Error> {
+        if self.next_type == EntityType::Attribute {
+            return Err(Error::UnexpectedState);
+        }
+
+        self.next_type = EntityType::Attribute;
+        Ok(())
+    }
+
+    pub fn consume_next_type(&mut self) -> EntityType {
+        let ret = self.next_type.clone();
+        self.next_type = EntityType::Element;
+        ret
+    }
+
+    fn deserialize_bool<V>(&mut self, visitor: V) -> Result<V::Value, Error>
+    where
+        V: Visitor<'xml>,
+    {
+        self.parser.next();
+        match self.parser.next() {
+            Some(Ok(XmlRecord::Element(v))) => {
+                let ret = visitor.visit_str(v);
+                self.parser.next();
+                ret
+            }
+            _ => Err(Error::UnexpectedValue),
+        }
+    }
+
+    fn deserialize_attribute<V>(&mut self, visitor: V) -> Result<V::Value, Error>
+    where
+        V: Visitor<'xml>,
+    {
+        match self.tag_attributes.pop() {
+            Some((_, value)) => visitor.visit_str(value),
+            None => Err(Error::UnexpectedEndOfStream),
+        }
+    }
+
+    fn process_open_tag(
+        &mut self,
+        name: &str,
+        namespaces: &HashMap<&'xml str, &'xml str>,
+    ) -> Result<(), Error> {
+        let item = match self.parser.next() {
+            Some(Ok(XmlRecord::Open(item))) if item.key == name => item,
+            _ => return Err(Error::UnexpectedValue),
+        };
+
+        for (k, v) in item.namespaces.unwrap() {
+            match namespaces.get(k) {
+                Some(item) if *item != v => return Err(Error::UnexpectedPrefix),
+                None => return Err(Error::MissingdPrefix),
+                _ => (),
+            }
+        }
+
+        self.tag_attributes = item.attributes;
+        Ok(())
+    }
+
+    fn check_close_tag(&mut self, name: &str) -> Result<(), Error> {
+        let item = match self.parser.next() {
+            Some(item) => item?,
+            None => return Err(Error::MissingTag),
+        };
+
+        match item {
+            XmlRecord::Close(v) if v == name => Ok(()),
+            _ => Err(Error::UnexpectedTag),
+        }
+    }
 }
 
 pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}
@@ -198,10 +376,24 @@ pub enum Error {
     Format(#[from] fmt::Error),
     #[error("parse: {0}")]
     Parse(#[from] xmlparser::Error),
+    #[error("other: {0}")]
+    Other(std::string::String),
     #[error("unexpected end of stream")]
     UnexpectedEndOfStream,
     #[error("unexpected value")]
     UnexpectedValue,
-    #[error("wrong prefix")]
-    WrongPrefix,
+    #[error("unexpected tag")]
+    UnexpectedTag,
+    #[error("missing tag")]
+    MissingTag,
+    #[error("missing value")]
+    MissingValue,
+    #[error("unexpected token")]
+    UnexpectedToken,
+    #[error("missing prefix")]
+    MissingdPrefix,
+    #[error("unexpected prefix")]
+    UnexpectedPrefix,
+    #[error("unexpected state")]
+    UnexpectedState,
 }

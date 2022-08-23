@@ -346,7 +346,6 @@ impl<'xml> Deserializer<'xml> {
             }
         }
 
-        println!("default namespace: {:?}", &item.default_namespace);
         self.tag_attributes = item.attributes;
         Ok(())
     }

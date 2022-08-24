@@ -59,9 +59,11 @@ impl Deserializer {
                 match data.fields {
                     syn::Fields::Named(ref fields) => {
                         fields.named.iter().enumerate().for_each(|(index, field)| {
+                            let mut field_namespace = None;
                             let (tokens, def_prefix, is_element) = match retrieve_field_attribute(field) {
-                                Some(FieldAttribute::Namespace(_)) => {
-                                    todo!();
+                                Some(FieldAttribute::Namespace(value)) => {
+                                    field_namespace = Some(value);
+                                    (&mut elements_tokens, None, true)
                                 }
                                 Some(FieldAttribute::PrefixIdentifier(def_prefix)) => {
                                     if other_namespaces.get(&def_prefix).is_none() {
@@ -87,6 +89,7 @@ impl Deserializer {
                                 tokens,
                                 is_element,
                                 def_prefix,
+                                field_namespace,
                             );
                         });
                     }
@@ -194,6 +197,7 @@ impl Deserializer {
         Deserializer { out }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn process_field(
         field: &syn::Field,
         index: usize,
@@ -202,6 +206,7 @@ impl Deserializer {
         tokens: &mut Tokens,
         is_element: bool,
         def_prefix: Option<String>,
+        field_namespace: Option<String>,
     ) {
         let field_var = field.ident.as_ref().unwrap();
         let field_var_str = field_var.to_string();
@@ -240,6 +245,13 @@ impl Deserializer {
             None => quote!(let def_prefix: Option<&str> = None;),
         };
 
+        let field_namespace = match field_namespace {
+            Some(field_namespace) => {
+                quote!(let field_namespace: Option<&str> = Some(#field_namespace);)
+            }
+            None => quote!(let field_namespace: Option<&str> = None;),
+        };
+
         if is_element {
             tokens.match_.extend(quote!(
                 __Elements::#enum_name => {
@@ -259,19 +271,22 @@ impl Deserializer {
                                     }
                                 }
                                 None => {
-                                    return Err(Error::WrongNamespace)
+                                    return Err(Error::WrongNamespace);
                                 }
                             }
                         }
                         None => {
                             #def_prefix
                             match def_prefix {
-                                Some(_) => return Err(Error::WrongNamespace),
+                                Some(_) => {
+                                    return Err(Error::WrongNamespace)
+                                },
                                 None => (),
                             }
                         }
                     }
-
+                    #field_namespace
+                    deserializer.set_next_def_namespace(field_namespace)?;
                     #enum_name = Some(#field_type::deserialize(deserializer)?);
                 },
             ));

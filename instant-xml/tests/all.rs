@@ -288,3 +288,31 @@ fn other_namespaces() {
         Error::UnexpectedPrefix
     );
 }
+
+#[derive(Debug, Eq, PartialEq, FromXml)]
+#[xml(namespace("URI"))]
+struct StructDirectNamespace {
+    #[xml(namespace("BAZ"))]
+    flag: bool,
+}
+
+#[test]
+fn direct_namespaces() {
+    // Correct direct namespace
+    assert_eq!(
+        StructDirectNamespace::from_xml(
+            "<StructDirectNamespace xmlns=\"URI\"><flag xmlns=\"BAZ\">true</flag></StructDirectNamespace>"
+        )
+        .unwrap(),
+        StructDirectNamespace { flag: true }
+    );
+
+    // Wrong direct namespace
+    assert_eq!(
+        StructDirectNamespace::from_xml(
+            "<StructDirectNamespace xmlns=\"URI\"><flag xmlns=\"WRONG\">true</flag></StructDirectNamespace>"
+        )
+        .unwrap_err(),
+        Error::WrongNamespace
+    );
+}

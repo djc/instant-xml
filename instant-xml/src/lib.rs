@@ -239,6 +239,7 @@ pub struct Deserializer<'xml> {
     parser_defualt_namespace: &'xml str,
     tag_attributes: Vec<(&'xml str, &'xml str)>,
     next_type: EntityType,
+    next_def_namespace: Option<&'xml str>,
 }
 
 impl<'xml> Deserializer<'xml> {
@@ -251,6 +252,7 @@ impl<'xml> Deserializer<'xml> {
             parser_defualt_namespace: "",
             tag_attributes: Vec::new(),
             next_type: EntityType::Element,
+            next_def_namespace: None,
         }
     }
 
@@ -376,11 +378,35 @@ impl<'xml> Deserializer<'xml> {
         ret
     }
 
+    pub fn set_next_def_namespace(&mut self, namespace: Option<&'xml str>) -> Result<(), Error> {
+        if self.next_def_namespace.is_some() {
+            return Err(Error::UnexpectedState);
+        }
+
+        self.next_def_namespace = namespace;
+        Ok(())
+    }
+
+    pub fn consume_next_def_namespace(&mut self) -> Option<&'xml str> {
+        let ret = self.next_def_namespace;
+        self.next_def_namespace = None;
+        ret
+    }
+
     fn deserialize_bool<V>(&mut self, visitor: V) -> Result<V::Value, Error>
     where
         V: Visitor<'xml>,
     {
-        self.parser.next();
+        // Process open tag
+        let tag_data = match self.parser.next() {
+            Some(Ok(XmlRecord::Open(item))) => item,
+            _ => return Err(Error::UnexpectedValue),
+        };
+
+        if tag_data.default_namespace != self.consume_next_def_namespace() {
+            return Err(Error::WrongNamespace);
+        }
+
         match self.parser.next() {
             Some(Ok(XmlRecord::Element(v))) => {
                 let ret = visitor.visit_str(v);

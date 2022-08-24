@@ -114,7 +114,6 @@ impl Deserializer {
 
         out.extend(quote!(
             fn deserialize(deserializer: &mut ::instant_xml::Deserializer) -> Result<Self, ::instant_xml::Error> {
-                println!("deserialize: {}", #name);
                 use ::instant_xml::parse::XmlRecord;
                 use ::instant_xml::{Error, Deserializer, Visitor} ;
 
@@ -151,13 +150,10 @@ impl Deserializer {
                     fn visit_struct<'a>(&self, deserializer: &mut ::instant_xml::Deserializer) -> Result<Self::Value, ::instant_xml::Error>
                     {
                         #declare_values
-                        println!("visit struct");
-
                         while let Some(( key, _ )) = deserializer.peek_next_attribute() {
-                            println!("key: {}", key);
                             match get_attribute(&key) {
                                 #attr_type_match
-                                __Attributes::__Ignore => panic!("No such attribute"),
+                                __Attributes::__Ignore => todo!(),
                             }
                         }
                         while let Some(item) = &deserializer.peek_next_tag()? {
@@ -178,7 +174,6 @@ impl Deserializer {
                             }
                         }
 
-                        println!("return");
                         Ok(Self::Value {
                             #return_val
                     })

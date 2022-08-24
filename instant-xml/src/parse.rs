@@ -25,7 +25,6 @@ impl<'a> XmlParser<'a> {
             None => return Ok(None),
         };
 
-        println!("peek: {:?}", &item);
         match item {
             Ok(Token::ElementStart { prefix, local, .. }) => {
                 let prefix = match prefix.is_empty() {
@@ -74,7 +73,6 @@ impl<'xml> Iterator for XmlParser<'xml> {
                 None => return None,
             };
 
-            println!("{:?}", &item);
             match item {
                 Ok(Token::ElementStart { prefix, local, .. }) => {
                     key = Some(local.as_str());
@@ -86,11 +84,6 @@ impl<'xml> Iterator for XmlParser<'xml> {
                 Ok(Token::ElementEnd { end, .. }) => match end {
                     ElementEnd::Open => {
                         self.stack.push(key.unwrap());
-                        println!(
-                            "Stack size after push: {}, top: {:?}",
-                            self.stack.len(),
-                            key
-                        );
 
                         return Some(Ok(XmlRecord::Open(TagData {
                             key: key.unwrap(),
@@ -102,7 +95,6 @@ impl<'xml> Iterator for XmlParser<'xml> {
                     }
                     ElementEnd::Close(_, v) => match self.stack.pop() {
                         Some(last) if last == v.as_str() => {
-                            println!("Stack size after pop: {}", self.stack.len());
                             return Some(Ok(XmlRecord::Close(last)));
                         }
                         _ => return Some(Err(Error::UnexpectedValue)),

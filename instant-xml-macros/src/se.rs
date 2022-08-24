@@ -83,7 +83,7 @@ impl<'a> Serializer {
             };
         ));
 
-        match retrieve_field_attribute("namespace", field) {
+        match retrieve_field_attribute(field) {
             Some(FieldAttribute::Namespace(namespace_key)) => {
                 output.extend(quote!(
                     field.attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace_key));

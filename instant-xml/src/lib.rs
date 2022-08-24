@@ -286,8 +286,7 @@ impl<'xml> Deserializer<'xml> {
     where
         V: Visitor<'xml>,
     {
-        println!("deserialize_struct");
-        // Setting current defined default namespace
+        // Saveing current defined default namespace
         let def_defualt_namespace_to_revert = self.def_defualt_namespace;
         self.def_defualt_namespace = def_default_namespace;
 
@@ -306,7 +305,7 @@ impl<'xml> Deserializer<'xml> {
         // Set current attributes
         self.tag_attributes = tag_data.attributes;
 
-        // Setting current parser default namespace
+        // Saveing current parser default namespace
         let parser_defualt_namespace_to_revert = self.parser_defualt_namespace;
 
         // Set parser default namespace
@@ -334,15 +333,9 @@ impl<'xml> Deserializer<'xml> {
             .filter(|(k, v)| self.parser_namespaces.insert(k, v).is_none())
             .collect::<Vec<_>>();
 
-        // Check if namespace is defined, regardless of its key.
-        for v in self.parser_namespaces.values() {
-            match self.def_namespaces.iter().find(|(_, def_v)| def_v == &v) {
-                Some(_) => (),
-                None => return Err(Error::MissingdPrefix),
-            }
-        }
-
         let ret = visitor.visit_struct(self)?;
+
+        // Process close tag
         self.check_close_tag(name)?;
 
         // Removing parser namespaces

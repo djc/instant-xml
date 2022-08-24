@@ -241,7 +241,7 @@ fn other_namespaces() {
             "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"WRONG\"><bar:flag>true</bar:flag></NestedOtherNamespace>"
         )
         .unwrap_err(),
-        Error::MissingdPrefix
+        Error::UnexpectedPrefix
     );
 
     // Other namespace not-nested - missing parser prefix
@@ -250,7 +250,7 @@ fn other_namespaces() {
             "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAR\"><flag>true</flag></NestedOtherNamespace>"
         )
         .unwrap_err(),
-        Error::MissingdPrefix
+        Error::WrongNamespace
     );
 
     // Correct child other namespace

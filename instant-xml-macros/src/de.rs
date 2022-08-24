@@ -213,7 +213,7 @@ impl Deserializer {
         let const_field_var_str = Ident::new(&field_var_str.to_uppercase(), Span::call_site());
         let field_type = match &field.ty {
             syn::Type::Path(v) => v.path.get_ident(),
-            _ => panic!("ss"),
+            _ => panic!("Wrong field attribute format"),
         };
 
         let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
@@ -265,6 +265,7 @@ impl Deserializer {
                             #def_prefix
                             match def_prefix {
                                 Some(def_prefix) => {
+                                    // Check if defined and gotten namespaces equals for each field
                                     if deserializer.get_parser_namespace(&parser_prefix)
                                         != deserializer.get_def_namespace(def_prefix) {
                                         return Err(Error::UnexpectedPrefix)

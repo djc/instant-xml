@@ -427,37 +427,6 @@ impl<'xml> Deserializer<'xml> {
         }
     }
 
-    // fn process_open_tag(
-    //     &mut self,
-    //     name: &str,
-    // ) -> Result<&'xml TagData, Error> {
-    //     let item = match self.parser.next() {
-    //         Some(Ok(XmlRecord::Open(item))) if item.key == name => &item,
-    //         _ => return Err(Error::UnexpectedValue),
-    //     };
-
-    //     // if !def_default_namespace.is_empty() && def_default_namespace != item.default_namespace.unwrap() {
-    //     //     return Err(Error::UnexpectedValue);
-    //     // }
-
-    //     // Here we need to check if namespace is defined in the struct, regardless of its key.
-    //     // for (_, v) in item.namespaces.unwrap() {
-    //     //     match def_namespaces.get(v) {
-    //     //         Some(_) => (),
-    //     //         None => return Err(Error::MissingdPrefix),
-    //     //     }
-    //     // }
-
-    //     // let new_parser_namespaces = item.namespaces
-    //     //     .iter()
-    //     //     .filter(|(k, v)| self.parser_namespaces.insert(k, v).is_none())
-    //     //     .collect::<Vec<_>>();
-
-    //     // println!("default namespace: {:?}", &item.default_namespace);
-    //     //self.tag_attributes = item.attributes;
-    //     Ok(item)
-    // }
-
     fn check_close_tag(&mut self, name: &str) -> Result<(), Error> {
         let item = match self.parser.next() {
             Some(item) => item?,

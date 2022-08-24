@@ -315,4 +315,13 @@ fn direct_namespaces() {
         .unwrap_err(),
         Error::WrongNamespace
     );
+
+    // Wrong direct namespace - missing namespace
+    assert_eq!(
+        StructDirectNamespace::from_xml(
+            "<StructDirectNamespace xmlns=\"URI\"><flag>true</flag></StructDirectNamespace>"
+        )
+        .unwrap_err(),
+        Error::WrongNamespace
+    );
 }

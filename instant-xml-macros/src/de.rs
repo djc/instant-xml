@@ -61,7 +61,7 @@ impl Deserializer {
                         fields.named.iter().enumerate().for_each(|(index, field)| {
                             let (tokens, def_prefix, is_element) = match retrieve_field_attribute(field) {
                                 Some(FieldAttribute::Namespace(_)) => {
-                                    panic!("tutaj");
+                                    todo!();
                                 }
                                 Some(FieldAttribute::PrefixIdentifier(def_prefix)) => {
                                     if other_namespaces.get(&def_prefix).is_none() {
@@ -94,7 +94,7 @@ impl Deserializer {
                     syn::Fields::Unit => {}
                 };
             }
-            _ => panic!("sdfss"),
+            _ => todo!(),
         };
 
         // Elements
@@ -264,9 +264,11 @@ impl Deserializer {
                             }
                         }
                         None => {
-                            // if !deserializer.compare_parser_and_def_default_namespaces() {
-                            //     return Err(Error::WrongNamespace)
-                            // }
+                            #def_prefix
+                            match def_prefix {
+                                Some(_) => return Err(Error::WrongNamespace),
+                                None => (),
+                            }
                         }
                     }
 

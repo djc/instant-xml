@@ -267,10 +267,6 @@ impl<'xml> Deserializer<'xml> {
     }
 
     pub fn compare_parser_and_def_default_namespaces(&self) -> bool {
-        println!(
-            "parser: {}, def: {}",
-            self.parser_defualt_namespace, self.def_defualt_namespace
-        );
         self.parser_defualt_namespace == self.def_defualt_namespace
     }
 
@@ -290,12 +286,8 @@ impl<'xml> Deserializer<'xml> {
     {
         println!("deserialize_struct");
         // Setting current defined default namespace
-        let def_namespace_to_revert = self.def_defualt_namespace;
+        let def_defualt_namespace_to_revert = self.def_defualt_namespace;
         self.def_defualt_namespace = def_default_namespace;
-        println!(
-            "def: {}, revert def: {}",
-            &self.def_defualt_namespace, &def_namespace_to_revert
-        );
 
         // Adding struct defined namespaces
         let new_def_namespaces = def_namespaces
@@ -308,32 +300,30 @@ impl<'xml> Deserializer<'xml> {
             Some(Ok(XmlRecord::Open(item))) if item.key == name => item,
             _ => return Err(Error::UnexpectedValue),
         };
+
+        // Set current attributes
         self.tag_attributes = tag_data.attributes;
-        for (v, k) in &self.tag_attributes {
-            println!("attribute: {}, {}", v, k);
-        }
 
         // Setting current parser default namespace
-        let parser_namespace_to_revert = self.parser_defualt_namespace;
+        let parser_defualt_namespace_to_revert = self.parser_defualt_namespace;
+
+        // Set parser default namespace
         match tag_data.default_namespace {
             Some(namespace) => {
                 self.parser_defualt_namespace = namespace;
             }
             None => {
-                if def_namespace_to_revert != self.def_defualt_namespace {
+                // If there is no default namespace in the tag, check if parent default namespace equals the current one
+                if def_defualt_namespace_to_revert != self.def_defualt_namespace {
                     return Err(Error::WrongNamespace);
                 }
             }
         }
 
+        // Compare parser namespace with defined one
         if !self.compare_parser_and_def_default_namespaces() {
             return Err(Error::WrongNamespace);
         }
-
-        println!(
-            "parsr: {}, revert: {}",
-            &self.parser_defualt_namespace, &parser_namespace_to_revert
-        );
 
         // Adding parser namespaces
         let new_parser_namespaces = tag_data
@@ -344,13 +334,8 @@ impl<'xml> Deserializer<'xml> {
 
         // Check if namespace is defined, regardless of its key.
         for v in self.parser_namespaces.values() {
-            println!("parser namespace value: {}", v);
-            for (k, v) in &self.def_namespaces {
-                println!("k: {}, v: {}", k, v);
-            }
-
             match self.def_namespaces.iter().find(|(_, def_v)| def_v == &v) {
-                Some(_) => continue,
+                Some(_) => (),
                 None => return Err(Error::MissingdPrefix),
             }
         }
@@ -369,10 +354,10 @@ impl<'xml> Deserializer<'xml> {
             .map(|(k, _)| self.def_namespaces.remove(*k));
 
         // Retriving old defined namespace
-        self.def_defualt_namespace = def_namespace_to_revert;
+        self.def_defualt_namespace = def_defualt_namespace_to_revert;
 
         // Retriving old parser namespace
-        self.parser_defualt_namespace = parser_namespace_to_revert;
+        self.parser_defualt_namespace = parser_defualt_namespace_to_revert;
         Ok(ret)
     }
 

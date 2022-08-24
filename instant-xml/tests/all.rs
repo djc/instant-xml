@@ -96,7 +96,7 @@ struct StructWithCustomFieldFromXml {
 #[test]
 fn struct_with_custom_field_from_xml() {
     assert_eq!(
-        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml flag_attribute=\"true\" xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><bar:flag>false</bar:flag><Nested><flag>true</flag></Nested></StructWithCustomFieldFromXml>").unwrap(),
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml flag_attribute=\"true\" xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><bar:flag>false</bar:flag><Nested><bar:flag>true</bar:flag></Nested></StructWithCustomFieldFromXml>").unwrap(),
         StructWithCustomFieldFromXml {
             flag: false,
             flag_attribute: true,
@@ -105,7 +105,7 @@ fn struct_with_custom_field_from_xml() {
     );
     // Different order
     assert_eq!(
-        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" flag_attribute=\"true\"><Nested><flag>true</flag></Nested><flag>false</flag></StructWithCustomFieldFromXml>").unwrap(),
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" flag_attribute=\"true\"><Nested><bar:flag>true</bar:flag></Nested><bar:flag>false</bar:flag></StructWithCustomFieldFromXml>").unwrap(),
         StructWithCustomFieldFromXml {
             flag: false,
             flag_attribute: true,
@@ -115,7 +115,7 @@ fn struct_with_custom_field_from_xml() {
 
     // Different prefixes then in definition
     assert_eq!(
-        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml flag_attribute=\"true\" xmlns=\"URI\" xmlns:grr=\"BAZ\" xmlns:foo=\"BAR\"><grr:flag>false</grr:flag><Nested><flag>true</flag></Nested></StructWithCustomFieldFromXml>").unwrap(),
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml flag_attribute=\"true\" xmlns=\"URI\" xmlns:grr=\"BAZ\" xmlns:foo=\"BAR\"><grr:flag>false</grr:flag><Nested><grr:flag>true</grr:flag></Nested></StructWithCustomFieldFromXml>").unwrap(),
         StructWithCustomFieldFromXml {
             flag: false,
             flag_attribute: true,

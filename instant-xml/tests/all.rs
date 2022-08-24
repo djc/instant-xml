@@ -169,7 +169,15 @@ fn default_namespaces() {
         Error::WrongNamespace
     );
 
-    // // Correct child prefix
+    // Correct child namespace
+    assert_eq!(
+        StructWithCorrectNestedNamespace::from_xml("<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><Nested xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></Nested></StructWithCorrectNestedNamespace>").unwrap(),
+        StructWithCorrectNestedNamespace {
+            test: Nested { flag: true }
+        }
+    );
+
+    // Correct child namespace - without child redefinition
     assert_eq!(
         StructWithCorrectNestedNamespace::from_xml("<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><Nested><bar:flag>true</bar:flag></Nested></StructWithCorrectNestedNamespace>").unwrap(),
         StructWithCorrectNestedNamespace {

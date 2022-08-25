@@ -1,7 +1,8 @@
 use instant_xml::{Error, FromXml, ToXml};
 
-#[derive(Debug, Eq, PartialEq, ToXml, FromXml)]
+#[derive(Debug, Eq, PartialEq, ToXml)]
 struct Nested {
+    #[xml(namespace(bar))]
     flag: bool,
 }
 
@@ -60,7 +61,7 @@ fn struct_with_custom_field() {
         }
         .to_xml()
         .unwrap(),
-        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested><flag>true</flag></Nested></StructWithCustomField>"
+        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested><bar:flag>true</bar:flag></Nested></StructWithCustomField>"
 
     );
 }

@@ -462,8 +462,6 @@ pub enum Error {
     UnexpectedToken,
     #[error("missing prefix")]
     MissingdPrefix,
-    #[error("unexpected prefix")]
-    UnexpectedPrefix,
     #[error("unexpected state")]
     UnexpectedState,
     #[error("wrong namespace")]

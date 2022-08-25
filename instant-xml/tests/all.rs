@@ -1,9 +1,7 @@
 use instant_xml::{Error, FromXml, ToXml};
 
 #[derive(Debug, Eq, PartialEq, ToXml, FromXml)]
-#[xml(namespace("URI", bar = "BAZ"))]
 struct Nested {
-    #[xml(namespace(bar))]
     flag: bool,
 }
 
@@ -62,9 +60,16 @@ fn struct_with_custom_field() {
         }
         .to_xml()
         .unwrap(),
-        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></Nested></StructWithCustomField>"
+        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested><flag>true</flag></Nested></StructWithCustomField>"
 
     );
+}
+
+#[derive(Debug, Eq, PartialEq, ToXml, FromXml)]
+#[xml(namespace("URI", bar = "BAZ"))]
+struct NestedDe {
+    #[xml(namespace(bar))]
+    flag: bool,
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
@@ -90,45 +95,45 @@ struct StructWithCustomFieldFromXml {
     flag: bool,
     #[xml(attribute)]
     flag_attribute: bool,
-    test: Nested,
+    test: NestedDe,
 }
 
 #[test]
 fn struct_with_custom_field_from_xml() {
     assert_eq!(
-        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml flag_attribute=\"true\" xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><bar:flag>false</bar:flag><Nested><bar:flag>true</bar:flag></Nested></StructWithCustomFieldFromXml>").unwrap(),
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml flag_attribute=\"true\" xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><bar:flag>false</bar:flag><NestedDe><bar:flag>true</bar:flag></NestedDe></StructWithCustomFieldFromXml>").unwrap(),
         StructWithCustomFieldFromXml {
             flag: false,
             flag_attribute: true,
-            test: Nested { flag: true }
+            test: NestedDe { flag: true }
         }
     );
     // Different order
     assert_eq!(
-        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" flag_attribute=\"true\"><Nested><bar:flag>true</bar:flag></Nested><bar:flag>false</bar:flag></StructWithCustomFieldFromXml>").unwrap(),
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" flag_attribute=\"true\"><NestedDe><bar:flag>true</bar:flag></NestedDe><bar:flag>false</bar:flag></StructWithCustomFieldFromXml>").unwrap(),
         StructWithCustomFieldFromXml {
             flag: false,
             flag_attribute: true,
-            test: Nested { flag: true }
+            test: NestedDe { flag: true }
         }
     );
 
     // Different prefixes then in definition
     assert_eq!(
-        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml flag_attribute=\"true\" xmlns=\"URI\" xmlns:grr=\"BAZ\" xmlns:foo=\"BAR\"><grr:flag>false</grr:flag><Nested><grr:flag>true</grr:flag></Nested></StructWithCustomFieldFromXml>").unwrap(),
+        StructWithCustomFieldFromXml::from_xml("<StructWithCustomFieldFromXml flag_attribute=\"true\" xmlns=\"URI\" xmlns:grr=\"BAZ\" xmlns:foo=\"BAR\"><grr:flag>false</grr:flag><NestedDe><grr:flag>true</grr:flag></NestedDe></StructWithCustomFieldFromXml>").unwrap(),
         StructWithCustomFieldFromXml {
             flag: false,
             flag_attribute: true,
-            test: Nested { flag: true }
+            test: NestedDe { flag: true }
         }
     );
 
     assert_eq!(
-        Nested::from_xml(
-            "<Nested xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></Nested>"
+        NestedDe::from_xml(
+            "<NestedDe xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe>"
         )
         .unwrap(),
-        Nested { flag: true }
+        NestedDe { flag: true }
     );
 }
 
@@ -140,7 +145,7 @@ struct NestedWrongNamespace {
 #[derive(Debug, Eq, PartialEq, FromXml)]
 #[xml(namespace("URI", bar = "BAZ"))]
 struct StructWithCorrectNestedNamespace {
-    test: Nested,
+    test: NestedDe,
 }
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
@@ -153,17 +158,17 @@ struct StructWithWrongNestedNamespace {
 fn default_namespaces() {
     // Default namespace not-nested
     assert_eq!(
-        Nested::from_xml(
-            "<Nested xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></Nested>"
+        NestedDe::from_xml(
+            "<NestedDe xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe>"
         )
         .unwrap(),
-        Nested { flag: true }
+        NestedDe { flag: true }
     );
 
     // Default namespace not-nested - wrong namespace
     assert_eq!(
-        Nested::from_xml(
-            "<Nested xmlns=\"WRONG\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></Nested>"
+        NestedDe::from_xml(
+            "<NestedDe xmlns=\"WRONG\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe>"
         )
         .unwrap_err(),
         Error::WrongNamespace
@@ -171,17 +176,17 @@ fn default_namespaces() {
 
     // Correct child namespace
     assert_eq!(
-        StructWithCorrectNestedNamespace::from_xml("<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><Nested xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></Nested></StructWithCorrectNestedNamespace>").unwrap(),
+        StructWithCorrectNestedNamespace::from_xml("<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedDe xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe></StructWithCorrectNestedNamespace>").unwrap(),
         StructWithCorrectNestedNamespace {
-            test: Nested { flag: true }
+            test: NestedDe { flag: true }
         }
     );
 
     // Correct child namespace - without child redefinition
     assert_eq!(
-        StructWithCorrectNestedNamespace::from_xml("<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><Nested><bar:flag>true</bar:flag></Nested></StructWithCorrectNestedNamespace>").unwrap(),
+        StructWithCorrectNestedNamespace::from_xml("<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedDe><bar:flag>true</bar:flag></NestedDe></StructWithCorrectNestedNamespace>").unwrap(),
         StructWithCorrectNestedNamespace {
-            test: Nested { flag: true }
+            test: NestedDe { flag: true }
         }
     );
 
@@ -232,7 +237,7 @@ fn other_namespaces() {
             "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><wrong:flag>true</wrong:flag></NestedOtherNamespace>"
         )
         .unwrap_err(),
-        Error::UnexpectedPrefix
+        Error::WrongNamespace
     );
 
     // Other namespace not-nested - wrong parser namespace
@@ -241,7 +246,7 @@ fn other_namespaces() {
             "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"WRONG\"><bar:flag>true</bar:flag></NestedOtherNamespace>"
         )
         .unwrap_err(),
-        Error::UnexpectedPrefix
+        Error::WrongNamespace
     );
 
     // Other namespace not-nested - missing parser prefix
@@ -285,7 +290,7 @@ fn other_namespaces() {
             "<StructOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedOtherNamespace><wrong:flag>true</wrong:flag></NestedOtherNamespace></StructOtherNamespace>"
         )
         .unwrap_err(),
-        Error::UnexpectedPrefix
+        Error::WrongNamespace
     );
 }
 

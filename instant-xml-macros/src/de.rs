@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
-use crate::{get_namespaces, retrieve_attr};
+use crate::{get_namespaces, retrieve_field_attribute, FieldAttribute};
 
 struct Tokens {
     enum_: TokenStream,
@@ -37,8 +37,9 @@ impl Deserializer {
         let name = ident.to_string();
         let mut out = TokenStream::new();
 
-        let (_, other_namespaces) = get_namespaces(&input.attrs);
+        let (default_namespace, other_namespaces) = get_namespaces(&input.attrs);
         let mut namespaces_map = quote!(let mut namespaces_map = std::collections::HashMap::new(););
+
         for (k, v) in other_namespaces.iter() {
             namespaces_map.extend(quote!(
                 namespaces_map.insert(#k, #v);
@@ -58,16 +59,26 @@ impl Deserializer {
                 match data.fields {
                     syn::Fields::Named(ref fields) => {
                         fields.named.iter().enumerate().for_each(|(index, field)| {
-                            let is_element;
-                            let tokens = match retrieve_attr("attribute", &field.attrs) {
-                                Some(true) => {
-                                    is_element = false;
-                                    &mut attributes_tokens
+                            let mut field_namespace = None;
+                            let (tokens, def_prefix, is_element) = match retrieve_field_attribute(field) {
+                                Some(FieldAttribute::Namespace(value)) => {
+                                    field_namespace = Some(value);
+                                    (&mut elements_tokens, None, true)
                                 }
-                                _ => {
-                                    is_element = true;
-                                    &mut elements_tokens
+                                Some(FieldAttribute::PrefixIdentifier(def_prefix)) => {
+                                    if other_namespaces.get(&def_prefix).is_none() {
+                                        panic!("Namespace with such prefix do not exist for this struct");
+                                    }
+
+                                    (&mut elements_tokens, Some(def_prefix), true)
+                                },
+                                Some(FieldAttribute::Attribute) => {
+                                    (&mut attributes_tokens, None, false)
                                 }
+                                None => {
+                                    (&mut elements_tokens, None, true)
+                                },
+
                             };
 
                             Self::process_field(
@@ -77,10 +88,12 @@ impl Deserializer {
                                 &mut return_val,
                                 tokens,
                                 is_element,
+                                def_prefix,
+                                field_namespace,
                             );
                         });
                     }
-                    syn::Fields::Unnamed(_) => todo!(),
+                    syn::Fields::Unnamed(_) => panic!("unamed"),
                     syn::Fields::Unit => {}
                 };
             }
@@ -137,7 +150,6 @@ impl Deserializer {
                     fn visit_struct<'a>(&self, deserializer: &mut ::instant_xml::Deserializer) -> Result<Self::Value, ::instant_xml::Error>
                     {
                         #declare_values
-
                         while let Some(( key, _ )) = deserializer.peek_next_attribute() {
                             match get_attribute(&key) {
                                 #attr_type_match
@@ -149,10 +161,11 @@ impl Deserializer {
                                 XmlRecord::Open(item) => {
                                     match get_element(&item.key.as_ref()) {
                                         #elem_type_match
-                                        __Elements::__Ignore => todo!(),
+                                        __Elements::__Ignore => panic!("No such element"),
                                     }
                                  }
                                  XmlRecord::Close(tag) => {
+                                    println!("Close: {}", tag);
                                     if tag == &#name {
                                         break;
                                     }
@@ -168,7 +181,7 @@ impl Deserializer {
                 }
 
                 #namespaces_map;
-                deserializer.deserialize_struct(StructVisitor{}, #name, &namespaces_map)
+                deserializer.deserialize_struct(StructVisitor{}, #name, #default_namespace, &namespaces_map)
             }
         ));
 
@@ -179,6 +192,7 @@ impl Deserializer {
         Deserializer { out }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn process_field(
         field: &syn::Field,
         index: usize,
@@ -186,13 +200,15 @@ impl Deserializer {
         return_val: &mut TokenStream,
         tokens: &mut Tokens,
         is_element: bool,
+        def_prefix: Option<String>,
+        field_namespace: Option<String>,
     ) {
         let field_var = field.ident.as_ref().unwrap();
         let field_var_str = field_var.to_string();
         let const_field_var_str = Ident::new(&field_var_str.to_uppercase(), Span::call_site());
         let field_type = match &field.ty {
             syn::Type::Path(v) => v.path.get_ident(),
-            _ => todo!(),
+            _ => panic!("Wrong field attribute format"),
         };
 
         let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
@@ -219,6 +235,18 @@ impl Deserializer {
             let mut #enum_name: Option<#field_type> = None;
         ));
 
+        let def_prefix = match def_prefix {
+            Some(def_prefix) => quote!(let def_prefix: Option<&str> = Some(#def_prefix);),
+            None => quote!(let def_prefix: Option<&str> = None;),
+        };
+
+        let field_namespace = match field_namespace {
+            Some(field_namespace) => {
+                quote!(let field_namespace: Option<&str> = Some(#field_namespace);)
+            }
+            None => quote!(let field_namespace: Option<&str> = None;),
+        };
+
         if is_element {
             tokens.match_.extend(quote!(
                 __Elements::#enum_name => {
@@ -226,11 +254,35 @@ impl Deserializer {
                         panic!("duplicated value");
                     }
 
-                    if let Some(item) = item.prefix {
-                        let prefix = item.to_owned();
-                        deserializer.verify_namespace(&prefix);
+                    match item.prefix {
+                        Some(item) => {
+                            let parser_prefix = item.to_owned();
+                            #def_prefix
+                            match def_prefix {
+                                Some(def_prefix) => {
+                                    // Check if defined and gotten namespaces equals for each field
+                                    if deserializer.get_parser_namespace(&parser_prefix)
+                                        != deserializer.get_def_namespace(def_prefix) {
+                                        return Err(Error::WrongNamespace)
+                                    }
+                                }
+                                None => {
+                                    return Err(Error::WrongNamespace);
+                                }
+                            }
+                        }
+                        None => {
+                            #def_prefix
+                            match def_prefix {
+                                Some(_) => {
+                                    return Err(Error::WrongNamespace)
+                                },
+                                None => (),
+                            }
+                        }
                     }
-
+                    #field_namespace
+                    deserializer.set_next_def_namespace(field_namespace)?;
                     #enum_name = Some(#field_type::deserialize(deserializer)?);
                 },
             ));

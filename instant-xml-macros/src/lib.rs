@@ -16,23 +16,25 @@ const XML: &str = "xml";
 pub(crate) enum FieldAttribute {
     Namespace(String),
     PrefixIdentifier(String),
+    Attribute,
 }
 
 pub(crate) fn get_namespaces(
     attributes: &Vec<syn::Attribute>,
-) -> (Option<String>, HashMap<String, String>) {
-    let mut default_namespace = None;
+) -> (String, HashMap<String, String>) {
+    let mut default_namespace = String::new();
     let mut other_namespaces = HashMap::default();
 
-    let list = match retrieve_attr_list("namespace", attributes) {
-        Some(v) => v,
+    let (list, name) = match retrieve_attr_list(attributes) {
+        Some((Some(list), name)) => (list, name),
         None => return (default_namespace, other_namespaces),
+        _ => panic!("wrong parameters"),
     };
 
-    if list.path.get_ident().unwrap() == "namespace" {
+    if name == "namespace" {
         let mut iter = list.nested.iter();
         if let Some(NestedMeta::Lit(Lit::Str(v))) = iter.next() {
-            default_namespace = Some(v.value());
+            default_namespace = v.value();
         }
 
         for item in iter {
@@ -50,24 +52,26 @@ pub(crate) fn get_namespaces(
     (default_namespace, other_namespaces)
 }
 
-pub(crate) fn retrieve_field_attribute(name: &str, input: &syn::Field) -> Option<FieldAttribute> {
-    if let Some(list) = retrieve_attr_list(name, &input.attrs) {
-        match list.nested.first() {
-            Some(NestedMeta::Lit(Lit::Str(v))) => {
-                return Some(FieldAttribute::Namespace(v.value()));
-            }
+pub(crate) fn retrieve_field_attribute(input: &syn::Field) -> Option<FieldAttribute> {
+    match retrieve_attr_list(&input.attrs) {
+        Some((Some(list), name)) if name.as_str() == "namespace" => match list.nested.first() {
+            Some(NestedMeta::Lit(Lit::Str(v))) => Some(FieldAttribute::Namespace(v.value())),
             Some(NestedMeta::Meta(Meta::Path(v))) => {
                 if let Some(ident) = v.get_ident() {
-                    return Some(FieldAttribute::PrefixIdentifier(ident.to_string()));
+                    Some(FieldAttribute::PrefixIdentifier(ident.to_string()))
+                } else {
+                    panic!("unexpected parameter");
                 }
             }
-            _ => (),
-        };
+            _ => panic!("unexpected parameter"),
+        },
+        Some((None, name)) if name.as_str() == "attribute" => Some(FieldAttribute::Attribute),
+        None => None,
+        _ => panic!("unexpected parameter"),
     }
-    None
 }
 
-pub(crate) fn retrieve_attr(name: &str, attributes: &Vec<syn::Attribute>) -> Option<bool> {
+fn retrieve_attr_list(attributes: &Vec<syn::Attribute>) -> Option<(Option<syn::MetaList>, String)> {
     for attr in attributes {
         if !attr.path.is_ident(XML) {
             continue;
@@ -75,41 +79,19 @@ pub(crate) fn retrieve_attr(name: &str, attributes: &Vec<syn::Attribute>) -> Opt
 
         let nested = match attr.parse_meta() {
             Ok(Meta::List(meta)) => meta.nested,
-            _ => return Some(false),
-        };
-
-        let path = match nested.first() {
-            Some(NestedMeta::Meta(Meta::Path(path))) => path,
-            _ => return Some(false),
-        };
-
-        if path.get_ident()? == name {
-            return Some(true);
-        }
-    }
-
-    None
-}
-
-fn retrieve_attr_list(name: &str, attributes: &Vec<syn::Attribute>) -> Option<syn::MetaList> {
-    for attr in attributes {
-        if !attr.path.is_ident(XML) {
-            continue;
-        }
-
-        let nested = match attr.parse_meta() {
-            Ok(Meta::List(meta)) => meta.nested,
-            _ => return None,
+            Ok(_) => todo!(),
+            _ => todo!(),
         };
 
         let list = match nested.first() {
             Some(NestedMeta::Meta(Meta::List(list))) => list,
+            Some(NestedMeta::Meta(Meta::Path(path))) => {
+                return Some((None, path.get_ident()?.to_string()))
+            }
             _ => return None,
         };
 
-        if list.path.get_ident()? == name {
-            return Some(list.to_owned());
-        }
+        return Some((Some(list.to_owned()), list.path.get_ident()?.to_string()));
     }
 
     None
@@ -158,7 +140,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 // Check if prefix exist
                 #(
                     if serializer.parent_prefixes.get(#missing_prefixes).is_none() {
-                        return Err(instant_xml::Error::UnexpectedPrefix);
+                        return Err(instant_xml::Error::WrongNamespace);
                     }
                 )*;
 

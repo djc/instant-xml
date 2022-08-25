@@ -35,8 +35,8 @@ impl<'a> XmlParser<'a> {
                 Ok(Some(XmlRecord::Open(TagData {
                     key: local,
                     attributes: Vec::new(),
-                    default_namespace: None,
-                    namespaces: None,
+                    default_namespace: Some(""),
+                    namespaces: HashMap::new(),
                     prefix,
                 })))
             }
@@ -89,7 +89,7 @@ impl<'xml> Iterator for XmlParser<'xml> {
                             key: key.unwrap(),
                             attributes,
                             default_namespace,
-                            namespaces: Some(namespaces),
+                            namespaces,
                             prefix: prefix_ret,
                         })));
                     }

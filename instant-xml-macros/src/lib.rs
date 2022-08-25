@@ -140,7 +140,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 // Check if prefix exist
                 #(
                     if serializer.parent_prefixes.get(#missing_prefixes).is_none() {
-                        return Err(instant_xml::Error::UnexpectedPrefix);
+                        return Err(instant_xml::Error::WrongNamespace);
                     }
                 )*;
 

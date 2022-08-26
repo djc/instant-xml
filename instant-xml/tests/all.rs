@@ -8,11 +8,6 @@ struct Nested {
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-struct NestedWrongPrefix {
-    flag: bool,
-}
-
-#[derive(Debug, Eq, PartialEq, ToXml)]
 struct Unit;
 
 #[test]
@@ -49,11 +44,9 @@ fn struct_with_named_fields() {
 #[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
 struct StructWithCustomField {
     #[xml(attribute)]
-    flag_attribute: bool,
-    #[xml(attribute)]
     int_attribute: i32,
     #[xml(namespace("BAZ"))]
-    field: i32,
+    field: bool,
     test: Nested,
 }
 
@@ -61,16 +54,15 @@ struct StructWithCustomField {
 fn struct_with_custom_field_a() {
     assert_eq!(
         StructWithCustomField {
-            flag_attribute: true,
             int_attribute: 42,
-            field: 23,
+            field: true,
             test: Nested {
                 flag: true,
             },
         }
         .to_xml()
         .unwrap(),
-        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested><bar:flag>true</bar:flag></Nested></StructWithCustomField>"
+        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" int_attribute=\"42\"><bar:field>true</bar:field><Nested><bar:flag>true</bar:flag></Nested></StructWithCustomField>"
     );
 }
 
@@ -79,28 +71,6 @@ fn struct_with_custom_field_a() {
 struct NestedDe {
     #[xml(namespace(bar))]
     flag: bool,
-}
-
-#[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
-struct StructWithCustomFieldWrongPrefix {
-    test: NestedWrongPrefix,
-}
-
-#[test]
-#[should_panic]
-fn struct_with_custom_field_wrong_prefix() {
-    StructWithCustomFieldWrongPrefix {
-        test: NestedWrongPrefix { flag: true },
-    }
-    .to_xml()
-    .unwrap();
-}
-
-#[test]
-#[should_panic]
-fn nested_wrong_prefix() {
-    NestedWrongPrefix { flag: true }.to_xml().unwrap();
 }
 
 #[derive(Debug, Eq, PartialEq, FromXml)]

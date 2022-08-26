@@ -76,7 +76,7 @@ to_xml_for_number!(u32);
 to_xml_for_number!(u64);
 
 impl ToXml for bool {
-    fn serialize<'xml, W>(&self, serializer: &'xml mut Serializer<W>) -> Result<(), Error>
+    fn serialize<W>(&self, serializer: &mut Serializer<W>) -> Result<(), Error>
     where
         W: fmt::Write,
     {
@@ -89,7 +89,7 @@ impl ToXml for bool {
             Some(field_context) => {
                 match field_context.attribute {
                     Some(FieldAttribute::Attribute) => {
-                        serializer.add_attribute_value(&value.to_owned());
+                        serializer.add_attribute_value(value);
                     }
                     _ => {
                         serializer.add_open_tag(&field_context)?;
@@ -105,7 +105,7 @@ impl ToXml for bool {
 }
 
 impl ToXml for String {
-    fn serialize<'xml, W>(&self, serializer: &'xml mut Serializer<W>) -> Result<(), Error>
+    fn serialize<W>(&self, serializer: &mut Serializer<W>) -> Result<(), Error>
     where
         W: fmt::Write,
     {
@@ -113,7 +113,7 @@ impl ToXml for String {
             Some(field_context) => {
                 match field_context.attribute {
                     Some(FieldAttribute::Attribute) => {
-                        serializer.add_attribute_value(&self);
+                        serializer.add_attribute_value(self);
                     }
                     _ => {
                         serializer.add_open_tag(&field_context)?;
@@ -137,9 +137,8 @@ where
     #[doc(hidden)]
     pub output: &'xml mut W,
     #[doc(hidden)]
-    pub parent_default_namespace: &'xml str,
-    #[doc(hidden)]
-    pub current_attributes: String,
+    pub parent_default_namespace: Option<&'xml str>,
+    current_attributes: String,
     next_field_contest: Option<FieldContext<'xml>>,
 }
 
@@ -148,25 +147,25 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
         Self {
             parent_namespaces: HashMap::new(),
             output,
-            parent_default_namespace: "",
+            parent_default_namespace: None,
             next_field_contest: None,
             current_attributes: String::new(),
         }
     }
 
-    pub fn consume_current_attributes(&mut self) -> Result<(), Error>{
+    pub fn consume_current_attributes(&mut self) -> Result<(), Error> {
         self.output.write_str(&self.current_attributes)?;
         self.current_attributes.clear();
         Ok(())
     }
 
-    pub fn add_attribute_key(&mut self, attr_key: &'xml str) {
+    pub fn add_attribute_key(&mut self, attr_key: &str) {
         self.current_attributes.push(' ');
         self.current_attributes.push_str(attr_key);
         self.current_attributes.push('=');
     }
 
-    pub fn add_attribute_value(&mut self, attr_value: &String) {
+    pub fn add_attribute_value(&mut self, attr_value: &str) {
         self.current_attributes.push('"');
         self.current_attributes.push_str(attr_value);
         self.current_attributes.push('"');
@@ -188,7 +187,7 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
     }
 
     pub fn set_parent_default_namespace(&mut self, namespace: &'xml str) -> Result<(), Error> {
-        self.parent_default_namespace = namespace;
+        self.parent_default_namespace = Some(namespace);
         Ok(())
     }
 
@@ -202,7 +201,7 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
                 self.output.write_char('>')?;
             }
             Some(FieldAttribute::Namespace(namespace))
-                if self.parent_default_namespace != namespace =>
+                if self.parent_default_namespace != Some(namespace) =>
             {
                 self.output.write_char('<')?;
                 self.output.write_str(field_context.name)?;

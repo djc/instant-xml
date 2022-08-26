@@ -119,7 +119,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     fields.named.iter().for_each(|field| {
                         match serializer.process_named_field(field) {
                             (val, false) => body.extend(val),
-                            (val, true) =>  attribute.extend(val),
+                            (val, true) => attribute.extend(val),
                         }
                     });
                 }

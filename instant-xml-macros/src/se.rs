@@ -28,12 +28,12 @@ impl<'a> Serializer {
 
         let default_namespace = &self.default_namespace;
         output.extend(quote!(
-            if serializer.parent_default_namespace != Some(#default_namespace) {
+            if serializer.parent_default_namespace() != Some(#default_namespace) {
                 serializer.output.write_str(" xmlns=\"")?;
                 serializer.output.write_str(#default_namespace)?;
                 serializer.output.write_char('\"')?;
             }
-            serializer.parent_default_namespace = Some(#default_namespace);
+            serializer.update_parent_default_namespace(#default_namespace);
         ));
 
         let mut sorted_values: Vec<_> = self.other_namespaces.iter().collect();
@@ -120,6 +120,7 @@ impl<'a> Serializer {
         output.extend(quote!(
             serializer.set_field_context(field)?;
             self.#field_value.serialize(serializer)?;
+            serializer.retrive_parent_default_namespace();
         ));
 
         (output, is_attribute)

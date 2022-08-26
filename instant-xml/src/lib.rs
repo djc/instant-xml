@@ -136,8 +136,9 @@ where
     pub parent_namespaces: HashMap<&'xml str, &'xml str>,
     #[doc(hidden)]
     pub output: &'xml mut W,
-    #[doc(hidden)]
-    pub parent_default_namespace: Option<&'xml str>,
+
+    parent_default_namespace: Option<&'xml str>,
+    parent_default_namespace_to_revert: Option<&'xml str>,
     current_attributes: String,
     next_field_contest: Option<FieldContext<'xml>>,
 }
@@ -148,6 +149,7 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
             parent_namespaces: HashMap::new(),
             output,
             parent_default_namespace: None,
+            parent_default_namespace_to_revert: None,
             next_field_contest: None,
             current_attributes: String::new(),
         }
@@ -189,6 +191,21 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
     pub fn set_parent_default_namespace(&mut self, namespace: &'xml str) -> Result<(), Error> {
         self.parent_default_namespace = Some(namespace);
         Ok(())
+    }
+
+    pub fn parent_default_namespace(&self) -> Option<&'xml str> {
+        self.parent_default_namespace
+    }
+
+    pub fn update_parent_default_namespace(&mut self, namespace: &'xml str) {
+        self.parent_default_namespace_to_revert = self.parent_default_namespace;
+        self.parent_default_namespace = Some(namespace);
+    }
+
+    pub fn retrive_parent_default_namespace(&mut self) {
+        if self.parent_default_namespace_to_revert.is_some() {
+            self.parent_default_namespace = self.parent_default_namespace_to_revert;
+        }
     }
 
     fn add_open_tag(&mut self, field_context: &FieldContext) -> Result<(), Error> {

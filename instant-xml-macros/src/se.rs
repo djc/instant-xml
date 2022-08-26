@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -20,40 +20,42 @@ impl<'a> Serializer {
         }
     }
 
-    pub fn keys_set(&self) -> BTreeSet<&str> {
-        self.other_namespaces
-            .iter()
-            .map(|(k, _)| k.as_str())
-            .collect()
-    }
-
     pub fn add_header(&mut self, output: &'a mut TokenStream) {
         output.extend(quote!(
             serializer.output.write_char('<')?;
             serializer.output.write_str(field_context.name)?;
         ));
 
-        if !self.default_namespace.is_empty() {
-            let default_namespace = &self.default_namespace;
-            output.extend(quote!(
+        let default_namespace = &self.default_namespace;
+        output.extend(quote!(
+            if serializer.parent_default_namespace != #default_namespace {
                 serializer.output.write_str(" xmlns=\"")?;
                 serializer.output.write_str(#default_namespace)?;
                 serializer.output.write_char('\"')?;
-            ));
-        }
+            }
+            serializer.parent_default_namespace = #default_namespace;
+        ));
 
         let mut sorted_values: Vec<_> = self.other_namespaces.iter().collect();
         sorted_values.sort();
 
         for (key, val) in sorted_values {
             output.extend(quote!(
-                serializer.output.write_str(" xmlns:")?;
-                serializer.output.write_str(#key)?;
-                serializer.output.write_str("=\"")?;
-                serializer.output.write_str(#val)?;
-                serializer.output.write_char('\"')?;
+               if serializer.parent_namespaces.get(#val).is_none() {
+                        serializer.output.write_str(" xmlns:")?;
+                        serializer.output.write_str(#key)?;
+                        serializer.output.write_str("=\"")?;
+                        serializer.output.write_str(#val)?;
+                        serializer.output.write_char('\"')?;
+                }
             ));
         }
+
+        // Attributes
+        output.extend(quote!(
+            serializer.consume_current_attributes();
+        ));
+
         output.extend(quote!(
             serializer.output.write_char('>')?;
         ));
@@ -67,42 +69,74 @@ impl<'a> Serializer {
         ));
     }
 
-    pub fn process_named_field(
-        &mut self,
-        field: &syn::Field,
-        output: &'a mut TokenStream,
-        missing_prefixes: &'a mut BTreeSet<String>,
-    ) {
+    pub fn process_named_field(&mut self, field: &syn::Field) -> (TokenStream, bool) {
         let name = field.ident.as_ref().unwrap().to_string();
         let field_value = field.ident.as_ref().unwrap();
-
-        output.extend(quote!(
+        let mut is_attribute = false;
+        let mut output = quote!(
             let mut field = instant_xml::FieldContext {
                 name: #name,
                 attribute: None,
             };
-        ));
+        );
 
         match retrieve_field_attribute(field) {
-            Some(FieldAttribute::Namespace(namespace_key)) => {
+            Some(FieldAttribute::Namespace(namespace)) => {
                 output.extend(quote!(
-                    field.attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace_key));
-                ));
+                        match serializer.parent_namespaces.get(#namespace) {
+                            Some(key) => field.attribute = Some(instant_xml::FieldAttribute::Prefix(key)),
+                            None => field.attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace)),
+                        };
+                    )
+                );
             }
             Some(FieldAttribute::PrefixIdentifier(prefix_key)) => {
-                output.extend(quote!(
-                    field.attribute = Some(instant_xml::FieldAttribute::Prefix(#prefix_key));
-                ));
-
-                if self.other_namespaces.get(&prefix_key).is_none() {
-                    missing_prefixes.insert(prefix_key);
+                match self.other_namespaces.get(&prefix_key) {
+                    Some(val) => {
+                        output.extend(quote!(
+                            let prefix_key = match serializer.parent_namespaces.get(#val) {
+                                Some(key) => key,
+                                None => #prefix_key,
+                            };
+                        ));
+                    }
+                    None => panic!("Prefix not defined: {}", prefix_key),
                 };
+
+                output.extend(quote!(
+                    field.attribute = Some(instant_xml::FieldAttribute::Prefix(prefix_key));
+                ));
+            }
+            Some(FieldAttribute::Attribute) => {
+                is_attribute = true;
+                output.extend(quote!(
+                    serializer.add_attribute_key(&#name);
+                    field.attribute = Some(instant_xml::FieldAttribute::Attribute);
+                ));
             }
             _ => {}
         };
 
         output.extend(quote!(
-            self.#field_value.serialize(serializer, Some(&field))?;
+            serializer.set_field_context(field)?;
+            self.#field_value.serialize(serializer)?;
         ));
+
+        (output, is_attribute)
+    }
+
+    pub fn get_namespaces_token(&self) -> TokenStream {
+        let mut namespaces = quote!(
+            let mut to_remove: Vec<&str> = Vec::new();
+        );
+        for (k, v) in self.other_namespaces.iter() {
+            namespaces.extend(quote!(
+                if let std::collections::hash_map::Entry::Vacant(v) = serializer.parent_namespaces.entry(#v) {
+                        v.insert(#k);
+                        to_remove.push(#v);
+                };
+            ))
+        }
+        namespaces
     }
 }

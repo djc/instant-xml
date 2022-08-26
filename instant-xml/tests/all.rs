@@ -1,7 +1,7 @@
 use instant_xml::{Error, FromXml, ToXml};
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(namespace("URI", dar = "BAZ"))]
+#[xml(namespace(dar = "BAZ"))]
 struct Nested {
     #[xml(namespace(dar))]
     flag: bool,
@@ -51,7 +51,7 @@ struct StructWithCustomField {
 }
 
 #[test]
-fn struct_with_custom_field_a() {
+fn struct_with_custom_field() {
     assert_eq!(
         StructWithCustomField {
             int_attribute: 42,
@@ -62,7 +62,7 @@ fn struct_with_custom_field_a() {
         }
         .to_xml()
         .unwrap(),
-        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" int_attribute=\"42\"><bar:field>true</bar:field><Nested><bar:flag>true</bar:flag></Nested></StructWithCustomField>"
+        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" int_attribute=\"42\"><bar:field>true</bar:field><Nested xmlns=\"\"><bar:flag>true</bar:flag></Nested></StructWithCustomField>"
     );
 }
 

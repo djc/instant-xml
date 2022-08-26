@@ -28,7 +28,6 @@ impl<'a> Serializer {
 
         let default_namespace = &self.default_namespace;
         output.extend(quote!(
-            println!("default namespace: {}", #default_namespace);
             if serializer.parent_default_namespace != Some(#default_namespace) {
                 serializer.output.write_str(" xmlns=\"")?;
                 serializer.output.write_str(#default_namespace)?;

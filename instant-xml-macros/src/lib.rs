@@ -33,22 +33,22 @@ pub(crate) fn get_namespaces(
 
     if name == "namespace" {
         let mut iter = list.nested.iter();
-        if let Some(NestedMeta::Lit(Lit::Str(v))) = iter.next() {
+        let mut next = iter.next();
+        if let Some(NestedMeta::Lit(Lit::Str(v))) = next {
             default_namespace = v.value();
-        } else {
-            // TODO: Remove this condition
-            panic!("No default namespace");
+            next = iter.next();
         }
 
-        for item in iter {
-            if let NestedMeta::Meta(Meta::NameValue(key)) = item {
+        while let Some(value) = next {
+            if let NestedMeta::Meta(Meta::NameValue(key)) = value {
                 if let Lit::Str(value) = &key.lit {
                     other_namespaces
                         .insert(key.path.get_ident().unwrap().to_string(), value.value());
+                    next = iter.next();
                     continue;
                 }
             }
-            panic!("Wrong data");
+            panic!("Wrong data")
         }
     }
 
@@ -148,6 +148,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 };
 
                 #attribute
+
                 #header
                 #current_namespaces
                 #body

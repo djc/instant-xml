@@ -28,6 +28,7 @@ impl<'a> Serializer {
 
         let default_namespace = &self.default_namespace;
         output.extend(quote!(
+            // Check if parent default namespace equals
             if serializer.parent_default_namespace() != Some(#default_namespace) {
                 serializer.output.write_str(" xmlns=\"")?;
                 serializer.output.write_str(#default_namespace)?;
@@ -83,6 +84,7 @@ impl<'a> Serializer {
         match retrieve_field_attribute(field) {
             Some(FieldAttribute::Namespace(namespace)) => {
                 output.extend(quote!(
+                        // Check if such namespace already exist, if so change it to use its prefix
                         match serializer.parent_namespaces.get(#namespace) {
                             Some(key) => field.attribute = Some(instant_xml::FieldAttribute::Prefix(key)),
                             None => field.attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace)),
@@ -94,6 +96,7 @@ impl<'a> Serializer {
                 match self.other_namespaces.get(&prefix_key) {
                     Some(val) => {
                         output.extend(quote!(
+                            // Check if such namespace already exist, if so change its prefix to parent prefix
                             let prefix_key = match serializer.parent_namespaces.get(#val) {
                                 Some(key) => key,
                                 None => #prefix_key,
@@ -132,8 +135,10 @@ impl<'a> Serializer {
         );
         for (k, v) in self.other_namespaces.iter() {
             namespaces.extend(quote!(
+                // Only adding to HashMap if namespace do not exist, if it exist it will use the parent defined prefix
                 if let std::collections::hash_map::Entry::Vacant(v) = serializer.parent_namespaces.entry(#v) {
                         v.insert(#k);
+                        // Will remove added namespaces when going "up"
                         to_remove.push(#v);
                 };
             ))

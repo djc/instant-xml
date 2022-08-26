@@ -40,7 +40,7 @@ fn struct_with_named_fields() {
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(namespace("URI", dar = "BAZ", internal = "INTERNAL" ))]
+#[xml(namespace("URI", dar = "BAZ", internal = "INTERNAL"))]
 struct Nested {
     #[xml(namespace(dar))]
     flag_parent_prefix: bool,
@@ -91,7 +91,7 @@ fn struct_with_custom_field() {
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(namespace(dar = "BAZ", internal = "INTERNAL" ))]
+#[xml(namespace(dar = "BAZ", internal = "INTERNAL"))]
 struct NestedDifferentNamespace {
     #[xml(namespace(dar))]
     flag_parent_prefix: bool,
@@ -103,7 +103,7 @@ struct NestedDifferentNamespace {
 #[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
 struct StructChildNamespaces {
     different_child_namespace: NestedDifferentNamespace,
-    same_child_namespace: Nested
+    same_child_namespace: Nested,
 }
 
 // Tests:

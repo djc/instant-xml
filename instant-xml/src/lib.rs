@@ -132,6 +132,8 @@ pub struct Serializer<'xml, W>
 where
     W: fmt::Write,
 {
+    // For parent namespaces the key is the namespace and the value is the prefix. We are adding to map
+    // only if the namespaces do not exist, if it does exist then we are using an already defined parent prefix.
     #[doc(hidden)]
     pub parent_namespaces: HashMap<&'xml str, &'xml str>,
     #[doc(hidden)]

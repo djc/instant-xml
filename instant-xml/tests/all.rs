@@ -377,3 +377,35 @@ fn direct_namespaces() {
         Error::WrongNamespace
     );
 }
+
+#[derive(Debug, PartialEq, ToXml)]
+#[xml(namespace("URI"))]
+struct StructDeserializerScalars<'a, 'b> {
+    bool_type: bool,
+    i8_type: i8,
+    u32_type: u32,
+    string_type: String,
+    str_type_a: &'a str,
+    str_type_b: &'b str,
+    char_type: char,
+    f32_type: f32,
+}
+
+#[test]
+fn scalars() {
+    assert_eq!(
+        StructDeserializerScalars{
+            bool_type: true,
+            i8_type: 1,
+            u32_type: 42,
+            string_type: "string".to_string(),
+            str_type_a: "lifetime a",
+            str_type_b: "lifetime b",
+            char_type: 'c',
+            f32_type: 1.20,
+        }
+        .to_xml()
+        .unwrap(),
+        "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.2</f32_type></StructDeserializerScalars>"
+    );
+}

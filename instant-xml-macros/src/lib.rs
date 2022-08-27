@@ -6,7 +6,7 @@ mod se;
 use std::collections::HashMap;
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{parse_macro_input, Lit, Meta, NestedMeta};
 
 use crate::se::Serializer;
@@ -104,6 +104,8 @@ fn retrieve_attr_list(attributes: &Vec<syn::Attribute>) -> Option<(Option<syn::M
 pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
     let ident = &ast.ident;
+    let generics = (&ast.generics).into_token_stream();
+
     let root_name = ident.to_string();
     let mut serializer = Serializer::new(&ast.attrs);
 
@@ -136,7 +138,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let current_namespaces = serializer.get_namespaces_token();
 
     proc_macro::TokenStream::from(quote!(
-        impl ToXml for #ident {
+        impl #generics ToXml for #ident #generics {
             fn serialize<W>(&self, serializer: &mut instant_xml::Serializer<W>) -> Result<(), instant_xml::Error>
             where
                 W: std::fmt::Write,

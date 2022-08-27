@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 
 use crate::{get_namespaces, retrieve_field_attribute, FieldAttribute};
 
@@ -34,6 +34,25 @@ impl quote::ToTokens for Deserializer {
 impl Deserializer {
     pub fn new(input: &syn::DeriveInput) -> Deserializer {
         let ident = &input.ident;
+        let generics =(&input.generics).into_token_stream();
+        let lifetimes = (&input.generics.params).into_token_stream();
+       
+        let mut lifetime_xml = TokenStream::new();
+        let mut lifetime_visitor = TokenStream::new();
+        let iter = &mut input.generics.params.iter();
+        if let Some(it) = iter.next() {
+            lifetime_xml = quote!(:);
+            lifetime_xml.extend(it.into_token_stream());
+            while let Some(it) = iter.by_ref().next() {
+                lifetime_xml.extend(syn::token::Add::default().into_token_stream());
+                lifetime_xml.extend(it.into_token_stream());
+            }
+            lifetime_xml.extend(quote!(,));
+            lifetime_xml.extend(lifetimes.clone());
+            lifetime_visitor.extend(quote!(,));
+            lifetime_visitor.extend(lifetimes);
+        }
+
         let name = ident.to_string();
         let mut out = TokenStream::new();
 
@@ -113,7 +132,7 @@ impl Deserializer {
         let attr_type_match = attributes_tokens.match_;
 
         out.extend(quote!(
-            fn deserialize(deserializer: &mut ::instant_xml::Deserializer) -> Result<Self, ::instant_xml::Error> {
+            fn deserialize(deserializer: &mut ::instant_xml::Deserializer<'xml>) -> Result<Self, ::instant_xml::Error> {
                 use ::instant_xml::parse::XmlRecord;
                 use ::instant_xml::{Error, Deserializer, Visitor} ;
 
@@ -143,12 +162,18 @@ impl Deserializer {
                     }
                 }
 
-                struct StructVisitor;
-                impl<'xml> Visitor<'xml> for StructVisitor {
-                    type Value = #ident;
+                struct StructVisitor<'xml #lifetime_xml> {
+                    marker: std::marker::PhantomData<#ident #generics>,
+                    lifetime: std::marker::PhantomData<&'xml ()>,
+                }
 
-                    fn visit_struct<'a>(&self, deserializer: &mut ::instant_xml::Deserializer) -> Result<Self::Value, ::instant_xml::Error>
-                    {
+                impl<'xml #lifetime_xml> Visitor<'xml> for StructVisitor<'xml #lifetime_visitor> {
+                    type Value = #ident #generics;
+
+                    fn visit_struct(
+                        &self,
+                        deserializer: &mut ::instant_xml::Deserializer<'xml>
+                    ) -> Result<Self::Value, ::instant_xml::Error> {
                         #declare_values
                         while let Some(( key, _ )) = deserializer.peek_next_attribute() {
                             match get_attribute(&key) {
@@ -181,13 +206,27 @@ impl Deserializer {
                 }
 
                 #namespaces_map;
-                deserializer.deserialize_struct(StructVisitor{}, #name, #default_namespace, &namespaces_map)
+                deserializer.deserialize_struct(
+                    StructVisitor{
+                        marker: std::marker::PhantomData,
+                        lifetime: std::marker::PhantomData
+                    },
+                    #name,
+                    #default_namespace,
+                    &namespaces_map
+                )
             }
         ));
 
         out.extend(quote!(
             const TAG_NAME: ::instant_xml::TagName<'xml> = ::instant_xml::TagName::Custom(#name);
         ));
+
+        out = quote!(
+            impl<'xml #lifetime_xml> FromXml<'xml> for #ident #generics {
+                #out
+            }
+        );
 
         Deserializer { out }
     }
@@ -207,7 +246,12 @@ impl Deserializer {
         let field_var_str = field_var.to_string();
         let const_field_var_str = Ident::new(&field_var_str.to_uppercase(), Span::call_site());
         let field_type = match &field.ty {
-            syn::Type::Path(v) => v.path.get_ident(),
+            syn::Type::Path(v) => v.path.get_ident().into_token_stream(),
+            syn::Type::Reference(v) => {
+                let mut out = v.and_token.into_token_stream();
+                out.extend((&*v.elem).into_token_stream());
+                out
+            }
             _ => panic!("Wrong field attribute format"),
         };
 
@@ -215,7 +259,7 @@ impl Deserializer {
         tokens.enum_.extend(quote!(#enum_name,));
 
         tokens.consts.extend(quote!(
-            const #const_field_var_str: &str = match #field_type::TAG_NAME {
+            const #const_field_var_str: &str = match <#field_type>::TAG_NAME {
                 ::instant_xml::TagName::FieldName => #field_var_str,
                 ::instant_xml::TagName::Custom(v) => v,
             };
@@ -283,7 +327,7 @@ impl Deserializer {
                     }
                     #field_namespace
                     deserializer.set_next_def_namespace(field_namespace)?;
-                    #enum_name = Some(#field_type::deserialize(deserializer)?);
+                    #enum_name = Some(<#field_type>::deserialize(deserializer)?);
                 },
             ));
         } else {
@@ -294,7 +338,7 @@ impl Deserializer {
                     }
 
                     deserializer.set_next_type_as_attribute()?;
-                    #enum_name = Some(#field_type::deserialize(deserializer)?);
+                    #enum_name = Some(<#field_type>::deserialize(deserializer)?);
                 },
             ));
         }

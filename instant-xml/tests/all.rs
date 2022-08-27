@@ -332,7 +332,6 @@ fn direct_namespaces() {
     );
 }
 
-
 #[derive(Debug, PartialEq, FromXml)]
 #[xml(namespace("URI"))]
 struct StructDeserializerScalars<'a, 'b> {
@@ -353,7 +352,7 @@ fn scalars() {
             "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.20</f32_type></StructDeserializerScalars>"
         )
         .unwrap(),
-        StructDeserializerScalars { 
+        StructDeserializerScalars{
             bool_type: true,
             i8_type: 1,
             u32_type: 42,

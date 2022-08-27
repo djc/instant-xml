@@ -167,7 +167,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
     let deserializer = de::Deserializer::new(&ast);
-    
+
     proc_macro::TokenStream::from(quote!(
         #deserializer
     ))

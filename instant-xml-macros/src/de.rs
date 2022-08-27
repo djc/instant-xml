@@ -34,9 +34,9 @@ impl quote::ToTokens for Deserializer {
 impl Deserializer {
     pub fn new(input: &syn::DeriveInput) -> Deserializer {
         let ident = &input.ident;
-        let generics =(&input.generics).into_token_stream();
+        let generics = (&input.generics).into_token_stream();
         let lifetimes = (&input.generics.params).into_token_stream();
-       
+
         let mut lifetime_xml = TokenStream::new();
         let mut lifetime_visitor = TokenStream::new();
         let iter = &mut input.generics.params.iter();

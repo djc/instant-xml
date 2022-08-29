@@ -332,7 +332,7 @@ fn direct_namespaces() {
     );
 }
 
-#[derive(Debug, PartialEq, FromXml)]
+#[derive(Debug, PartialEq, Eq, FromXml)]
 #[xml(namespace("URI"))]
 struct NestedLifetimes<'a> {
     flag: bool,
@@ -351,10 +351,12 @@ struct StructDeserializerScalars<'a, 'b> {
     char_type: char,
     f32_type: f32,
     nested: NestedLifetimes<'a>,
+    option: Option<bool>,
 }
 
 #[test]
 fn scalars() {
+    // Option none
     assert_eq!(
         StructDeserializerScalars::from_xml(
             "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.20</f32_type><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes></StructDeserializerScalars>"
@@ -372,7 +374,70 @@ fn scalars() {
             nested: NestedLifetimes {
                 flag: true,
                 str_type_a: "asd"
-            }
+            },
+            option: None,
         }
     );
+
+    // Option some
+    assert_eq!(
+        StructDeserializerScalars::from_xml(
+            "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.20</f32_type><option>true</option><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes></StructDeserializerScalars>"
+        )
+        .unwrap(),
+        StructDeserializerScalars{
+            bool_type: true,
+            i8_type: 1,
+            u32_type: 42,
+            string_type: "string".to_string(),
+            str_type_a: "lifetime a",
+            str_type_b: "lifetime b",
+            char_type: 'c',
+            f32_type: 1.20,
+            nested: NestedLifetimes {
+                flag: true,
+                str_type_a: "asd"
+            },
+            option: Some(true),
+        }
+    );
+}
+
+#[derive(Debug, PartialEq, Eq, FromXml)]
+#[xml(namespace("URI"))]
+struct NestedLifetimesWithOption<'a> {
+    flag: Option<bool>,
+    str_type_a: &'a str,
+}
+
+#[derive(Debug, PartialEq, Eq, FromXml)]
+#[xml(namespace("URI"))]
+struct StructWithNestedOption<'a> {
+    nested: Option<NestedLifetimesWithOption<'a>>,
+}
+
+#[test]
+fn options() {
+    // Option some
+    assert_eq!(
+        StructWithNestedOption::from_xml(
+            "<StructWithNestedOption xmlns=\"URI\"><NestedLifetimesWithOption><flag>true</flag><str_type_a>str</str_type_a></NestedLifetimesWithOption></StructWithNestedOption>"
+        )
+        .unwrap(),
+        StructWithNestedOption{
+            nested: Some(NestedLifetimesWithOption {
+                flag: Some(true),
+                str_type_a: "str",
+            })
+        }
+    );
+
+    // Option none
+    assert_eq!(
+        StructWithNestedOption::from_xml(
+            "<StructWithNestedOption xmlns=\"URI\"></StructWithNestedOption>"
+        )
+        .unwrap(),
+        StructWithNestedOption { nested: None }
+    )
 }

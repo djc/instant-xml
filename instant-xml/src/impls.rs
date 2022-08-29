@@ -148,3 +148,17 @@ impl<'xml> FromXml<'xml> for &'xml str {
         }
     }
 }
+
+impl<'xml, T> FromXml<'xml> for Option<T>
+where
+    T: FromXml<'xml>,
+{
+    const TAG_NAME: TagName<'xml> = <T>::TAG_NAME;
+
+    fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error> {
+        match <T>::deserialize(deserializer) {
+            Ok(v) => Ok(Some(v)),
+            Err(e) => Err(e),
+        }
+    }
+}

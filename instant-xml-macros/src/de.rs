@@ -190,7 +190,6 @@ impl Deserializer {
                                     }
                                  }
                                  XmlRecord::Close(tag) => {
-                                    println!("Close: {}", tag);
                                     if tag == &#name {
                                         break;
                                     }
@@ -242,13 +241,49 @@ impl Deserializer {
         def_prefix: Option<String>,
         field_namespace: Option<String>,
     ) {
+        let mut is_option_type = false;
         let field_var = field.ident.as_ref().unwrap();
         let field_var_str = field_var.to_string();
         let const_field_var_str = Ident::new(&field_var_str.to_uppercase(), Span::call_site());
         let field_type = match &field.ty {
             syn::Type::Path(v) => match v.path.get_ident() {
                 Some(ident) => ident.into_token_stream(),
-                None => (&v.path.segments.first().expect("Struct name").ident).into_token_stream(),
+                None => {
+                    if v.path.segments.is_empty() {
+                        panic!("Wrong declaration");
+                    };
+
+                    let type_params = v.path.segments.first().expect("Struct name");
+                    match type_params.ident.to_string().as_str() {
+                        "Option" => match &type_params.arguments {
+                            syn::PathArguments::AngleBracketed(params) => {
+                                is_option_type = true;
+                                let mut temp = quote!(Option<);
+                                match params.args.first().unwrap() {
+                                    syn::GenericArgument::Type(syn::Type::Path(v)) => {
+                                        match v.path.get_ident() {
+                                            Some(ident) => temp.extend(ident.into_token_stream()),
+                                            None => temp.extend(
+                                                (&v.path
+                                                    .segments
+                                                    .first()
+                                                    .expect("Struct name")
+                                                    .ident)
+                                                    .into_token_stream(),
+                                            ),
+                                        }
+                                    }
+                                    _ => panic!("Wrong data"),
+                                }
+
+                                temp.extend(quote!(>));
+                                temp
+                            }
+                            _ => panic!("Wrong data"),
+                        },
+                        _ => (&type_params.ident).into_token_stream(),
+                    }
+                }
             },
             syn::Type::Reference(v) => {
                 let mut out = v.and_token.into_token_stream();
@@ -278,9 +313,15 @@ impl Deserializer {
             ));
         }
 
-        declare_values.extend(quote!(
-            let mut #enum_name: Option<#field_type> = None;
-        ));
+        if is_option_type {
+            declare_values.extend(quote!(
+                let mut #enum_name: Option<#field_type> = Some(None);
+            ));
+        } else {
+            declare_values.extend(quote!(
+                let mut #enum_name: Option<#field_type> = None;
+            ));
+        }
 
         let def_prefix = match def_prefix {
             Some(def_prefix) => quote!(let def_prefix: Option<&str> = Some(#def_prefix);),
@@ -294,12 +335,24 @@ impl Deserializer {
             None => quote!(let field_namespace: Option<&str> = None;),
         };
 
+        let duplicated_value_check = if is_option_type {
+            quote!(
+                if #enum_name.expect("Some value").is_some() {
+                    panic!("duplicated value");
+                }
+            )
+        } else {
+            quote!(
+                if #enum_name.is_some() {
+                    panic!("duplicated value");
+                }
+            )
+        };
+
         if is_element {
             tokens.match_.extend(quote!(
                 __Elements::#enum_name => {
-                    if #enum_name.is_some() {
-                        panic!("duplicated value");
-                    }
+                    #duplicated_value_check
 
                     match item.prefix {
                         Some(item) => {
@@ -336,9 +389,7 @@ impl Deserializer {
         } else {
             tokens.match_.extend(quote!(
                 __Attributes::#enum_name => {
-                    if #enum_name.is_some() {
-                        panic!("duplicated value");
-                    }
+                    #duplicated_value_check
 
                     deserializer.set_next_type_as_attribute()?;
                     #enum_name = Some(<#field_type>::deserialize(deserializer)?);

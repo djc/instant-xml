@@ -246,11 +246,9 @@ impl Deserializer {
         let field_var_str = field_var.to_string();
         let const_field_var_str = Ident::new(&field_var_str.to_uppercase(), Span::call_site());
         let field_type = match &field.ty {
-            syn::Type::Path(v) => {
-                match v.path.get_ident() {
-                    Some(ident) => ident.into_token_stream(),
-                    None => (&v.path.segments.first().expect("Struct name").ident).into_token_stream(),
-                }  
+            syn::Type::Path(v) => match v.path.get_ident() {
+                Some(ident) => ident.into_token_stream(),
+                None => (&v.path.segments.first().expect("Struct name").ident).into_token_stream(),
             },
             syn::Type::Reference(v) => {
                 let mut out = v.and_token.into_token_stream();
@@ -259,8 +257,6 @@ impl Deserializer {
             }
             _ => panic!("Wrong field attribute format"),
         };
-
-        println!("Field type: {}", field_type);
 
         let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
         tokens.enum_.extend(quote!(#enum_name,));

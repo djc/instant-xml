@@ -334,6 +334,13 @@ fn direct_namespaces() {
 
 #[derive(Debug, PartialEq, FromXml)]
 #[xml(namespace("URI"))]
+struct NestedLifetimes<'a> {
+    flag: bool,
+    str_type_a: &'a str,
+}
+
+#[derive(Debug, PartialEq, FromXml)]
+#[xml(namespace("URI"))]
 struct StructDeserializerScalars<'a, 'b> {
     bool_type: bool,
     i8_type: i8,
@@ -343,13 +350,14 @@ struct StructDeserializerScalars<'a, 'b> {
     str_type_b: &'b str,
     char_type: char,
     f32_type: f32,
+    nested: NestedLifetimes<'a>,
 }
 
 #[test]
 fn scalars() {
     assert_eq!(
         StructDeserializerScalars::from_xml(
-            "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.20</f32_type></StructDeserializerScalars>"
+            "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.20</f32_type><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes></StructDeserializerScalars>"
         )
         .unwrap(),
         StructDeserializerScalars{
@@ -361,6 +369,10 @@ fn scalars() {
             str_type_b: "lifetime b",
             char_type: 'c',
             f32_type: 1.20,
+            nested: NestedLifetimes {
+                flag: true,
+                str_type_a: "asd"
+            }
         }
     );
 }

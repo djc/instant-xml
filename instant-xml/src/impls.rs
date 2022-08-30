@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::str::FromStr;
 
@@ -110,11 +111,10 @@ impl<'xml> Visitor<'xml> for CharVisitor {
     type Value = char;
 
     fn visit_str(self, value: &str) -> Result<Self::Value, Error> {
-        if value.len() != 1 {
-            return Err(Error::Other("Expected char type".to_string()));
+        match value.len() {
+            1 => Ok(value.chars().next().expect("char type")),
+            _ => Err(Error::Other("Expected char type".to_string())),
         }
-
-        Ok(value.chars().next().expect("char type"))
     }
 }
 
@@ -146,5 +146,43 @@ impl<'xml> FromXml<'xml> for &'xml str {
             EntityType::Element => deserializer.deserialize_element(StrVisitor),
             EntityType::Attribute => deserializer.deserialize_attribute(StrVisitor),
         }
+    }
+}
+
+struct CowStrVisitor;
+impl<'a> Visitor<'a> for CowStrVisitor {
+    type Value = Cow<'a, str>;
+
+    fn visit_str(self, value: &'a str) -> Result<Self::Value, Error> {
+        Ok(Cow::Borrowed(value))
+    }
+}
+
+impl<'xml> FromXml<'xml> for Cow<'xml, str> {
+    const TAG_NAME: TagName<'xml> = <&str>::TAG_NAME;
+
+    fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error> {
+        match deserializer.consume_next_type() {
+            EntityType::Element => deserializer.deserialize_element(CowStrVisitor),
+            EntityType::Attribute => deserializer.deserialize_attribute(CowStrVisitor),
+        }
+    }
+}
+
+impl<'xml, T> FromXml<'xml> for Option<T>
+where
+    T: FromXml<'xml>,
+{
+    const TAG_NAME: TagName<'xml> = <T>::TAG_NAME;
+
+    fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error> {
+        match <T>::deserialize(deserializer) {
+            Ok(v) => Ok(Some(v)),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn missing_value() -> Result<Self, Error> {
+        Ok(None)
     }
 }

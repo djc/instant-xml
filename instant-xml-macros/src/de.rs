@@ -44,7 +44,7 @@ impl Deserializer {
             lifetime_xml = quote!(:);
             lifetime_xml.extend(it.into_token_stream());
             while let Some(it) = iter.by_ref().next() {
-                lifetime_xml.extend(syn::token::Add::default().into_token_stream());
+                lifetime_xml.extend(quote!(+));
                 lifetime_xml.extend(it.into_token_stream());
             }
             lifetime_xml.extend(quote!(,));
@@ -248,7 +248,34 @@ impl Deserializer {
         let field_type = match &field.ty {
             syn::Type::Path(v) => match v.path.get_ident() {
                 Some(ident) => ident.into_token_stream(),
-                None => (&v.path.segments.first().expect("Struct name").ident).into_token_stream(),
+                None => {
+                    if v.path.segments.is_empty() {
+                        panic!("Wrong declaration");
+                    };
+                
+                    // Cow<>, Option<>
+                    let mut out = (&v.path.segments.first().expect("type name").ident).into_token_stream();
+                    match &(v.path.segments.first().expect("type name")).arguments {
+                        syn::PathArguments::AngleBracketed(arguments) => {
+                            for arg in &arguments.args {
+                                match arg {
+                                    syn::GenericArgument::Type(syn::Type::Path(arg)) => {
+                                        out.extend(quote!(<));
+                                        out.extend((&arg.path.segments.first().expect("type name").ident).into_token_stream());
+                                        out.extend(quote!(>));
+                                    },
+                                    syn::GenericArgument::Type(_) => todo!(),
+                                    syn::GenericArgument::Binding(arg) => out.extend((&arg.ty).into_token_stream()),
+                                    syn::GenericArgument::Lifetime(_) 
+                                    | syn::GenericArgument::Constraint(_)
+                                    | syn::GenericArgument::Const(_) => {},
+                                }
+                            }
+                        }
+                        _ => todo!(),
+                    }
+                    out
+                },
             },
             syn::Type::Reference(v) => {
                 let mut out = v.and_token.into_token_stream();
@@ -347,7 +374,10 @@ impl Deserializer {
         }
 
         return_val.extend(quote!(
-            #field_var: #enum_name.expect("Expected some value"),
+            #field_var: match #enum_name {
+                Some(v) => v,
+                None => <#field_type>::missing_value()?,
+            },
         ));
     }
 }

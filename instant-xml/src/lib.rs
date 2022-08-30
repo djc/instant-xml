@@ -217,6 +217,12 @@ pub trait FromXml<'xml>: Sized {
     }
 
     fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error>;
+
+    // If the missing field is of type `Option<T>` then treat is as `None`,
+    // otherwise it is an error.
+    fn missing_value() -> Result<Self, Error> {
+        Err(Error::MissingValue)
+    }
 }
 
 pub trait Visitor<'xml>: Sized {

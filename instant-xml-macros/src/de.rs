@@ -252,30 +252,36 @@ impl Deserializer {
                     if v.path.segments.is_empty() {
                         panic!("Wrong declaration");
                     };
-                
+
                     // Cow<>, Option<>
-                    let mut out = (&v.path.segments.first().expect("type name").ident).into_token_stream();
+                    let mut out =
+                        (&v.path.segments.first().expect("type name").ident).into_token_stream();
                     match &(v.path.segments.first().expect("type name")).arguments {
                         syn::PathArguments::AngleBracketed(arguments) => {
                             for arg in &arguments.args {
                                 match arg {
                                     syn::GenericArgument::Type(syn::Type::Path(arg)) => {
                                         out.extend(quote!(<));
-                                        out.extend((&arg.path.segments.first().expect("type name").ident).into_token_stream());
+                                        out.extend(
+                                            (&arg.path.segments.first().expect("type name").ident)
+                                                .into_token_stream(),
+                                        );
                                         out.extend(quote!(>));
-                                    },
+                                    }
                                     syn::GenericArgument::Type(_) => todo!(),
-                                    syn::GenericArgument::Binding(arg) => out.extend((&arg.ty).into_token_stream()),
-                                    syn::GenericArgument::Lifetime(_) 
+                                    syn::GenericArgument::Binding(arg) => {
+                                        out.extend((&arg.ty).into_token_stream())
+                                    }
+                                    syn::GenericArgument::Lifetime(_)
                                     | syn::GenericArgument::Constraint(_)
-                                    | syn::GenericArgument::Const(_) => {},
+                                    | syn::GenericArgument::Const(_) => {}
                                 }
                             }
                         }
                         _ => todo!(),
                     }
                     out
-                },
+                }
             },
             syn::Type::Reference(v) => {
                 let mut out = v.and_token.into_token_stream();

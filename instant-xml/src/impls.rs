@@ -5,6 +5,24 @@ use std::str::FromStr;
 use crate::{Deserializer, EntityType, Error, FromXml, TagName, Visitor};
 
 // Deserializer
+struct FromStrToVisitor<T: FromStr>(PhantomData<T>)
+where
+    T: FromStr,
+    <T as FromStr>::Err: std::fmt::Display;
+
+impl<'xml, T> Visitor<'xml> for FromStrToVisitor<T>
+where
+    T: FromStr,
+    <T as FromStr>::Err: std::fmt::Display,
+{
+    type Value = T;
+    fn visit_str(self, value: &str) -> Result<Self::Value, Error> {
+        match FromStr::from_str(value) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(Error::Other(e.to_string())),
+        }
+    }
+}
 
 struct BoolVisitor;
 
@@ -12,10 +30,7 @@ impl<'xml> Visitor<'xml> for BoolVisitor {
     type Value = bool;
 
     fn visit_str(self, value: &str) -> Result<Self::Value, Error> {
-        match FromStr::from_str(value) {
-            Ok(v) => Ok(v),
-            Err(e) => Err(Error::Other(e.to_string())),
-        }
+        FromStrToVisitor(PhantomData::<Self::Value>).visit_str(value)
     }
 }
 
@@ -46,10 +61,7 @@ where
     type Value = T;
 
     fn visit_str(self, value: &str) -> Result<Self::Value, Error> {
-        match FromStr::from_str(value) {
-            Ok(v) => Ok(v),
-            Err(e) => Err(Error::Other(e.to_string())),
-        }
+        FromStrToVisitor(PhantomData::<Self::Value>).visit_str(value)
     }
 }
 
@@ -86,6 +98,7 @@ from_xml_for_number!(f32);
 from_xml_for_number!(f64);
 
 struct StringVisitor;
+
 impl<'xml> Visitor<'xml> for StringVisitor {
     type Value = String;
 
@@ -107,6 +120,7 @@ impl<'xml> FromXml<'xml> for String {
 }
 
 struct CharVisitor;
+
 impl<'xml> Visitor<'xml> for CharVisitor {
     type Value = char;
 
@@ -130,6 +144,7 @@ impl<'xml> FromXml<'xml> for char {
 }
 
 struct StrVisitor;
+
 impl<'a> Visitor<'a> for StrVisitor {
     type Value = &'a str;
 
@@ -150,6 +165,7 @@ impl<'xml> FromXml<'xml> for &'xml str {
 }
 
 struct CowStrVisitor;
+
 impl<'a> Visitor<'a> for CowStrVisitor {
     type Value = Cow<'a, str>;
 

@@ -332,7 +332,7 @@ fn direct_namespaces() {
     );
 }
 
-#[derive(Debug, PartialEq, FromXml)]
+#[derive(Debug, PartialEq, Eq, FromXml)]
 #[xml(namespace("URI"))]
 struct NestedLifetimes<'a> {
     flag: bool,

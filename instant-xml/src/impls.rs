@@ -32,6 +32,7 @@ impl<'xml> FromXml<'xml> for bool {
 
 // Serializer
 struct DisplayToXml<'a, T: fmt::Display>(pub &'a T);
+
 impl<'a, T> ToXml for DisplayToXml<'a, T>
 where
     T: fmt::Display,
@@ -40,22 +41,22 @@ where
     where
         W: fmt::Write,
     {
-        match serializer.consume_field_context() {
-            Some(field_context) => {
-                match field_context.attribute {
-                    Some(FieldAttribute::Attribute) => {
-                        serializer.add_attribute_value(self.0)?;
-                    }
-                    _ => {
-                        serializer.add_open_tag(&field_context)?;
-                        write!(serializer.output, "{}", self.0)?;
-                        serializer.add_close_tag(field_context)?;
-                    }
-                }
-                Ok(())
+        let field_context = match serializer.consume_field_context() {
+            Some(field_context) => field_context,
+            None => return Err(Error::UnexpectedValue),
+        };
+
+        match field_context.attribute {
+            Some(FieldAttribute::Attribute) => {
+                serializer.add_attribute_value(&self.0)?;
             }
-            None => Err(Error::UnexpectedValue),
+            _ => {
+                serializer.add_open_tag(&field_context)?;
+                write!(serializer.output, "{}", self.0)?;
+                serializer.add_close_tag(field_context)?;
+            }
         }
+        Ok(())
     }
 }
 
@@ -104,8 +105,7 @@ impl ToXml for String {
     where
         W: fmt::Write,
     {
-        let converted = special_xml_entities_handling(self);
-        DisplayToXml(&converted).serialize(serializer)
+        DisplayToXml(&escape(self)?).serialize(serializer)
     }
 }
 
@@ -115,8 +115,7 @@ impl ToXml for char {
         W: fmt::Write,
     {
         let mut tmp = [0u8; 4];
-        let converted = special_xml_entities_handling(&*self.encode_utf8(&mut tmp));
-        DisplayToXml(&converted).serialize(serializer)
+        DisplayToXml(&escape(&*self.encode_utf8(&mut tmp))?).serialize(serializer)
     }
 }
 
@@ -125,8 +124,7 @@ impl ToXml for &str {
     where
         W: fmt::Write,
     {
-        let converted = special_xml_entities_handling(self);
-        DisplayToXml(&converted).serialize(serializer)
+        DisplayToXml(&escape(self)?).serialize(serializer)
     }
 }
 
@@ -135,27 +133,39 @@ impl ToXml for Cow<'_, str> {
     where
         W: fmt::Write,
     {
-        let converted = special_xml_entities_handling(self);
-        DisplayToXml(&converted).serialize(serializer)
+        DisplayToXml(&escape(self)?).serialize(serializer)
     }
 }
 
-fn special_xml_entities_handling(input: &str) -> String {
+fn escape(input: &str) -> Result<Cow<'_, str>, Error> {
     let mut result = String::with_capacity(input.len());
     let mut last_end = 0;
     for (start, c) in input.chars().enumerate() {
         let to = match c {
-            '&' => "&amp",
-            '"' => "&quot",
-            '<' => "&lt",
-            '>' => "&gt",
-            '\'' => "&apos",
+            '&' => "&amp;",
+            '"' => "&quot;",
+            '<' => "&lt;",
+            '>' => "&gt;",
+            '\'' => "&apos;",
             _ => continue,
         };
-        result.push_str(unsafe { input.get_unchecked(last_end..start) });
+        match input.get(last_end..start) {
+            Some(v) => result.push_str(v),
+            None => return Err(Error::Other("Out of bounds".to_string())),
+        }
+
         result.push_str(to);
         last_end = start + 1;
     }
-    result.push_str(unsafe { input.get_unchecked(last_end..input.len()) });
-    result
+
+    if result.is_empty() {
+        Ok(Cow::Borrowed(input))
+    } else {
+        match input.get(last_end..input.len()) {
+            Some(v) => result.push_str(v),
+            None => return Err(Error::Other("Out of bounds".to_string())),
+        }
+
+        Ok(Cow::Owned(result))
+    }
 }

@@ -431,6 +431,6 @@ fn special_entities() {
         }
         .to_xml()
         .unwrap(),
-        "<StructSpecialEntities xmlns=\"URI\"><string_type>&amp&quot&lt&gt&aposaa</string_type><str_type_a>&amp&quot&lt&gt&aposbb</str_type_a><cow>&amp&quot&lt&gt&aposcc</cow></StructSpecialEntities>"
+        "<StructSpecialEntities xmlns=\"URI\"><string_type>&amp;&quot;&lt;&gt;&apos;aa</string_type><str_type_a>&amp;&quot;&lt;&gt;&apos;bb</str_type_a><cow>&amp;&quot;&lt;&gt;&apos;cc</cow></StructSpecialEntities>"
     );
 }

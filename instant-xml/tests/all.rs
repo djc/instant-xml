@@ -1,17 +1,6 @@
-use instant_xml::{Error, FromXml, ToXml};
 use std::borrow::Cow;
 
-#[derive(Debug, Eq, PartialEq, ToXml)]
-struct Nested {
-    #[xml(namespace(bar))]
-    flag: bool,
-}
-
-#[derive(Debug, Eq, PartialEq, ToXml)]
-struct NestedWrongPrefix {
-    #[xml(namespace(dar))]
-    flag: bool,
-}
+use instant_xml::{Error, FromXml, ToXml};
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
 struct Unit;
@@ -23,7 +12,7 @@ fn unit() {
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
+#[xml(namespace(bar = "BAZ", foo = "BAR"))]
 struct StructWithNamedFields {
     flag: bool,
     #[xml(namespace(bar))]
@@ -31,6 +20,11 @@ struct StructWithNamedFields {
     #[xml(namespace("typo"))]
     number: i32,
 }
+
+// Tests:
+// - Empty default namespace
+// - Prefix namespace
+// - Direct namespace
 
 #[test]
 fn struct_with_named_fields() {
@@ -42,52 +36,104 @@ fn struct_with_named_fields() {
         }
         .to_xml()
         .unwrap(),
-        "<StructWithNamedFields xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><flag>true</flag><bar:string>test</bar:string><number xmlns=\"typo\">1</number></StructWithNamedFields>"
+        "<StructWithNamedFields xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><flag>true</flag><bar:string>test</bar:string><number xmlns=\"typo\">1</number></StructWithNamedFields>"
     );
+}
+
+#[derive(Debug, Eq, PartialEq, ToXml)]
+#[xml(namespace("URI", dar = "BAZ", internal = "INTERNAL"))]
+struct Nested {
+    #[xml(namespace(dar))]
+    flag_parent_prefix: bool,
+    #[xml(namespace(internal))]
+    flag_internal_prefix: bool,
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
 #[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
 struct StructWithCustomField {
+    #[xml(attribute)]
+    int_attribute: i32,
+    #[xml(namespace("BAZ"))]
+    flag_direct_namespace_same_the_same_as_prefix: bool,
+    #[xml(namespace(bar))]
+    flag_prefix: bool,
+    #[xml(namespace("DIFFERENT"))]
+    flag_direct_namespace: bool,
     test: Nested,
 }
 
+// Tests:
+// - The same direct namespace as the one from prefix
+// - Attribute handling
+// - Omitting redeclared child default namespace
+// - Omitting redeclared child namespace with different prefix
+// - Unique direct namespace
+// - Child unique prefix
+// - Child repeated prefix
+// - Child default namespace the same as parent
 #[test]
 fn struct_with_custom_field() {
     assert_eq!(
         StructWithCustomField {
+            int_attribute: 42,
+            flag_direct_namespace_same_the_same_as_prefix: true,
+            flag_prefix: false,
+            flag_direct_namespace: true,
             test: Nested {
-                flag: true,
+                flag_parent_prefix: true,
+                flag_internal_prefix: false,
             },
         }
         .to_xml()
         .unwrap(),
-        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><Nested><bar:flag>true</bar:flag></Nested></StructWithCustomField>"
-
+        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" int_attribute=\"42\"><flag_direct_namespace_same_the_same_as_prefix xmlns=\"BAZ\">true</flag_direct_namespace_same_the_same_as_prefix><bar:flag_prefix>false</bar:flag_prefix><flag_direct_namespace xmlns=\"DIFFERENT\">true</flag_direct_namespace><Nested xmlns:internal=\"INTERNAL\"><bar:flag_parent_prefix>true</bar:flag_parent_prefix><internal:flag_internal_prefix>false</internal:flag_internal_prefix></Nested></StructWithCustomField>"
     );
 }
 
-#[derive(Debug, Eq, PartialEq, ToXml, FromXml)]
-#[xml(namespace("URI", bar = "BAZ"))]
-struct NestedDe {
-    #[xml(namespace(bar))]
-    flag: bool,
+#[derive(Debug, Eq, PartialEq, ToXml)]
+#[xml(namespace(dar = "BAZ", internal = "INTERNAL"))]
+struct NestedDifferentNamespace {
+    #[xml(namespace(dar))]
+    flag_parent_prefix: bool,
+    #[xml(namespace(internal))]
+    flag_internal_prefix: bool,
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
 #[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
-struct StructWithCustomFieldWrongPrefix {
-    test: NestedWrongPrefix,
+struct StructChildNamespaces {
+    different_child_namespace: NestedDifferentNamespace,
+    same_child_namespace: Nested,
 }
 
+// Tests:
+// - Different child namespace
+// - The same child namespace
 #[test]
-#[should_panic]
-fn struct_with_custom_field_wrong_prefix() {
-    StructWithCustomFieldWrongPrefix {
-        test: NestedWrongPrefix { flag: true },
-    }
-    .to_xml()
-    .unwrap();
+fn struct_child_namespaces() {
+    assert_eq!(
+        StructChildNamespaces {
+            different_child_namespace: NestedDifferentNamespace {
+                flag_parent_prefix: true,
+                flag_internal_prefix: false,
+            },
+            same_child_namespace: Nested {
+                flag_parent_prefix: true,
+                flag_internal_prefix: false,
+            },
+        }
+        .to_xml()
+        .unwrap(),
+        "<StructChildNamespaces xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><NestedDifferentNamespace xmlns=\"\" xmlns:internal=\"INTERNAL\"><bar:flag_parent_prefix>true</bar:flag_parent_prefix><internal:flag_internal_prefix>false</internal:flag_internal_prefix></NestedDifferentNamespace><Nested xmlns:internal=\"INTERNAL\"><bar:flag_parent_prefix>true</bar:flag_parent_prefix><internal:flag_internal_prefix>false</internal:flag_internal_prefix></Nested></StructChildNamespaces>"
+    );
+}
+
+#[derive(Debug, Eq, PartialEq, FromXml)]
+#[xml(namespace("URI", bar = "BAZ"))]
+struct NestedDe {
+    #[xml(namespace(bar))]
+    flag: bool,
 }
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
@@ -139,7 +185,7 @@ fn struct_with_custom_field_from_xml() {
     );
 }
 
-#[derive(Debug, Eq, PartialEq, ToXml, FromXml)]
+#[derive(Debug, Eq, PartialEq, FromXml)]
 struct NestedWrongNamespace {
     flag: bool,
 }

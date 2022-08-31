@@ -3,7 +3,7 @@ extern crate proc_macro;
 mod de;
 mod se;
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -33,19 +33,22 @@ pub(crate) fn get_namespaces(
 
     if name == "namespace" {
         let mut iter = list.nested.iter();
-        if let Some(NestedMeta::Lit(Lit::Str(v))) = iter.next() {
+        let mut next = iter.next();
+        if let Some(NestedMeta::Lit(Lit::Str(v))) = next {
             default_namespace = v.value();
+            next = iter.next();
         }
 
-        for item in iter {
-            if let NestedMeta::Meta(Meta::NameValue(key)) = item {
+        while let Some(value) = next {
+            if let NestedMeta::Meta(Meta::NameValue(key)) = value {
                 if let Lit::Str(value) = &key.lit {
                     other_namespaces
                         .insert(key.path.get_ident().unwrap().to_string(), value.value());
+                    next = iter.next();
                     continue;
                 }
             }
-            panic!("Wrong data");
+            panic!("Wrong data")
         }
     }
 
@@ -102,17 +105,19 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
     let ident = &ast.ident;
     let root_name = ident.to_string();
-    let mut missing_prefixes = BTreeSet::new();
     let mut serializer = Serializer::new(&ast.attrs);
-    let mut output = TokenStream::new();
-    serializer.add_header(&mut output);
 
+    let mut header = TokenStream::new();
+    serializer.add_header(&mut header);
+
+    let mut body = TokenStream::new();
+    let mut attributes = TokenStream::new();
     match &ast.data {
         syn::Data::Struct(ref data) => {
             match data.fields {
                 syn::Fields::Named(ref fields) => {
                     fields.named.iter().for_each(|field| {
-                        serializer.process_named_field(field, &mut output, &mut missing_prefixes);
+                        serializer.process_named_field(field, &mut body, &mut attributes);
                     });
                 }
                 syn::Fields::Unnamed(_) => todo!(),
@@ -122,39 +127,34 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         _ => todo!(),
     };
 
-    serializer.add_footer(&root_name, &mut output);
+    let mut footer = TokenStream::new();
+    serializer.add_footer(&root_name, &mut footer);
 
-    let current_prefixes = serializer.keys_set();
+    let current_namespaces = serializer.namespaces_token();
 
     proc_macro::TokenStream::from(quote!(
         impl ToXml for #ident {
-            fn serialize<W>(&self, serializer: &mut instant_xml::Serializer<W>, _field_data: Option<&instant_xml::FieldContext>) -> Result<(), instant_xml::Error>
+            fn serialize<W>(&self, serializer: &mut instant_xml::Serializer<W>) -> Result<(), instant_xml::Error>
             where
                 W: std::fmt::Write,
             {
+                println!("ident: {}", #root_name);
+                let _ = serializer.consume_field_context();
                 let mut field_context = instant_xml::FieldContext {
                     name: #root_name,
                     attribute: None,
                 };
 
-                // Check if prefix exist
-                #(
-                    if serializer.parent_prefixes.get(#missing_prefixes).is_none() {
-                        return Err(instant_xml::Error::WrongNamespace);
-                    }
-                )*;
+                #attributes
 
-                // Adding current prefixes
-                let mut to_remove: Vec<&str> = Vec::new();
-                #(if serializer.parent_prefixes.insert(#current_prefixes) {
-                    to_remove.push(#current_prefixes);
-                };)*;
+                #header
+                #current_namespaces
+                #body
+                #footer
 
-                #output
-
-                // Removing current prefixes
+                // Removing current namespaces
                 for it in to_remove {
-                    serializer.parent_prefixes.remove(it);
+                    serializer.parent_namespaces.remove(it);
                 }
 
                 Ok(())

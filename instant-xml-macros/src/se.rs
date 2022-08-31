@@ -29,7 +29,7 @@ impl<'a> Serializer {
         let default_namespace = &self.default_namespace;
         output.extend(quote!(
             // Check if parent default namespace equals
-            if serializer.parent_default_namespace() != Some(#default_namespace) {
+            if serializer.parent_default_namespace() != #default_namespace {
                 serializer.output.write_str(" xmlns=\"")?;
                 serializer.output.write_str(#default_namespace)?;
                 serializer.output.write_char('\"')?;
@@ -67,6 +67,7 @@ impl<'a> Serializer {
             serializer.output.write_str("</")?;
             serializer.output.write_str(#root_name)?;
             serializer.output.write_char('>')?;
+            serializer.retrive_parent_default_namespace();
         ));
     }
 
@@ -90,11 +91,12 @@ impl<'a> Serializer {
             Some(FieldAttribute::Namespace(namespace)) => {
                 body.extend(quote!(
                     #declaration
-                    // Check if such namespace already exist, if so change it to use its prefix
-                    match serializer.parent_namespaces.get(#namespace) {
-                        Some(key) => field.attribute = Some(instant_xml::FieldAttribute::Prefix(key)),
-                        None => field.attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace)),
-                    };
+                    // // Check if such namespace already exist, if so change it to use its prefix
+                    // match serializer.parent_namespaces.get(#namespace) {
+                    //     Some(key) => field.attribute = Some(instant_xml::FieldAttribute::Prefix(key)),
+                    //     None => field.attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace)),
+                    // };
+                    field.attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace));
                 ));
                 body
             }
@@ -139,7 +141,6 @@ impl<'a> Serializer {
         stream_ref.extend(quote!(
             serializer.set_field_context(field)?;
             self.#field_value.serialize(serializer)?;
-            serializer.retrive_parent_default_namespace();
         ));
     }
 

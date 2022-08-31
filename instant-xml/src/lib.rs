@@ -139,8 +139,8 @@ where
     #[doc(hidden)]
     pub output: &'xml mut W,
 
-    parent_default_namespace: Option<&'xml str>,
-    parent_default_namespace_to_revert: Option<&'xml str>,
+    parent_default_namespace: &'xml str,
+    parent_default_namespace_to_revert: &'xml str,
     current_attributes: String,
     next_field_contest: Option<FieldContext<'xml>>,
 }
@@ -150,8 +150,8 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
         Self {
             parent_namespaces: HashMap::new(),
             output,
-            parent_default_namespace: None,
-            parent_default_namespace_to_revert: None,
+            parent_default_namespace: "",
+            parent_default_namespace_to_revert: "",
             next_field_contest: None,
             current_attributes: String::new(),
         }
@@ -191,23 +191,21 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
     }
 
     pub fn set_parent_default_namespace(&mut self, namespace: &'xml str) -> Result<(), Error> {
-        self.parent_default_namespace = Some(namespace);
+        self.parent_default_namespace = namespace;
         Ok(())
     }
 
-    pub fn parent_default_namespace(&self) -> Option<&'xml str> {
+    pub fn parent_default_namespace(&self) -> &'xml str {
         self.parent_default_namespace
     }
 
     pub fn update_parent_default_namespace(&mut self, namespace: &'xml str) {
         self.parent_default_namespace_to_revert = self.parent_default_namespace;
-        self.parent_default_namespace = Some(namespace);
+        self.parent_default_namespace = namespace;
     }
 
     pub fn retrive_parent_default_namespace(&mut self) {
-        if self.parent_default_namespace_to_revert.is_some() {
-            self.parent_default_namespace = self.parent_default_namespace_to_revert;
-        }
+        self.parent_default_namespace = self.parent_default_namespace_to_revert;
     }
 
     fn add_open_tag(&mut self, field_context: &FieldContext) -> Result<(), Error> {
@@ -220,7 +218,7 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
                 self.output.write_char('>')?;
             }
             Some(FieldAttribute::Namespace(namespace))
-                if self.parent_default_namespace != Some(namespace) =>
+                if self.parent_default_namespace != namespace =>
             {
                 self.output.write_char('<')?;
                 self.output.write_str(field_context.name)?;

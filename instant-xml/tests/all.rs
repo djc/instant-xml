@@ -1,4 +1,5 @@
 use instant_xml::{Error, FromXml, ToXml};
+use std::borrow::Cow;
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
 struct Nested {
@@ -375,4 +376,56 @@ fn scalars() {
             }
         }
     );
+}
+
+#[derive(Debug, PartialEq, Eq, FromXml)]
+#[xml(namespace("URI"))]
+struct StructEscapeBack<'a> {
+    string: String,
+    str_a: &'a str,
+    cow: Cow<'a, str>,
+}
+
+#[test]
+fn escape_back() {
+    assert_eq!(
+        StructEscapeBack::from_xml(
+            "<StructEscapeBack xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str_a>str</str_a><cow>str&amp;</cow></StructEscapeBack>"
+        )
+        .unwrap(),
+        StructEscapeBack {
+            string: String::from("<>&\"'adsad\""),
+            str_a: "str",
+            cow: Cow::Owned("str&".to_string()),
+        }
+    );
+
+    // Wrong str char
+    assert_eq!(
+        StructEscapeBack::from_xml(
+            "<StructEscapeBack xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str_a>str&amp;</str_a></StructEscapeBack>"
+        )
+        .unwrap_err(),
+        Error::Other("Unsupported char: str&".to_string())
+    );
+
+    // Borrowed
+    let escape_back = StructEscapeBack::from_xml(
+        "<StructEscapeBack xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str_a>str</str_a><cow>str</cow></StructEscapeBack>"
+    )
+    .unwrap();
+
+    if let Cow::Owned(_) = escape_back.cow {
+        panic!("Should be Borrowed")
+    }
+
+    // Owned
+    let escape_back = StructEscapeBack::from_xml(
+            "<StructEscapeBack xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str_a>str</str_a><cow>str&amp;</cow></StructEscapeBack>"
+        )
+        .unwrap();
+
+    if let Cow::Borrowed(_) = escape_back.cow {
+        panic!("Should be Owned")
+    }
 }

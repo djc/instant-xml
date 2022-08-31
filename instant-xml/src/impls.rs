@@ -103,7 +103,7 @@ impl<'xml> Visitor<'xml> for StringVisitor {
     type Value = String;
 
     fn visit_str(self, value: &str) -> Result<Self::Value, Error> {
-        Ok(value.to_owned())
+        Ok(escape_back(value).into_owned())
     }
 }
 
@@ -149,7 +149,10 @@ impl<'a> Visitor<'a> for StrVisitor {
     type Value = &'a str;
 
     fn visit_str(self, value: &'a str) -> Result<Self::Value, Error> {
-        Ok(value)
+        match escape_back(value) {
+            Cow::Owned(v) => Err(Error::Other(format!("Unsupported char: {}", v))),
+            Cow::Borrowed(v) => Ok(v),
+        }
     }
 }
 
@@ -170,7 +173,7 @@ impl<'a> Visitor<'a> for CowStrVisitor {
     type Value = Cow<'a, str>;
 
     fn visit_str(self, value: &'a str) -> Result<Self::Value, Error> {
-        Ok(Cow::Borrowed(value))
+        Ok(escape_back(value))
     }
 }
 
@@ -201,4 +204,60 @@ where
     fn missing_value() -> Result<Self, Error> {
         Ok(None)
     }
+}
+
+fn escape_back(input: &str) -> Cow<'_, str> {
+    let mut result = String::with_capacity(input.len());
+    let input_len = input.len();
+
+    let mut last_end = 0;
+    while input_len - last_end >= 4 {
+        match &input[last_end..(last_end + 4)] {
+            "&lt;" => {
+                result.push('<');
+                last_end += 4;
+                continue;
+            }
+            "&gt;" => {
+                result.push('>');
+                last_end += 4;
+                continue;
+            }
+            _ => (),
+        };
+
+        if input_len - last_end >= 5 {
+            if &input[last_end..(last_end + 5)] == "&amp;" {
+                result.push('&');
+                last_end += 5;
+                continue;
+            }
+
+            if input_len - last_end >= 6 {
+                match &input[last_end..(last_end + 6)] {
+                    "&apos;" => {
+                        result.push('\'');
+                        last_end += 6;
+                        continue;
+                    }
+                    "&quot;" => {
+                        result.push('"');
+                        last_end += 6;
+                        continue;
+                    }
+                    _ => (),
+                };
+            }
+        }
+
+        result.push_str(input.get(last_end..last_end + 1).unwrap());
+        last_end += 1;
+    }
+
+    result.push_str(input.get(last_end..).unwrap());
+    if result.len() == input.len() {
+        return Cow::Borrowed(input);
+    }
+
+    Cow::Owned(result)
 }

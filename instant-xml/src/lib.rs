@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::fmt::Write;
 
 use thiserror::Error;
 pub use xmlparser;
@@ -73,16 +74,24 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
         Ok(())
     }
 
-    pub fn add_attribute_key(&mut self, attr_key: &str) {
+    pub fn add_attribute_key<T>(&mut self, attr_key: &T) -> Result<(), Error>
+    where
+        T: fmt::Display,
+    {
         self.current_attributes.push(' ');
-        self.current_attributes.push_str(attr_key);
+        write!(self.current_attributes, "{}", attr_key)?;
         self.current_attributes.push('=');
+        Ok(())
     }
 
-    pub fn add_attribute_value(&mut self, attr_value: &str) {
+    pub fn add_attribute_value<T>(&mut self, attr_value: &T) -> Result<(), Error>
+    where
+        T: fmt::Display,
+    {
         self.current_attributes.push('"');
-        self.current_attributes.push_str(attr_value);
+        write!(self.current_attributes, "{}", attr_value)?;
         self.current_attributes.push('"');
+        Ok(())
     }
 
     pub fn set_field_context(&mut self, field_context: FieldContext<'xml>) -> Result<(), Error> {

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
@@ -30,6 +31,33 @@ impl<'xml> FromXml<'xml> for bool {
 }
 
 // Serializer
+struct DisplayToXml<'a, T: fmt::Display>(pub &'a T);
+impl<'a, T> ToXml for DisplayToXml<'a, T>
+where
+    T: fmt::Display,
+{
+    fn serialize<W>(&self, serializer: &mut Serializer<W>) -> Result<(), Error>
+    where
+        W: fmt::Write,
+    {
+        match serializer.consume_field_context() {
+            Some(field_context) => {
+                match field_context.attribute {
+                    Some(FieldAttribute::Attribute) => {
+                        serializer.add_attribute_value(self.0)?;
+                    }
+                    _ => {
+                        serializer.add_open_tag(&field_context)?;
+                        write!(serializer.output, "{}", self.0)?;
+                        serializer.add_close_tag(field_context)?;
+                    }
+                }
+                Ok(())
+            }
+            None => Err(Error::UnexpectedValue),
+        }
+    }
+}
 
 macro_rules! to_xml_for_number {
     ($typ:ty) => {
@@ -38,22 +66,7 @@ macro_rules! to_xml_for_number {
             where
                 W: fmt::Write,
             {
-                match serializer.consume_field_context() {
-                    Some(field_context) => {
-                        match field_context.attribute {
-                            Some(FieldAttribute::Attribute) => {
-                                serializer.add_attribute_value(&self.to_string());
-                            }
-                            _ => {
-                                serializer.add_open_tag(&field_context)?;
-                                write!(serializer.output, "{}", &self)?;
-                                serializer.add_close_tag(field_context)?;
-                            }
-                        }
-                        Ok(())
-                    }
-                    None => Err(Error::UnexpectedValue),
-                }
+                DisplayToXml(self).serialize(serializer)
             }
         }
     };
@@ -82,22 +95,7 @@ impl ToXml for bool {
             false => "false",
         };
 
-        match serializer.consume_field_context() {
-            Some(field_context) => {
-                match field_context.attribute {
-                    Some(FieldAttribute::Attribute) => {
-                        serializer.add_attribute_value(value);
-                    }
-                    _ => {
-                        serializer.add_open_tag(&field_context)?;
-                        serializer.output.write_str(value)?;
-                        serializer.add_close_tag(field_context)?;
-                    }
-                }
-                Ok(())
-            }
-            None => Err(Error::UnexpectedValue),
-        }
+        DisplayToXml(&value).serialize(serializer)
     }
 }
 
@@ -106,22 +104,8 @@ impl ToXml for String {
     where
         W: fmt::Write,
     {
-        match serializer.consume_field_context() {
-            Some(field_context) => {
-                match field_context.attribute {
-                    Some(FieldAttribute::Attribute) => {
-                        serializer.add_attribute_value(self);
-                    }
-                    _ => {
-                        serializer.add_open_tag(&field_context)?;
-                        serializer.output.write_str(self)?;
-                        serializer.add_close_tag(field_context)?;
-                    }
-                }
-                Ok(())
-            }
-            None => Err(Error::UnexpectedValue),
-        }
+        let converted = special_xml_entities_handling(self);
+        DisplayToXml(&converted).serialize(serializer)
     }
 }
 
@@ -130,24 +114,9 @@ impl ToXml for char {
     where
         W: fmt::Write,
     {
-        match serializer.consume_field_context() {
-            Some(field_context) => {
-                let mut tmp = [0u8; 4];
-                let char_str = self.encode_utf8(&mut tmp);
-                match field_context.attribute {
-                    Some(FieldAttribute::Attribute) => {
-                        serializer.add_attribute_value(char_str);
-                    }
-                    _ => {
-                        serializer.add_open_tag(&field_context)?;
-                        serializer.output.write_str(char_str)?;
-                        serializer.add_close_tag(field_context)?;
-                    }
-                }
-                Ok(())
-            }
-            None => Err(Error::UnexpectedValue),
-        }
+        let mut tmp = [0u8; 4];
+        let converted = special_xml_entities_handling(&&*self.encode_utf8(&mut tmp));
+        DisplayToXml(&converted).serialize(serializer)
     }
 }
 
@@ -156,21 +125,37 @@ impl ToXml for &str {
     where
         W: fmt::Write,
     {
-        match serializer.consume_field_context() {
-            Some(field_context) => {
-                match field_context.attribute {
-                    Some(FieldAttribute::Attribute) => {
-                        serializer.add_attribute_value(self);
-                    }
-                    _ => {
-                        serializer.add_open_tag(&field_context)?;
-                        serializer.output.write_str(self)?;
-                        serializer.add_close_tag(field_context)?;
-                    }
-                }
-                Ok(())
-            }
-            None => Err(Error::UnexpectedValue),
-        }
+        let converted = special_xml_entities_handling(self);
+        DisplayToXml(&converted).serialize(serializer)
     }
+}
+
+impl ToXml for Cow<'_, str> {
+    fn serialize<W>(&self, serializer: &mut Serializer<W>) -> Result<(), Error>
+    where
+        W: fmt::Write,
+    {
+        let converted = special_xml_entities_handling(self);
+        DisplayToXml(&converted).serialize(serializer)
+    }
+}
+
+fn special_xml_entities_handling(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut last_end = 0;
+    for (start, c) in input.chars().enumerate() {
+        let to = match c {
+            '&' => "&amp",
+            '"' => "&quot",
+            '<' => "&lt",
+            '>' => "&gt",
+            '\'' => "&apos",
+            _ => continue,
+        };
+        result.push_str(unsafe { input.get_unchecked(last_end..start) });
+        result.push_str(to);
+        last_end = start + 1;
+    }
+    result.push_str(unsafe { input.get_unchecked(last_end..input.len()) });
+    result
 }

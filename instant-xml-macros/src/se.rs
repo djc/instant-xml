@@ -113,7 +113,7 @@ impl<'a> Serializer {
             Some(FieldAttribute::Attribute) => {
                 is_attribute = true;
                 output.extend(quote!(
-                    serializer.add_attribute_key(&#name);
+                    serializer.add_attribute_key(&#name)?;
                     field.attribute = Some(instant_xml::FieldAttribute::Attribute);
                 ));
             }

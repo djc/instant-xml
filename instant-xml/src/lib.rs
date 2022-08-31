@@ -185,7 +185,7 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
     }
 
     pub fn consume_field_context(&mut self) -> Option<FieldContext<'xml>> {
-        let ret = self.next_field_contest.clone();
+        let ret = self.next_field_contest.take();
         self.next_field_contest = None;
         ret
     }
@@ -254,14 +254,12 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
     }
 }
 
-#[derive(Clone)]
 pub enum FieldAttribute<'xml> {
     Prefix(&'xml str),
     Namespace(&'xml str),
     Attribute,
 }
 
-#[derive(Clone)]
 pub struct FieldContext<'xml> {
     #[doc(hidden)]
     pub name: &'xml str,

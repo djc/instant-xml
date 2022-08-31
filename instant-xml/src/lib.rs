@@ -142,7 +142,7 @@ where
     parent_default_namespace: &'xml str,
     parent_default_namespace_to_revert: &'xml str,
     current_attributes: String,
-    next_field_contest: Option<FieldContext<'xml>>,
+    next_field_context: Option<FieldContext<'xml>>,
 }
 
 impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
@@ -152,7 +152,7 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
             output,
             parent_default_namespace: "",
             parent_default_namespace_to_revert: "",
-            next_field_contest: None,
+            next_field_context: None,
             current_attributes: String::new(),
         }
     }
@@ -176,18 +176,16 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
     }
 
     pub fn set_field_context(&mut self, field_context: FieldContext<'xml>) -> Result<(), Error> {
-        if self.next_field_contest.is_some() {
+        if self.next_field_context.is_some() {
             return Err(Error::UnexpectedState);
         };
 
-        self.next_field_contest = Some(field_context);
+        self.next_field_context = Some(field_context);
         Ok(())
     }
 
     pub fn consume_field_context(&mut self) -> Option<FieldContext<'xml>> {
-        let ret = self.next_field_contest.take();
-        self.next_field_contest = None;
-        ret
+        self.next_field_context.take()
     }
 
     pub fn set_parent_default_namespace(&mut self, namespace: &'xml str) -> Result<(), Error> {

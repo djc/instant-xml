@@ -1,5 +1,7 @@
-use instant_xml::{Error, FromXml, ToXml};
 use std::borrow::Cow;
+
+use instant_xml::{Error, FromXml, ToXml};
+
 //TODO: Add compile time errors check?
 
 #[derive(Debug, Eq, PartialEq, ToXml)]

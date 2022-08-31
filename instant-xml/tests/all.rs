@@ -7,7 +7,7 @@ struct Unit;
 
 #[test]
 fn unit() {
-    assert_eq!(Unit.to_xml().unwrap(), "<Unit xmlns=\"\"></Unit>");
+    assert_eq!(Unit.to_xml().unwrap(), "<Unit></Unit>");
     //assert_eq!(Unit::from_xml("<Unit/>").unwrap(), Unit);
 }
 
@@ -36,7 +36,7 @@ fn struct_with_named_fields() {
         }
         .to_xml()
         .unwrap(),
-        "<StructWithNamedFields xmlns=\"\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><flag>true</flag><bar:string>test</bar:string><number xmlns=\"typo\">1</number></StructWithNamedFields>"
+        "<StructWithNamedFields xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><flag>true</flag><bar:string>test</bar:string><number xmlns=\"typo\">1</number></StructWithNamedFields>"
     );
 }
 
@@ -55,7 +55,7 @@ struct StructWithCustomField {
     #[xml(attribute)]
     int_attribute: i32,
     #[xml(namespace("BAZ"))]
-    flag_direct_namespace_same_as_prefix: bool,
+    flag_direct_namespace_same_the_same_as_prefix: bool,
     #[xml(namespace(bar))]
     flag_prefix: bool,
     #[xml(namespace("DIFFERENT"))]
@@ -77,7 +77,7 @@ fn struct_with_custom_field() {
     assert_eq!(
         StructWithCustomField {
             int_attribute: 42,
-            flag_direct_namespace_same_as_prefix: true,
+            flag_direct_namespace_same_the_same_as_prefix: true,
             flag_prefix: false,
             flag_direct_namespace: true,
             test: Nested {
@@ -87,7 +87,7 @@ fn struct_with_custom_field() {
         }
         .to_xml()
         .unwrap(),
-        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" int_attribute=\"42\"><bar:flag_direct_namespace_same_as_prefix>true</bar:flag_direct_namespace_same_as_prefix><bar:flag_prefix>false</bar:flag_prefix><flag_direct_namespace xmlns=\"DIFFERENT\">true</flag_direct_namespace><Nested xmlns:internal=\"INTERNAL\"><bar:flag_parent_prefix>true</bar:flag_parent_prefix><internal:flag_internal_prefix>false</internal:flag_internal_prefix></Nested></StructWithCustomField>"
+        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" int_attribute=\"42\"><flag_direct_namespace_same_the_same_as_prefix xmlns=\"BAZ\">true</flag_direct_namespace_same_the_same_as_prefix><bar:flag_prefix>false</bar:flag_prefix><flag_direct_namespace xmlns=\"DIFFERENT\">true</flag_direct_namespace><Nested xmlns:internal=\"INTERNAL\"><bar:flag_parent_prefix>true</bar:flag_parent_prefix><internal:flag_internal_prefix>false</internal:flag_internal_prefix></Nested></StructWithCustomField>"
     );
 }
 
@@ -345,7 +345,7 @@ fn other_namespaces() {
 #[derive(Debug, Eq, PartialEq, FromXml)]
 #[xml(namespace("URI"))]
 struct StructDirectNamespace {
-    #[xml(namespace("BAZ"))] // TODO: Zmienić to na URI i zobaczyć czy działa
+    #[xml(namespace("BAZ"))]
     flag: bool,
 }
 

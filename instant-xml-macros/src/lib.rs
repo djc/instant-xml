@@ -113,16 +113,13 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     serializer.add_header(&mut header);
 
     let mut body = TokenStream::new();
-    let mut attribute = TokenStream::new();
+    let mut attributes = TokenStream::new();
     match &ast.data {
         syn::Data::Struct(ref data) => {
             match data.fields {
                 syn::Fields::Named(ref fields) => {
                     fields.named.iter().for_each(|field| {
-                        match serializer.process_named_field(field) {
-                            (val, false) => body.extend(val),
-                            (val, true) => attribute.extend(val),
-                        }
+                        serializer.process_named_field(field, &mut body, &mut attributes);
                     });
                 }
                 syn::Fields::Unnamed(_) => todo!(),
@@ -135,7 +132,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut footer = TokenStream::new();
     serializer.add_footer(&root_name, &mut footer);
 
-    let current_namespaces = serializer.get_namespaces_token();
+    let current_namespaces = serializer.namespaces_token();
 
     proc_macro::TokenStream::from(quote!(
         impl #generics ToXml for #ident #generics {
@@ -143,13 +140,14 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             where
                 W: std::fmt::Write,
             {
+                println!("ident: {}", #root_name);
                 let _ = serializer.consume_field_context();
                 let mut field_context = instant_xml::FieldContext {
                     name: #root_name,
                     attribute: None,
                 };
 
-                #attribute
+                #attributes
 
                 #header
                 #current_namespaces

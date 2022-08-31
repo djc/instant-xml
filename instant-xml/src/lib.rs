@@ -50,10 +50,10 @@ where
     #[doc(hidden)]
     pub output: &'xml mut W,
 
-    parent_default_namespace: Option<&'xml str>,
-    parent_default_namespace_to_revert: Option<&'xml str>,
+    parent_default_namespace: &'xml str,
+    parent_default_namespace_to_revert: &'xml str,
     current_attributes: String,
-    next_field_contest: Option<FieldContext<'xml>>,
+    next_field_context: Option<FieldContext<'xml>>,
 }
 
 impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
@@ -61,9 +61,9 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
         Self {
             parent_namespaces: HashMap::new(),
             output,
-            parent_default_namespace: None,
-            parent_default_namespace_to_revert: None,
-            next_field_contest: None,
+            parent_default_namespace: "",
+            parent_default_namespace_to_revert: "",
+            next_field_context: None,
             current_attributes: String::new(),
         }
     }
@@ -95,38 +95,34 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
     }
 
     pub fn set_field_context(&mut self, field_context: FieldContext<'xml>) -> Result<(), Error> {
-        if self.next_field_contest.is_some() {
+        if self.next_field_context.is_some() {
             return Err(Error::UnexpectedState);
         };
 
-        self.next_field_contest = Some(field_context);
+        self.next_field_context = Some(field_context);
         Ok(())
     }
 
     pub fn consume_field_context(&mut self) -> Option<FieldContext<'xml>> {
-        let ret = self.next_field_contest.clone();
-        self.next_field_contest = None;
-        ret
+        self.next_field_context.take()
     }
 
     pub fn set_parent_default_namespace(&mut self, namespace: &'xml str) -> Result<(), Error> {
-        self.parent_default_namespace = Some(namespace);
+        self.parent_default_namespace = namespace;
         Ok(())
     }
 
-    pub fn parent_default_namespace(&self) -> Option<&'xml str> {
+    pub fn parent_default_namespace(&self) -> &'xml str {
         self.parent_default_namespace
     }
 
     pub fn update_parent_default_namespace(&mut self, namespace: &'xml str) {
         self.parent_default_namespace_to_revert = self.parent_default_namespace;
-        self.parent_default_namespace = Some(namespace);
+        self.parent_default_namespace = namespace;
     }
 
     pub fn retrive_parent_default_namespace(&mut self) {
-        if self.parent_default_namespace_to_revert.is_some() {
-            self.parent_default_namespace = self.parent_default_namespace_to_revert;
-        }
+        self.parent_default_namespace = self.parent_default_namespace_to_revert;
     }
 
     fn add_open_tag(&mut self, field_context: &FieldContext) -> Result<(), Error> {
@@ -139,7 +135,7 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
                 self.output.write_char('>')?;
             }
             Some(FieldAttribute::Namespace(namespace))
-                if self.parent_default_namespace != Some(namespace) =>
+                if self.parent_default_namespace != namespace =>
             {
                 self.output.write_char('<')?;
                 self.output.write_str(field_context.name)?;
@@ -175,14 +171,12 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
     }
 }
 
-#[derive(Clone)]
 pub enum FieldAttribute<'xml> {
     Prefix(&'xml str),
     Namespace(&'xml str),
     Attribute,
 }
 
-#[derive(Clone)]
 pub struct FieldContext<'xml> {
     #[doc(hidden)]
     pub name: &'xml str,

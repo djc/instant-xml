@@ -413,7 +413,7 @@ fn scalars() {
     );
 }
 
-#[derive(Debug, PartialEq, ToXml)]
+#[derive(Debug, PartialEq, Eq, ToXml)]
 #[xml(namespace("URI"))]
 struct StructSpecialEntities<'a> {
     string_type: String,

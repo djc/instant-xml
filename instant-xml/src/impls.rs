@@ -115,7 +115,7 @@ impl ToXml for char {
         W: fmt::Write,
     {
         let mut tmp = [0u8; 4];
-        let converted = special_xml_entities_handling(&&*self.encode_utf8(&mut tmp));
+        let converted = special_xml_entities_handling(&*self.encode_utf8(&mut tmp));
         DisplayToXml(&converted).serialize(serializer)
     }
 }

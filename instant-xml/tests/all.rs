@@ -391,10 +391,12 @@ struct StructDeserializerScalars<'a, 'b> {
     char_type: char,
     f32_type: f32,
     cow: Cow<'a, str>,
+    option: Option<&'a str>,
 }
 
 #[test]
 fn scalars() {
+    // Option some
     assert_eq!(
         StructDeserializerScalars{
             bool_type: true,
@@ -406,6 +408,26 @@ fn scalars() {
             char_type: 'c',
             f32_type: 1.20,
             cow: Cow::from("123"),
+            option: Some("asd"),
+        }
+        .to_xml()
+        .unwrap(),
+        "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.2</f32_type><cow>123</cow><option>asd</option></StructDeserializerScalars>"
+    );
+
+    // Option none
+    assert_eq!(
+        StructDeserializerScalars{
+            bool_type: true,
+            i8_type: 1,
+            u32_type: 42,
+            string_type: "string".to_string(),
+            str_type_a: "lifetime a",
+            str_type_b: "lifetime b",
+            char_type: 'c',
+            f32_type: 1.20,
+            cow: Cow::from("123"),
+            option: None,
         }
         .to_xml()
         .unwrap(),

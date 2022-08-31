@@ -137,6 +137,21 @@ impl ToXml for Cow<'_, str> {
     }
 }
 
+impl<T> ToXml for Option<T>
+where
+    T: ToXml,
+{
+    fn serialize<W>(&self, serializer: &mut Serializer<W>) -> Result<(), Error>
+    where
+        W: fmt::Write,
+    {
+        match self {
+            Some(v) => v.serialize(serializer),
+            None => Ok(()),
+        }
+    }
+}
+
 fn escape(input: &str) -> Result<Cow<'_, str>, Error> {
     let mut result = String::with_capacity(input.len());
     let mut last_end = 0;
@@ -149,23 +164,15 @@ fn escape(input: &str) -> Result<Cow<'_, str>, Error> {
             '\'' => "&apos;",
             _ => continue,
         };
-        match input.get(last_end..start) {
-            Some(v) => result.push_str(v),
-            None => return Err(Error::Other("Out of bounds".to_string())),
-        }
-
+        result.push_str(input.get(last_end..start).unwrap());
         result.push_str(to);
         last_end = start + 1;
     }
 
     if result.is_empty() {
-        Ok(Cow::Borrowed(input))
-    } else {
-        match input.get(last_end..input.len()) {
-            Some(v) => result.push_str(v),
-            None => return Err(Error::Other("Out of bounds".to_string())),
-        }
-
-        Ok(Cow::Owned(result))
+        return Ok(Cow::Borrowed(input));
     }
+
+    result.push_str(input.get(last_end..input.len()).unwrap());
+    Ok(Cow::Owned(result))
 }

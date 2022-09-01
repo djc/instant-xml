@@ -110,7 +110,7 @@ impl<'xml, W: fmt::Write> Serializer<'xml, W> {
         self.parent_default_namespace = namespace;
     }
 
-    pub fn retrive_parent_default_namespace(&mut self) {
+    pub fn retrieve_parent_default_namespace(&mut self) {
         self.parent_default_namespace = self.parent_default_namespace_to_revert;
     }
 

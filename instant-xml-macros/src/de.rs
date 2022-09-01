@@ -218,7 +218,7 @@ impl Deserializer {
         ));
 
         out.extend(quote!(
-            const TAG_NAME: ::instant_xml::TagName = ::instant_xml::TagName::Custom(#name);
+            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element(#name);
         ));
 
         out = quote!(
@@ -251,10 +251,7 @@ impl Deserializer {
         tokens.enum_.extend(quote!(#enum_name,));
 
         tokens.consts.extend(quote!(
-            const #const_field_var_str: &str = match <#no_lifetime_type>::TAG_NAME {
-                ::instant_xml::TagName::FieldName => #field_var_str,
-                ::instant_xml::TagName::Custom(v) => v,
-            };
+            const #const_field_var_str: &str = <#no_lifetime_type>::KIND.name(#field_var_str);
         ));
 
         if is_element {

@@ -19,7 +19,7 @@ impl<'a> XmlParser<'a> {
         }
     }
 
-    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>, Error> {
+    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord<'a>>, Error> {
         let item = match self.iter.peek() {
             Some(v) => v,
             None => return Ok(None),
@@ -33,7 +33,7 @@ impl<'a> XmlParser<'a> {
                 };
 
                 Ok(Some(XmlRecord::Open(TagData {
-                    key: local,
+                    key: local.as_str(),
                     attributes: Vec::new(),
                     default_namespace: Some(""),
                     namespaces: HashMap::new(),

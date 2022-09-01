@@ -133,8 +133,8 @@ impl Deserializer {
 
         out.extend(quote!(
             fn deserialize(deserializer: &mut ::instant_xml::Deserializer<'xml>) -> Result<Self, ::instant_xml::Error> {
-                use ::instant_xml::parse::XmlRecord;
-                use ::instant_xml::{Error, Deserializer, Visitor} ;
+                use ::instant_xml::de::{XmlRecord, Deserializer, Visitor};
+                use ::instant_xml::Error;
 
                 enum __Elements {
                     #elements_enum

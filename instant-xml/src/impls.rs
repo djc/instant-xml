@@ -3,9 +3,8 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::str::FromStr;
 
-use crate::{
-    Deserializer, EntityType, Error, FieldAttribute, FromXml, Serializer, TagName, ToXml, Visitor,
-};
+use crate::de::{EntityType, Visitor};
+use crate::{Deserializer, Error, FieldAttribute, FromXml, Serializer, TagName, ToXml};
 
 // Deserializer
 struct FromStrToVisitor<T: FromStr>(PhantomData<T>)

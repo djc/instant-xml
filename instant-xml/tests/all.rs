@@ -379,14 +379,14 @@ fn direct_namespaces() {
     );
 }
 
-#[derive(Debug, PartialEq, Eq, FromXml)]
+#[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
 #[xml(namespace("URI"))]
 struct NestedLifetimes<'a> {
     flag: bool,
     str_type_a: &'a str,
 }
 
-#[derive(Debug, PartialEq, FromXml)]
+#[derive(Debug, PartialEq, FromXml, ToXml)]
 #[xml(namespace("URI"))]
 struct StructDeserializerScalars<'a, 'b> {
     bool_type: bool,
@@ -398,13 +398,15 @@ struct StructDeserializerScalars<'a, 'b> {
     char_type: char,
     f32_type: f32,
     nested: NestedLifetimes<'a>,
+    cow: Cow<'a, str>,
+    option: Option<&'a str>,
 }
 
 #[test]
 fn scalars() {
     assert_eq!(
         StructDeserializerScalars::from_xml(
-            "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.20</f32_type><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes></StructDeserializerScalars>"
+            "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.20</f32_type><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes><cow>123</cow></StructDeserializerScalars>"
         )
         .unwrap(),
         StructDeserializerScalars{
@@ -419,45 +421,70 @@ fn scalars() {
             nested: NestedLifetimes {
                 flag: true,
                 str_type_a: "asd"
-            }
+            },
+            cow: Cow::from("123"),
+            option: None,
+        }
+    );
+
+    // Option none
+    assert_eq!(
+        StructDeserializerScalars::from_xml(
+            "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.2</f32_type><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes><cow>123</cow><option>asd</option></StructDeserializerScalars>"
+        ).unwrap(),
+        StructDeserializerScalars{
+            bool_type: true,
+            i8_type: 1,
+            u32_type: 42,
+            string_type: "string".to_string(),
+            str_type_a: "lifetime a",
+            str_type_b: "lifetime b",
+            char_type: 'c',
+            f32_type: 1.20,
+            nested: NestedLifetimes {
+                flag: true,
+                str_type_a: "asd"
+            },
+            cow: Cow::from("123"),
+            option: Some("asd"),
         }
     );
 }
 
-#[derive(Debug, PartialEq, Eq, FromXml)]
+#[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
 #[xml(namespace("URI"))]
-struct StructEscapeBack<'a> {
+struct StructSpecialEntities<'a> {
     string: String,
-    str_a: &'a str,
+    str: &'a str,
     cow: Cow<'a, str>,
 }
 
 #[test]
 fn escape_back() {
     assert_eq!(
-        StructEscapeBack::from_xml(
-            "<StructEscapeBack xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str_a>str</str_a><cow>str&amp;</cow></StructEscapeBack>"
+        StructSpecialEntities::from_xml(
+            "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str</str><cow>str&amp;</cow></StructSpecialEntities>"
         )
         .unwrap(),
-        StructEscapeBack {
+        StructSpecialEntities {
             string: String::from("<>&\"'adsad\""),
-            str_a: "str",
+            str: "str",
             cow: Cow::Owned("str&".to_string()),
         }
     );
 
     // Wrong str char
     assert_eq!(
-        StructEscapeBack::from_xml(
-            "<StructEscapeBack xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str_a>str&amp;</str_a></StructEscapeBack>"
+        StructSpecialEntities::from_xml(
+            "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str&amp;</str></StructSpecialEntities>"
         )
         .unwrap_err(),
         Error::Other("Unsupported char: str&".to_string())
     );
 
     // Borrowed
-    let escape_back = StructEscapeBack::from_xml(
-        "<StructEscapeBack xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str_a>str</str_a><cow>str</cow></StructEscapeBack>"
+    let escape_back = StructSpecialEntities::from_xml(
+        "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str</str><cow>str</cow></StructSpecialEntities>"
     )
     .unwrap();
 
@@ -466,12 +493,26 @@ fn escape_back() {
     }
 
     // Owned
-    let escape_back = StructEscapeBack::from_xml(
-            "<StructEscapeBack xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str_a>str</str_a><cow>str&amp;</cow></StructEscapeBack>"
+    let escape_back = StructSpecialEntities::from_xml(
+            "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str</str><cow>str&amp;</cow></StructSpecialEntities>"
         )
         .unwrap();
 
     if let Cow::Borrowed(_) = escape_back.cow {
         panic!("Should be Owned")
     }
+}
+
+#[test]
+fn special_entities() {
+    assert_eq!(
+        StructSpecialEntities{
+            string: "&\"<>\'aa".to_string(),
+            str: "&\"<>\'bb",
+            cow: Cow::from("&\"<>\'cc"),
+        }
+        .to_xml()
+        .unwrap(),
+        "<StructSpecialEntities xmlns=\"URI\"><string>&amp;&quot;&lt;&gt;&apos;aa</string><str>&amp;&quot;&lt;&gt;&apos;bb</str><cow>&amp;&quot;&lt;&gt;&apos;cc</cow></StructSpecialEntities>"
+    );
 }

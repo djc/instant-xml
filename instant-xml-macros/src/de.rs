@@ -245,57 +245,14 @@ impl Deserializer {
         let field_var = field.ident.as_ref().unwrap();
         let field_var_str = field_var.to_string();
         let const_field_var_str = Ident::new(&field_var_str.to_uppercase(), Span::call_site());
-        let field_type = match &field.ty {
-            syn::Type::Path(v) => match v.path.get_ident() {
-                Some(ident) => ident.into_token_stream(),
-                None => {
-                    if v.path.segments.is_empty() {
-                        panic!("Wrong declaration");
-                    };
-
-                    // Cow<>, Option<>
-                    let mut out =
-                        (&v.path.segments.first().expect("type name").ident).into_token_stream();
-                    match &(v.path.segments.first().expect("type name")).arguments {
-                        syn::PathArguments::AngleBracketed(arguments) => {
-                            for arg in &arguments.args {
-                                match arg {
-                                    syn::GenericArgument::Type(syn::Type::Path(arg)) => {
-                                        out.extend(quote!(<));
-                                        out.extend(
-                                            (&arg.path.segments.first().expect("type name").ident)
-                                                .into_token_stream(),
-                                        );
-                                        out.extend(quote!(>));
-                                    }
-                                    syn::GenericArgument::Type(_) => todo!(),
-                                    syn::GenericArgument::Binding(arg) => {
-                                        out.extend((&arg.ty).into_token_stream())
-                                    }
-                                    syn::GenericArgument::Lifetime(_)
-                                    | syn::GenericArgument::Constraint(_)
-                                    | syn::GenericArgument::Const(_) => {}
-                                }
-                            }
-                        }
-                        _ => todo!(),
-                    }
-                    out
-                }
-            },
-            syn::Type::Reference(v) => {
-                let mut out = v.and_token.into_token_stream();
-                out.extend((&*v.elem).into_token_stream());
-                out
-            }
-            _ => panic!("Wrong field attribute format"),
-        };
+        let mut no_lifetime_type = field.ty.clone();
+        discard_lifetimes(&mut no_lifetime_type);
 
         let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
         tokens.enum_.extend(quote!(#enum_name,));
 
         tokens.consts.extend(quote!(
-            const #const_field_var_str: &str = match <#field_type>::TAG_NAME {
+            const #const_field_var_str: &str = match <#no_lifetime_type>::TAG_NAME {
                 ::instant_xml::TagName::FieldName => #field_var_str,
                 ::instant_xml::TagName::Custom(v) => v,
             };
@@ -312,7 +269,7 @@ impl Deserializer {
         }
 
         declare_values.extend(quote!(
-            let mut #enum_name: Option<#field_type> = None;
+            let mut #enum_name: Option<#no_lifetime_type> = None;
         ));
 
         let def_prefix = match def_prefix {
@@ -363,7 +320,7 @@ impl Deserializer {
                     }
                     #field_namespace
                     deserializer.set_next_def_namespace(field_namespace)?;
-                    #enum_name = Some(<#field_type>::deserialize(deserializer)?);
+                    #enum_name = Some(<#no_lifetime_type>::deserialize(deserializer)?);
                 },
             ));
         } else {
@@ -374,7 +331,7 @@ impl Deserializer {
                     }
 
                     deserializer.set_next_type_as_attribute()?;
-                    #enum_name = Some(<#field_type>::deserialize(deserializer)?);
+                    #enum_name = Some(<#no_lifetime_type>::deserialize(deserializer)?);
                 },
             ));
         }
@@ -382,8 +339,45 @@ impl Deserializer {
         return_val.extend(quote!(
             #field_var: match #enum_name {
                 Some(v) => v,
-                None => <#field_type>::missing_value()?,
+                None => <#no_lifetime_type>::missing_value()?,
             },
         ));
+    }
+}
+
+fn discard_lifetimes(ty: &mut syn::Type) {
+    match ty {
+        syn::Type::Path(ty) => discard_path_lifetimes(ty),
+        syn::Type::Reference(ty) => {
+            ty.lifetime = None;
+            discard_lifetimes(&mut ty.elem);
+        }
+        _ => {}
+    }
+}
+
+fn discard_path_lifetimes(path: &mut syn::TypePath) {
+    if let Some(q) = &mut path.qself {
+        discard_lifetimes(&mut q.ty);
+    }
+
+    for segment in &mut path.path.segments {
+        match &mut segment.arguments {
+            syn::PathArguments::None => {}
+            syn::PathArguments::AngleBracketed(args) => {
+                args.args.iter_mut().for_each(|arg| match arg {
+                    syn::GenericArgument::Lifetime(lt) => {
+                        *lt = syn::Lifetime::new("'_", Span::call_site())
+                    }
+                    syn::GenericArgument::Type(ty) => discard_lifetimes(ty),
+                    syn::GenericArgument::Binding(_)
+                    | syn::GenericArgument::Constraint(_)
+                    | syn::GenericArgument::Const(_) => {}
+                })
+            }
+            syn::PathArguments::Parenthesized(args) => {
+                args.inputs.iter_mut().for_each(discard_lifetimes)
+            }
+        }
     }
 }

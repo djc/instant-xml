@@ -91,11 +91,6 @@ impl<'a> Serializer {
             Some(FieldAttribute::Namespace(namespace)) => {
                 body.extend(quote!(
                     #declaration
-                    // // Check if such namespace already exist, if so change it to use its prefix
-                    // match serializer.parent_namespaces.get(#namespace) {
-                    //     Some(key) => field.attribute = Some(instant_xml::FieldAttribute::Prefix(key)),
-                    //     None => field.attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace)),
-                    // };
                     field.attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace));
                 ));
                 body
@@ -125,7 +120,7 @@ impl<'a> Serializer {
                 attributes.extend(quote!(
                     #declaration
 
-                    serializer.add_attribute_key(&#name);
+                    serializer.add_attribute_key(&#name)?;
                     field.attribute = Some(instant_xml::FieldAttribute::Attribute);
                 ));
                 attributes

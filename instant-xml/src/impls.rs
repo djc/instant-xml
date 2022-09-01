@@ -38,7 +38,7 @@ impl<'xml> Visitor<'xml> for BoolVisitor {
 }
 
 impl<'xml> FromXml<'xml> for bool {
-    const TAG_NAME: TagName<'xml> = TagName::FieldName;
+    const TAG_NAME: TagName = TagName::FieldName;
 
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
         match deserializer.consume_next_type() {
@@ -114,7 +114,7 @@ where
 macro_rules! from_xml_for_number {
     ($typ:ty) => {
         impl<'xml> FromXml<'xml> for $typ {
-            const TAG_NAME: TagName<'xml> = TagName::FieldName;
+            const TAG_NAME: TagName = TagName::FieldName;
 
             fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
                 match deserializer.consume_next_type() {
@@ -154,7 +154,7 @@ impl<'xml> Visitor<'xml> for StringVisitor {
 }
 
 impl<'xml> FromXml<'xml> for String {
-    const TAG_NAME: TagName<'xml> = TagName::FieldName;
+    const TAG_NAME: TagName = TagName::FieldName;
 
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
         //<&'xml str>::deserialize(deserializer);
@@ -179,7 +179,7 @@ impl<'xml> Visitor<'xml> for CharVisitor {
 }
 
 impl<'xml> FromXml<'xml> for char {
-    const TAG_NAME: TagName<'xml> = TagName::FieldName;
+    const TAG_NAME: TagName = TagName::FieldName;
 
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
         match deserializer.consume_next_type() {
@@ -203,7 +203,7 @@ impl<'a> Visitor<'a> for StrVisitor {
 }
 
 impl<'xml> FromXml<'xml> for &'xml str {
-    const TAG_NAME: TagName<'xml> = TagName::FieldName;
+    const TAG_NAME: TagName = TagName::FieldName;
 
     fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error> {
         match deserializer.consume_next_type() {
@@ -224,7 +224,7 @@ impl<'a> Visitor<'a> for CowStrVisitor {
 }
 
 impl<'xml> FromXml<'xml> for Cow<'xml, str> {
-    const TAG_NAME: TagName<'xml> = <&str>::TAG_NAME;
+    const TAG_NAME: TagName = <&str>::TAG_NAME;
 
     fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error> {
         match deserializer.consume_next_type() {
@@ -238,7 +238,7 @@ impl<'xml, T> FromXml<'xml> for Option<T>
 where
     T: FromXml<'xml>,
 {
-    const TAG_NAME: TagName<'xml> = <T>::TAG_NAME;
+    const TAG_NAME: TagName = <T>::TAG_NAME;
 
     fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error> {
         match <T>::deserialize(deserializer) {

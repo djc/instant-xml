@@ -218,7 +218,7 @@ impl Deserializer {
         ));
 
         out.extend(quote!(
-            const TAG_NAME: ::instant_xml::TagName<'xml> = ::instant_xml::TagName::Custom(#name);
+            const TAG_NAME: ::instant_xml::TagName = ::instant_xml::TagName::Custom(#name);
         ));
 
         out = quote!(

@@ -165,7 +165,6 @@ impl Deserializer {
                                     }
                                  }
                                  XmlRecord::Close(tag) => {
-                                    println!("Close: {}", tag);
                                     if tag == &#name {
                                         break;
                                     }

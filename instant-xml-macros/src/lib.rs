@@ -168,12 +168,9 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[proc_macro_derive(FromXml, attributes(xml))]
 pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
-    let ident = &ast.ident;
-
     let deserializer = de::Deserializer::new(&ast);
+
     proc_macro::TokenStream::from(quote!(
-        impl<'xml> FromXml<'xml> for #ident {
-            #deserializer
-        }
+        #deserializer
     ))
 }

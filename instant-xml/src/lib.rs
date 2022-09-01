@@ -198,22 +198,28 @@ pub enum TagName<'xml> {
 pub trait FromXml<'xml>: Sized {
     const TAG_NAME: TagName<'xml>;
 
-    fn from_xml(input: &str) -> Result<Self, Error> {
+    fn from_xml(input: &'xml str) -> Result<Self, Error> {
         let mut deserializer = Deserializer::new(input);
         Self::deserialize(&mut deserializer)
     }
 
-    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error>;
+    fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error>;
+
+    // If the missing field is of type `Option<T>` then treat is as `None`,
+    // otherwise it is an error.
+    fn missing_value() -> Result<Self, Error> {
+        Err(Error::MissingValue)
+    }
 }
 
 pub trait Visitor<'xml>: Sized {
     type Value;
 
-    fn visit_str(self, _value: &str) -> Result<Self::Value, Error> {
+    fn visit_str(self, _value: &'xml str) -> Result<Self::Value, Error> {
         unimplemented!();
     }
 
-    fn visit_struct<'a>(&self, _deserializer: &'a mut Deserializer) -> Result<Self::Value, Error> {
+    fn visit_struct(&self, _deserializer: &mut Deserializer<'xml>) -> Result<Self::Value, Error> {
         unimplemented!();
     }
 }
@@ -373,7 +379,7 @@ impl<'xml> Deserializer<'xml> {
         ret
     }
 
-    fn deserialize_bool<V>(&mut self, visitor: V) -> Result<V::Value, Error>
+    fn deserialize_element<V>(&mut self, visitor: V) -> Result<V::Value, Error>
     where
         V: Visitor<'xml>,
     {
@@ -421,11 +427,6 @@ impl<'xml> Deserializer<'xml> {
 }
 
 pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}
-
-#[allow(dead_code)]
-struct State<'a> {
-    prefix: HashMap<&'a str, &'a str>,
-}
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum Error {

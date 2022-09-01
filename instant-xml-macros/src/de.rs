@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 
 use crate::{get_namespaces, retrieve_field_attribute, FieldAttribute};
 
@@ -34,6 +34,25 @@ impl quote::ToTokens for Deserializer {
 impl Deserializer {
     pub fn new(input: &syn::DeriveInput) -> Deserializer {
         let ident = &input.ident;
+        let generics = (&input.generics).into_token_stream();
+        let lifetimes = (&input.generics.params).into_token_stream();
+
+        let mut lifetime_xml = TokenStream::new();
+        let mut lifetime_visitor = TokenStream::new();
+        let iter = &mut input.generics.params.iter();
+        if let Some(it) = iter.next() {
+            lifetime_xml = quote!(:);
+            lifetime_xml.extend(it.into_token_stream());
+            while let Some(it) = iter.by_ref().next() {
+                lifetime_xml.extend(quote!(+));
+                lifetime_xml.extend(it.into_token_stream());
+            }
+            lifetime_xml.extend(quote!(,));
+            lifetime_xml.extend(lifetimes.clone());
+            lifetime_visitor.extend(quote!(,));
+            lifetime_visitor.extend(lifetimes);
+        }
+
         let name = ident.to_string();
         let mut out = TokenStream::new();
 
@@ -113,7 +132,7 @@ impl Deserializer {
         let attr_type_match = attributes_tokens.match_;
 
         out.extend(quote!(
-            fn deserialize(deserializer: &mut ::instant_xml::Deserializer) -> Result<Self, ::instant_xml::Error> {
+            fn deserialize(deserializer: &mut ::instant_xml::Deserializer<'xml>) -> Result<Self, ::instant_xml::Error> {
                 use ::instant_xml::parse::XmlRecord;
                 use ::instant_xml::{Error, Deserializer, Visitor} ;
 
@@ -143,12 +162,18 @@ impl Deserializer {
                     }
                 }
 
-                struct StructVisitor;
-                impl<'xml> Visitor<'xml> for StructVisitor {
-                    type Value = #ident;
+                struct StructVisitor<'xml #lifetime_xml> {
+                    marker: std::marker::PhantomData<#ident #generics>,
+                    lifetime: std::marker::PhantomData<&'xml ()>,
+                }
 
-                    fn visit_struct<'a>(&self, deserializer: &mut ::instant_xml::Deserializer) -> Result<Self::Value, ::instant_xml::Error>
-                    {
+                impl<'xml #lifetime_xml> Visitor<'xml> for StructVisitor<'xml #lifetime_visitor> {
+                    type Value = #ident #generics;
+
+                    fn visit_struct(
+                        &self,
+                        deserializer: &mut ::instant_xml::Deserializer<'xml>
+                    ) -> Result<Self::Value, ::instant_xml::Error> {
                         #declare_values
                         while let Some(( key, _ )) = deserializer.peek_next_attribute() {
                             match get_attribute(&key) {
@@ -181,13 +206,27 @@ impl Deserializer {
                 }
 
                 #namespaces_map;
-                deserializer.deserialize_struct(StructVisitor{}, #name, #default_namespace, &namespaces_map)
+                deserializer.deserialize_struct(
+                    StructVisitor{
+                        marker: std::marker::PhantomData,
+                        lifetime: std::marker::PhantomData
+                    },
+                    #name,
+                    #default_namespace,
+                    &namespaces_map
+                )
             }
         ));
 
         out.extend(quote!(
             const TAG_NAME: ::instant_xml::TagName<'xml> = ::instant_xml::TagName::Custom(#name);
         ));
+
+        out = quote!(
+            impl<'xml #lifetime_xml> FromXml<'xml> for #ident #generics {
+                #out
+            }
+        );
 
         Deserializer { out }
     }
@@ -206,16 +245,14 @@ impl Deserializer {
         let field_var = field.ident.as_ref().unwrap();
         let field_var_str = field_var.to_string();
         let const_field_var_str = Ident::new(&field_var_str.to_uppercase(), Span::call_site());
-        let field_type = match &field.ty {
-            syn::Type::Path(v) => v.path.get_ident(),
-            _ => panic!("Wrong field attribute format"),
-        };
+        let mut no_lifetime_type = field.ty.clone();
+        discard_lifetimes(&mut no_lifetime_type);
 
         let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
         tokens.enum_.extend(quote!(#enum_name,));
 
         tokens.consts.extend(quote!(
-            const #const_field_var_str: &str = match #field_type::TAG_NAME {
+            const #const_field_var_str: &str = match <#no_lifetime_type>::TAG_NAME {
                 ::instant_xml::TagName::FieldName => #field_var_str,
                 ::instant_xml::TagName::Custom(v) => v,
             };
@@ -232,7 +269,7 @@ impl Deserializer {
         }
 
         declare_values.extend(quote!(
-            let mut #enum_name: Option<#field_type> = None;
+            let mut #enum_name: Option<#no_lifetime_type> = None;
         ));
 
         let def_prefix = match def_prefix {
@@ -283,7 +320,7 @@ impl Deserializer {
                     }
                     #field_namespace
                     deserializer.set_next_def_namespace(field_namespace)?;
-                    #enum_name = Some(#field_type::deserialize(deserializer)?);
+                    #enum_name = Some(<#no_lifetime_type>::deserialize(deserializer)?);
                 },
             ));
         } else {
@@ -294,13 +331,53 @@ impl Deserializer {
                     }
 
                     deserializer.set_next_type_as_attribute()?;
-                    #enum_name = Some(#field_type::deserialize(deserializer)?);
+                    #enum_name = Some(<#no_lifetime_type>::deserialize(deserializer)?);
                 },
             ));
         }
 
         return_val.extend(quote!(
-            #field_var: #enum_name.expect("Expected some value"),
+            #field_var: match #enum_name {
+                Some(v) => v,
+                None => <#no_lifetime_type>::missing_value()?,
+            },
         ));
+    }
+}
+
+fn discard_lifetimes(ty: &mut syn::Type) {
+    match ty {
+        syn::Type::Path(ty) => discard_path_lifetimes(ty),
+        syn::Type::Reference(ty) => {
+            ty.lifetime = None;
+            discard_lifetimes(&mut ty.elem);
+        }
+        _ => {}
+    }
+}
+
+fn discard_path_lifetimes(path: &mut syn::TypePath) {
+    if let Some(q) = &mut path.qself {
+        discard_lifetimes(&mut q.ty);
+    }
+
+    for segment in &mut path.path.segments {
+        match &mut segment.arguments {
+            syn::PathArguments::None => {}
+            syn::PathArguments::AngleBracketed(args) => {
+                args.args.iter_mut().for_each(|arg| match arg {
+                    syn::GenericArgument::Lifetime(lt) => {
+                        *lt = syn::Lifetime::new("'_", Span::call_site())
+                    }
+                    syn::GenericArgument::Type(ty) => discard_lifetimes(ty),
+                    syn::GenericArgument::Binding(_)
+                    | syn::GenericArgument::Constraint(_)
+                    | syn::GenericArgument::Const(_) => {}
+                })
+            }
+            syn::PathArguments::Parenthesized(args) => {
+                args.inputs.iter_mut().for_each(discard_lifetimes)
+            }
+        }
     }
 }

@@ -141,25 +141,9 @@ impl Deserializer {
                     __Ignore,
                 }
 
-                fn get_element(value: &str) -> __Elements {
-                    #elements_consts
-                    match value {
-                        #elements_names
-                        _ => __Elements::__Ignore
-                    }
-                }
-
                 enum __Attributes {
                     #attributes_enum
                     __Ignore,
-                }
-
-                fn get_attribute(value: &str) -> __Attributes {
-                    #attributes_consts
-                    match value {
-                        #attributes_names
-                        _ => __Attributes::__Ignore
-                    }
                 }
 
                 struct StructVisitor<'xml #lifetime_xml> {
@@ -176,7 +160,15 @@ impl Deserializer {
                     ) -> Result<Self::Value, ::instant_xml::Error> {
                         #declare_values
                         while let Some(( key, _ )) = deserializer.peek_next_attribute() {
-                            match get_attribute(&key) {
+                            let attr = {
+                                #attributes_consts
+                                match *key {
+                                    #attributes_names
+                                    _ => __Attributes::__Ignore
+                                }
+                            };
+
+                            match attr {
                                 #attr_type_match
                                 __Attributes::__Ignore => todo!(),
                             }
@@ -184,7 +176,15 @@ impl Deserializer {
                         while let Some(item) = &deserializer.peek_next_tag()? {
                             match item {
                                 XmlRecord::Open(item) => {
-                                    match get_element(&item.key.as_ref()) {
+                                    let element = {
+                                        #elements_consts
+                                        match item.key.as_ref() {
+                                            #elements_names
+                                            _ => __Elements::__Ignore
+                                        }
+                                    };
+
+                                    match element {
                                         #elem_type_match
                                         __Elements::__Ignore => panic!("No such element"),
                                     }

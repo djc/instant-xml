@@ -236,12 +236,12 @@ impl<'xml> Deserializer<'xml> {
         self.parser.peek_next_tag()
     }
 
-    pub fn get_def_namespace(&self, prefix: &str) -> Option<&&str> {
-        self.def_namespaces.get(prefix)
+    pub fn default_namespace(&self, prefix: &str) -> Option<&str> {
+        self.def_namespaces.get(prefix).map(|&ns| ns)
     }
 
-    pub fn get_parser_namespace(&self, prefix: &str) -> Option<&&str> {
-        self.parser_namespaces.get(prefix)
+    pub fn parser_namespace(&self, prefix: &str) -> Option<&str> {
+        self.parser_namespaces.get(prefix).map(|&ns| ns)
     }
 
     pub fn compare_parser_and_def_default_namespaces(&self) -> bool {

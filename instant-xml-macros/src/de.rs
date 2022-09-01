@@ -260,8 +260,8 @@ impl Deserializer {
                             match def_prefix {
                                 Some(def_prefix) => {
                                     // Check if defined and gotten namespaces equals for each field
-                                    if deserializer.get_parser_namespace(&parser_prefix)
-                                        != deserializer.get_def_namespace(def_prefix) {
+                                    if deserializer.parser_namespace(&parser_prefix)
+                                        != deserializer.default_namespace(def_prefix) {
                                         return Err(Error::WrongNamespace)
                                     }
                                 }

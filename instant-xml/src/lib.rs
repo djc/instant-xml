@@ -238,7 +238,7 @@ impl<'xml> Deserializer<'xml> {
         }
     }
 
-    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord>, Error> {
+    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord<'xml>>, Error> {
         self.parser.peek_next_tag()
     }
 

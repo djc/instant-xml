@@ -81,7 +81,7 @@ impl<'a> Serializer {
         let field_value = field.ident.as_ref().unwrap();
 
         let declaration = quote!(
-            let mut field = instant_xml::FieldContext {
+            let mut field = instant_xml::ser::FieldContext {
                 name: #name,
                 attribute: None,
             };

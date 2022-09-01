@@ -110,7 +110,7 @@ impl<'xml, W: fmt::Write> Serializer<'xml, W> {
         self.parent_default_namespace = namespace;
     }
 
-    pub fn retrive_parent_default_namespace(&mut self) {
+    pub fn retrieve_parent_default_namespace(&mut self) {
         self.parent_default_namespace = self.parent_default_namespace_to_revert;
     }
 
@@ -217,8 +217,8 @@ pub struct Deserializer<'xml> {
     parser: XmlParser<'xml>,
     def_namespaces: HashMap<&'xml str, &'xml str>,
     parser_namespaces: HashMap<&'xml str, &'xml str>,
-    def_defualt_namespace: &'xml str,
-    parser_defualt_namespace: &'xml str,
+    def_default_namespace: &'xml str,
+    parser_default_namespace: &'xml str,
     tag_attributes: Vec<(&'xml str, &'xml str)>,
     next_type: EntityType,
     next_def_namespace: Option<&'xml str>,
@@ -230,8 +230,8 @@ impl<'xml> Deserializer<'xml> {
             parser: XmlParser::new(input),
             def_namespaces: std::collections::HashMap::new(),
             parser_namespaces: std::collections::HashMap::new(),
-            def_defualt_namespace: "",
-            parser_defualt_namespace: "",
+            def_default_namespace: "",
+            parser_default_namespace: "",
             tag_attributes: Vec::new(),
             next_type: EntityType::Element,
             next_def_namespace: None,
@@ -251,7 +251,7 @@ impl<'xml> Deserializer<'xml> {
     }
 
     pub fn compare_parser_and_def_default_namespaces(&self) -> bool {
-        self.parser_defualt_namespace == self.def_defualt_namespace
+        self.parser_default_namespace == self.def_default_namespace
     }
 
     pub fn peek_next_attribute(&self) -> Option<&(&'xml str, &'xml str)> {
@@ -269,8 +269,8 @@ impl<'xml> Deserializer<'xml> {
         V: Visitor<'xml>,
     {
         // Saveing current defined default namespace
-        let def_defualt_namespace_to_revert = self.def_defualt_namespace;
-        self.def_defualt_namespace = def_default_namespace;
+        let def_default_namespace_to_revert = self.def_default_namespace;
+        self.def_default_namespace = def_default_namespace;
 
         // Adding struct defined namespaces
         let new_def_namespaces = def_namespaces
@@ -288,16 +288,16 @@ impl<'xml> Deserializer<'xml> {
         self.tag_attributes = tag_data.attributes;
 
         // Saveing current parser default namespace
-        let parser_defualt_namespace_to_revert = self.parser_defualt_namespace;
+        let parser_default_namespace_to_revert = self.parser_default_namespace;
 
         // Set parser default namespace
         match tag_data.default_namespace {
             Some(namespace) => {
-                self.parser_defualt_namespace = namespace;
+                self.parser_default_namespace = namespace;
             }
             None => {
                 // If there is no default namespace in the tag, check if parent default namespace equals the current one
-                if def_defualt_namespace_to_revert != self.def_defualt_namespace {
+                if def_default_namespace_to_revert != self.def_default_namespace {
                     return Err(Error::WrongNamespace);
                 }
             }
@@ -331,10 +331,10 @@ impl<'xml> Deserializer<'xml> {
             .map(|(k, _)| self.def_namespaces.remove(*k));
 
         // Retriving old defined namespace
-        self.def_defualt_namespace = def_defualt_namespace_to_revert;
+        self.def_default_namespace = def_default_namespace_to_revert;
 
         // Retriving old parser namespace
-        self.parser_defualt_namespace = parser_defualt_namespace_to_revert;
+        self.parser_default_namespace = parser_default_namespace_to_revert;
         Ok(ret)
     }
 

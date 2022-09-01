@@ -272,8 +272,8 @@ impl Deserializer {
         ));
 
         let def_prefix = match def_prefix {
-            Some(def_prefix) => quote!(let def_prefix: Option<&str> = Some(#def_prefix);),
-            None => quote!(let def_prefix: Option<&str> = None;),
+            Some(def_prefix) => quote!(Some(#def_prefix)),
+            None => quote!(None::<&str>),
         };
 
         let field_namespace = match field_namespace {
@@ -290,33 +290,7 @@ impl Deserializer {
                         panic!("duplicated value");
                     }
 
-                    match item.prefix {
-                        Some(item) => {
-                            let parser_prefix = item.to_owned();
-                            #def_prefix
-                            match def_prefix {
-                                Some(def_prefix) => {
-                                    // Check if defined and gotten namespaces equals for each field
-                                    if deserializer.get_parser_namespace(&parser_prefix)
-                                        != deserializer.get_def_namespace(def_prefix) {
-                                        return Err(Error::WrongNamespace)
-                                    }
-                                }
-                                None => {
-                                    return Err(Error::WrongNamespace);
-                                }
-                            }
-                        }
-                        None => {
-                            #def_prefix
-                            match def_prefix {
-                                Some(_) => {
-                                    return Err(Error::WrongNamespace)
-                                },
-                                None => (),
-                            }
-                        }
-                    }
+                    deserializer.compare_namespace(&item.prefix, #def_prefix)?;
                     #field_namespace
                     deserializer.set_next_def_namespace(field_namespace)?;
                     #enum_name = Some(<#no_lifetime_type>::deserialize(deserializer)?);

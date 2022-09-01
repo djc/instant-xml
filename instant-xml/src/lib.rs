@@ -242,12 +242,22 @@ impl<'xml> Deserializer<'xml> {
         self.parser.peek_next_tag()
     }
 
-    pub fn get_def_namespace(&self, prefix: &str) -> Option<&&str> {
-        self.def_namespaces.get(prefix)
-    }
-
-    pub fn get_parser_namespace(&self, prefix: &str) -> Option<&&str> {
-        self.parser_namespaces.get(prefix)
+    // Check if defined and gotten namespaces equals for each field
+    pub fn compare_namespace(
+        &self,
+        expected: &Option<&str>,
+        actual: Option<&str>,
+    ) -> Result<(), Error> {
+        match (expected, actual) {
+            (Some(expected), Some(actual)) => {
+                match self.parser_namespaces.get(expected) == self.def_namespaces.get(actual) {
+                    true => Ok(()),
+                    false => Err(Error::WrongNamespace),
+                }
+            }
+            (Some(_), None) | (None, Some(_)) => Err(Error::WrongNamespace),
+            (None, None) => Ok(()),
+        }
     }
 
     pub fn compare_parser_and_def_default_namespaces(&self) -> bool {

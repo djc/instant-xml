@@ -34,15 +34,10 @@ pub trait ToXml {
         Ok(output)
     }
 
-    fn serialize<W>(&self, serializer: &mut Serializer<W>) -> Result<(), Error>
-    where
-        W: fmt::Write;
+    fn serialize<W: fmt::Write>(&self, serializer: &mut Serializer<W>) -> Result<(), Error>;
 }
 
-pub struct Serializer<'xml, W>
-where
-    W: fmt::Write,
-{
+pub struct Serializer<'xml, W: fmt::Write> {
     // For parent namespaces the key is the namespace and the value is the prefix. We are adding to map
     // only if the namespaces do not exist, if it does exist then we are using an already defined parent prefix.
     #[doc(hidden)]
@@ -56,7 +51,7 @@ where
     next_field_context: Option<FieldContext<'xml>>,
 }
 
-impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
+impl<'xml, W: fmt::Write> Serializer<'xml, W> {
     pub fn new(output: &'xml mut W) -> Self {
         Self {
             parent_namespaces: HashMap::new(),
@@ -74,20 +69,14 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
         Ok(())
     }
 
-    pub fn add_attribute_key<T>(&mut self, attr_key: &T) -> Result<(), Error>
-    where
-        T: fmt::Display,
-    {
+    pub fn add_attribute_key(&mut self, attr_key: &impl fmt::Display) -> Result<(), Error> {
         self.current_attributes.push(' ');
         write!(self.current_attributes, "{}", attr_key)?;
         self.current_attributes.push('=');
         Ok(())
     }
 
-    pub fn add_attribute_value<T>(&mut self, attr_value: &T) -> Result<(), Error>
-    where
-        T: fmt::Display,
-    {
+    pub fn add_attribute_value(&mut self, attr_value: &impl fmt::Display) -> Result<(), Error> {
         self.current_attributes.push('"');
         write!(self.current_attributes, "{}", attr_value)?;
         self.current_attributes.push('"');

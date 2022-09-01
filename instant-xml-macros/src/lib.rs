@@ -136,10 +136,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     proc_macro::TokenStream::from(quote!(
         impl #generics ToXml for #ident #generics {
-            fn serialize<W>(&self, serializer: &mut instant_xml::Serializer<W>) -> Result<(), instant_xml::Error>
-            where
-                W: std::fmt::Write,
-            {
+            fn serialize<W: std::fmt::Write>(&self, serializer: &mut instant_xml::Serializer<W>) -> Result<(), instant_xml::Error> {
                 let _ = serializer.consume_field_context();
                 let mut field_context = instant_xml::FieldContext {
                     name: #root_name,

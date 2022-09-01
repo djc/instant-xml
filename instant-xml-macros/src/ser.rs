@@ -1,22 +1,16 @@
-use std::collections::HashMap;
-
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::{namespaces, retrieve_field_attribute, FieldAttribute};
+use crate::{ContainerMeta, FieldMeta, Namespace};
 
 pub struct Serializer {
-    default_namespace: String,
-    other_namespaces: HashMap<String, String>,
+    meta: ContainerMeta,
 }
 
 impl<'a> Serializer {
-    pub fn new(attributes: &'a Vec<syn::Attribute>) -> Serializer {
-        let (default_namespace, other_namespaces) = namespaces(attributes);
-
-        Serializer {
-            default_namespace,
-            other_namespaces,
+    pub fn new(input: &syn::DeriveInput) -> Self {
+        Self {
+            meta: ContainerMeta::from_derive(input),
         }
     }
 
@@ -26,7 +20,11 @@ impl<'a> Serializer {
             serializer.output.write_str(field_context.name)?;
         ));
 
-        let default_namespace = &self.default_namespace;
+        let default_namespace = match &self.meta.ns.default {
+            Namespace::Default => "",
+            Namespace::Prefix(_) => panic!("type cannot have prefix as namespace"),
+            Namespace::Literal(ns) => ns,
+        };
         output.extend(quote!(
             // Check if parent default namespace equals
             if serializer.parent_default_namespace() != #default_namespace {
@@ -37,7 +35,7 @@ impl<'a> Serializer {
             serializer.update_parent_default_namespace(#default_namespace);
         ));
 
-        let mut sorted_values: Vec<_> = self.other_namespaces.iter().collect();
+        let mut sorted_values: Vec<_> = self.meta.ns.prefixes.iter().collect();
         sorted_values.sort();
 
         for (key, val) in sorted_values {
@@ -87,53 +85,50 @@ impl<'a> Serializer {
             };
         );
 
-        let stream_ref = match retrieve_field_attribute(field) {
-            Some(FieldAttribute::Namespace(namespace)) => {
-                body.extend(quote!(
-                    #declaration
-                    field.attribute = Some(instant_xml::FieldAttribute::Namespace(#namespace));
-                ));
-                body
-            }
-            Some(FieldAttribute::PrefixIdentifier(prefix_key)) => {
-                match self.other_namespaces.get(&prefix_key) {
-                    Some(val) => {
-                        body.extend(quote!(
-                            #declaration
+        let field_meta = FieldMeta::from_field(field);
+        if field_meta.attribute {
+            attributes.extend(quote!(
+                #declaration
 
-                            // Check if such namespace already exist, if so change its prefix to parent prefix
-                            let prefix_key = match serializer.parent_namespaces.get(#val) {
-                                Some(key) => key,
-                                None => #prefix_key,
-                            };
-                        ));
-                    }
-                    None => panic!("Prefix not defined: {}", prefix_key),
-                };
+                serializer.add_attribute_key(&#name)?;
+                field.attribute = Some(instant_xml::FieldAttribute::Attribute);
+                serializer.set_field_context(field)?;
+                self.#field_value.serialize(serializer)?;
+            ));
+            return;
+        }
 
-                body.extend(quote!(
-                    field.attribute = Some(instant_xml::FieldAttribute::Prefix(prefix_key));
-                ));
-                body
-            }
-            Some(FieldAttribute::Attribute) => {
-                attributes.extend(quote!(
-                    #declaration
+        if let Namespace::Literal(ns) = &field_meta.ns.default {
+            body.extend(quote!(
+                #declaration
+                field.attribute = Some(instant_xml::FieldAttribute::Namespace(#ns));
+            ));
+        } else if let Namespace::Prefix(prefix) = &field_meta.ns.default {
+            match self.meta.ns.prefixes.get(prefix) {
+                Some(val) => {
+                    body.extend(quote!(
+                        #declaration
 
-                    serializer.add_attribute_key(&#name)?;
-                    field.attribute = Some(instant_xml::FieldAttribute::Attribute);
-                ));
-                attributes
-            }
-            _ => {
-                body.extend(quote!(
-                    #declaration
-                ));
-                body
-            }
+                        // Check if such namespace already exist, if so change its prefix to parent prefix
+                        let prefix_key = match serializer.parent_namespaces.get(#val) {
+                            Some(key) => key,
+                            None => #prefix,
+                        };
+                    ));
+                }
+                None => panic!("Prefix not defined: {}", prefix),
+            };
+
+            body.extend(quote!(
+                field.attribute = Some(instant_xml::FieldAttribute::Prefix(prefix_key));
+            ));
+        } else {
+            body.extend(quote!(
+                #declaration
+            ));
         };
 
-        stream_ref.extend(quote!(
+        body.extend(quote!(
             serializer.set_field_context(field)?;
             self.#field_value.serialize(serializer)?;
         ));
@@ -143,7 +138,7 @@ impl<'a> Serializer {
         let mut namespaces = quote!(
             let mut to_remove: Vec<&str> = Vec::new();
         );
-        for (k, v) in self.other_namespaces.iter() {
+        for (k, v) in self.meta.ns.prefixes.iter() {
             namespaces.extend(quote!(
                 // Only adding to HashMap if namespace do not exist, if it exist it will use the parent defined prefix
                 if let std::collections::hash_map::Entry::Vacant(v) = serializer.parent_namespaces.entry(#v) {

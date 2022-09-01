@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 
-use crate::{namespaces, retrieve_field_attribute, FieldAttribute};
+use crate::{ContainerMeta, FieldMeta, Namespace};
 
 struct Tokens {
     enum_: TokenStream,
@@ -34,6 +34,13 @@ impl quote::ToTokens for Deserializer {
 impl Deserializer {
     pub fn new(input: &syn::DeriveInput) -> Deserializer {
         let ident = &input.ident;
+        let container_meta = ContainerMeta::from_derive(input);
+        let default_namespace = match container_meta.ns.default {
+            Namespace::Default => String::new(),
+            Namespace::Prefix(_) => panic!("container namespace cannot be prefix"),
+            Namespace::Literal(ns) => ns,
+        };
+
         let generics = (&input.generics).into_token_stream();
         let lifetimes = (&input.generics.params).into_token_stream();
 
@@ -56,10 +63,9 @@ impl Deserializer {
         let name = ident.to_string();
         let mut out = TokenStream::new();
 
-        let (default_namespace, other_namespaces) = namespaces(&input.attrs);
         let mut namespaces_map = quote!(let mut namespaces_map = std::collections::HashMap::new(););
 
-        for (k, v) in other_namespaces.iter() {
+        for (k, v) in container_meta.ns.prefixes.iter() {
             namespaces_map.extend(quote!(
                 namespaces_map.insert(#k, #v);
             ))
@@ -78,26 +84,16 @@ impl Deserializer {
                 match data.fields {
                     syn::Fields::Named(ref fields) => {
                         fields.named.iter().enumerate().for_each(|(index, field)| {
-                            let mut field_namespace = None;
-                            let (tokens, def_prefix, is_element) = match retrieve_field_attribute(field) {
-                                Some(FieldAttribute::Namespace(value)) => {
-                                    field_namespace = Some(value);
-                                    (&mut elements_tokens, None, true)
+                            let field_meta = FieldMeta::from_field(field);
+                            if let Namespace::Prefix(prefix) = &field_meta.ns.default {
+                                if !container_meta.ns.prefixes.contains_key(prefix) {
+                                    panic!("unknown prefix for this type");
                                 }
-                                Some(FieldAttribute::PrefixIdentifier(def_prefix)) => {
-                                    if other_namespaces.get(&def_prefix).is_none() {
-                                        panic!("Namespace with such prefix do not exist for this struct");
-                                    }
+                            }
 
-                                    (&mut elements_tokens, Some(def_prefix), true)
-                                },
-                                Some(FieldAttribute::Attribute) => {
-                                    (&mut attributes_tokens, None, false)
-                                }
-                                None => {
-                                    (&mut elements_tokens, None, true)
-                                },
-
+                            let tokens = match field_meta.attribute {
+                                true => &mut attributes_tokens,
+                                false => &mut elements_tokens,
                             };
 
                             Self::process_field(
@@ -106,9 +102,7 @@ impl Deserializer {
                                 &mut declare_values,
                                 &mut return_val,
                                 tokens,
-                                is_element,
-                                def_prefix,
-                                field_namespace,
+                                field_meta,
                             );
                         });
                     }
@@ -237,9 +231,7 @@ impl Deserializer {
         declare_values: &mut TokenStream,
         return_val: &mut TokenStream,
         tokens: &mut Tokens,
-        is_element: bool,
-        def_prefix: Option<String>,
-        field_namespace: Option<String>,
+        field_meta: FieldMeta,
     ) {
         let field_var = field.ident.as_ref().unwrap();
         let field_var_str = field_var.to_string();
@@ -254,7 +246,7 @@ impl Deserializer {
             const #const_field_var_str: &str = <#no_lifetime_type>::KIND.name(#field_var_str);
         ));
 
-        if is_element {
+        if !field_meta.attribute {
             tokens.names.extend(quote!(
                 #const_field_var_str => __Elements::#enum_name,
             ));
@@ -268,28 +260,21 @@ impl Deserializer {
             let mut #enum_name: Option<#no_lifetime_type> = None;
         ));
 
-        let def_prefix = match def_prefix {
-            Some(def_prefix) => quote!(Some(#def_prefix)),
-            None => quote!(None::<&str>),
+        let (field_prefix, new_default_ns) = match field_meta.ns.default {
+            Namespace::Default => (quote!(None::<&str>), quote!(None::<&str>)),
+            Namespace::Prefix(prefix) => (quote!(Some(#prefix)), quote!(None)),
+            Namespace::Literal(ns) => (quote!(None::<&str>), quote!(Some(#ns))),
         };
 
-        let field_namespace = match field_namespace {
-            Some(field_namespace) => {
-                quote!(let field_namespace: Option<&str> = Some(#field_namespace);)
-            }
-            None => quote!(let field_namespace: Option<&str> = None;),
-        };
-
-        if is_element {
+        if !field_meta.attribute {
             tokens.match_.extend(quote!(
                 __Elements::#enum_name => {
                     if #enum_name.is_some() {
                         panic!("duplicated value");
                     }
 
-                    deserializer.compare_namespace(&item.prefix, #def_prefix)?;
-                    #field_namespace
-                    deserializer.set_next_def_namespace(field_namespace)?;
+                    deserializer.compare_namespace(&item.prefix, #field_prefix)?;
+                    deserializer.set_next_def_namespace(#new_default_ns)?;
                     #enum_name = Some(<#no_lifetime_type>::deserialize(deserializer)?);
                 },
             ));

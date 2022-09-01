@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 
-use crate::{get_namespaces, retrieve_field_attribute, FieldAttribute};
+use crate::{namespaces, retrieve_field_attribute, FieldAttribute};
 
 struct Tokens {
     enum_: TokenStream,
@@ -56,7 +56,7 @@ impl Deserializer {
         let name = ident.to_string();
         let mut out = TokenStream::new();
 
-        let (default_namespace, other_namespaces) = get_namespaces(&input.attrs);
+        let (default_namespace, other_namespaces) = namespaces(&input.attrs);
         let mut namespaces_map = quote!(let mut namespaces_map = std::collections::HashMap::new(););
 
         for (k, v) in other_namespaces.iter() {

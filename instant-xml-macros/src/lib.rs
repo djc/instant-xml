@@ -19,9 +19,7 @@ pub(crate) enum FieldAttribute {
     Attribute,
 }
 
-pub(crate) fn get_namespaces(
-    attributes: &Vec<syn::Attribute>,
-) -> (String, HashMap<String, String>) {
+pub(crate) fn namespaces(attributes: &Vec<syn::Attribute>) -> (String, HashMap<String, String>) {
     let mut default_namespace = String::new();
     let mut other_namespaces = HashMap::default();
 

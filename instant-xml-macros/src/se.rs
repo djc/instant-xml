@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::{get_namespaces, retrieve_field_attribute, FieldAttribute};
+use crate::{namespaces, retrieve_field_attribute, FieldAttribute};
 
 pub struct Serializer {
     default_namespace: String,
@@ -12,7 +12,7 @@ pub struct Serializer {
 
 impl<'a> Serializer {
     pub fn new(attributes: &'a Vec<syn::Attribute>) -> Serializer {
-        let (default_namespace, other_namespaces) = get_namespaces(attributes);
+        let (default_namespace, other_namespaces) = namespaces(attributes);
 
         Serializer {
             default_namespace,

@@ -179,13 +179,13 @@ pub enum EntityType {
     Attribute,
 }
 
-pub enum TagName<'xml> {
+pub enum TagName {
     FieldName,
-    Custom(&'xml str),
+    Custom(&'static str),
 }
 
 pub trait FromXml<'xml>: Sized {
-    const TAG_NAME: TagName<'xml>;
+    const TAG_NAME: TagName;
 
     fn from_xml(input: &'xml str) -> Result<Self, Error> {
         let mut deserializer = Deserializer::new(input);

@@ -29,14 +29,7 @@ pub enum FieldAttribute<'xml> {
     Attribute,
 }
 
-pub enum TagName {
-    FieldName,
-    Custom(&'static str),
-}
-
 pub trait FromXml<'xml>: Sized {
-    const TAG_NAME: TagName;
-
     fn from_xml(input: &'xml str) -> Result<Self, Error> {
         let mut deserializer = Deserializer::new(input);
         Self::deserialize(&mut deserializer)
@@ -48,6 +41,22 @@ pub trait FromXml<'xml>: Sized {
     // otherwise it is an error.
     fn missing_value() -> Result<Self, Error> {
         Err(Error::MissingValue)
+    }
+
+    const KIND: Kind;
+}
+
+pub enum Kind {
+    Scalar,
+    Element(&'static str),
+}
+
+impl Kind {
+    pub const fn name(&self, field: &'static str) -> &'static str {
+        match self {
+            Kind::Scalar => field,
+            Kind::Element(name) => name,
+        }
     }
 }
 

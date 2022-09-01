@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::fmt::Write;
 
 use thiserror::Error;
 pub use xmlparser;
@@ -38,96 +39,6 @@ pub trait ToXml {
         W: fmt::Write;
 }
 
-macro_rules! to_xml_for_number {
-    ($typ:ty) => {
-        impl ToXml for $typ {
-            fn serialize<W>(&self, serializer: &mut Serializer<W>) -> Result<(), Error>
-            where
-                W: fmt::Write,
-            {
-                match serializer.consume_field_context() {
-                    Some(field_context) => {
-                        match field_context.attribute {
-                            Some(FieldAttribute::Attribute) => {
-                                serializer.add_attribute_value(&self.to_string());
-                            }
-                            _ => {
-                                serializer.add_open_tag(&field_context)?;
-                                write!(serializer.output, "{}", &self)?;
-                                serializer.add_close_tag(field_context)?;
-                            }
-                        }
-                        Ok(())
-                    }
-                    None => Err(Error::UnexpectedValue),
-                }
-            }
-        }
-    };
-}
-
-to_xml_for_number!(i8);
-to_xml_for_number!(i16);
-to_xml_for_number!(i32);
-to_xml_for_number!(i64);
-to_xml_for_number!(u8);
-to_xml_for_number!(u16);
-to_xml_for_number!(u32);
-to_xml_for_number!(u64);
-
-impl ToXml for bool {
-    fn serialize<W>(&self, serializer: &mut Serializer<W>) -> Result<(), Error>
-    where
-        W: fmt::Write,
-    {
-        let value = match self {
-            true => "true",
-            false => "false",
-        };
-
-        match serializer.consume_field_context() {
-            Some(field_context) => {
-                match field_context.attribute {
-                    Some(FieldAttribute::Attribute) => {
-                        serializer.add_attribute_value(value);
-                    }
-                    _ => {
-                        serializer.add_open_tag(&field_context)?;
-                        serializer.output.write_str(value)?;
-                        serializer.add_close_tag(field_context)?;
-                    }
-                }
-                Ok(())
-            }
-            None => Err(Error::UnexpectedValue),
-        }
-    }
-}
-
-impl ToXml for String {
-    fn serialize<W>(&self, serializer: &mut Serializer<W>) -> Result<(), Error>
-    where
-        W: fmt::Write,
-    {
-        match serializer.consume_field_context() {
-            Some(field_context) => {
-                match field_context.attribute {
-                    Some(FieldAttribute::Attribute) => {
-                        serializer.add_attribute_value(self);
-                    }
-                    _ => {
-                        serializer.add_open_tag(&field_context)?;
-                        serializer.output.write_str(self)?;
-                        serializer.add_close_tag(field_context)?;
-                    }
-                }
-                Ok(())
-            }
-            None => Err(Error::UnexpectedValue),
-        }
-    }
-}
-
 pub struct Serializer<'xml, W>
 where
     W: fmt::Write,
@@ -163,16 +74,24 @@ impl<'xml, W: std::fmt::Write> Serializer<'xml, W> {
         Ok(())
     }
 
-    pub fn add_attribute_key(&mut self, attr_key: &str) {
+    pub fn add_attribute_key<T>(&mut self, attr_key: &T) -> Result<(), Error>
+    where
+        T: fmt::Display,
+    {
         self.current_attributes.push(' ');
-        self.current_attributes.push_str(attr_key);
+        write!(self.current_attributes, "{}", attr_key)?;
         self.current_attributes.push('=');
+        Ok(())
     }
 
-    pub fn add_attribute_value(&mut self, attr_value: &str) {
+    pub fn add_attribute_value<T>(&mut self, attr_value: &T) -> Result<(), Error>
+    where
+        T: fmt::Display,
+    {
         self.current_attributes.push('"');
-        self.current_attributes.push_str(attr_value);
+        write!(self.current_attributes, "{}", attr_value)?;
         self.current_attributes.push('"');
+        Ok(())
     }
 
     pub fn set_field_context(&mut self, field_context: FieldContext<'xml>) -> Result<(), Error> {

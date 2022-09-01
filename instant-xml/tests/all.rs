@@ -1,4 +1,7 @@
+use std::borrow::Cow;
+
 use instant_xml::{Error, FromXml, ToXml};
+
 //TODO: Add compile time errors check?
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
@@ -375,5 +378,83 @@ fn direct_namespaces() {
         )
         .unwrap_err(),
         Error::WrongNamespace
+    );
+}
+
+#[derive(Debug, PartialEq, ToXml)]
+#[xml(namespace("URI"))]
+struct StructDeserializerScalars<'a, 'b> {
+    bool_type: bool,
+    i8_type: i8,
+    u32_type: u32,
+    string_type: String,
+    str_type_a: &'a str,
+    str_type_b: &'b str,
+    char_type: char,
+    f32_type: f32,
+    cow: Cow<'a, str>,
+    option: Option<&'a str>,
+}
+
+#[test]
+fn scalars() {
+    // Option some
+    assert_eq!(
+        StructDeserializerScalars{
+            bool_type: true,
+            i8_type: 1,
+            u32_type: 42,
+            string_type: "string".to_string(),
+            str_type_a: "lifetime a",
+            str_type_b: "lifetime b",
+            char_type: 'c',
+            f32_type: 1.20,
+            cow: Cow::from("123"),
+            option: Some("asd"),
+        }
+        .to_xml()
+        .unwrap(),
+        "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.2</f32_type><cow>123</cow><option>asd</option></StructDeserializerScalars>"
+    );
+
+    // Option none
+    assert_eq!(
+        StructDeserializerScalars{
+            bool_type: true,
+            i8_type: 1,
+            u32_type: 42,
+            string_type: "string".to_string(),
+            str_type_a: "lifetime a",
+            str_type_b: "lifetime b",
+            char_type: 'c',
+            f32_type: 1.20,
+            cow: Cow::from("123"),
+            option: None,
+        }
+        .to_xml()
+        .unwrap(),
+        "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.2</f32_type><cow>123</cow></StructDeserializerScalars>"
+    );
+}
+
+#[derive(Debug, PartialEq, Eq, ToXml)]
+#[xml(namespace("URI"))]
+struct StructSpecialEntities<'a> {
+    string_type: String,
+    str_type_a: &'a str,
+    cow: Cow<'a, str>,
+}
+
+#[test]
+fn special_entities() {
+    assert_eq!(
+        StructSpecialEntities{
+            string_type: "&\"<>\'aa".to_string(),
+            str_type_a: "&\"<>\'bb",
+            cow: Cow::from("&\"<>\'cc"),
+        }
+        .to_xml()
+        .unwrap(),
+        "<StructSpecialEntities xmlns=\"URI\"><string_type>&amp;&quot;&lt;&gt;&apos;aa</string_type><str_type_a>&amp;&quot;&lt;&gt;&apos;bb</str_type_a><cow>&amp;&quot;&lt;&gt;&apos;cc</cow></StructSpecialEntities>"
     );
 }

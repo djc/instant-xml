@@ -1,7 +1,7 @@
 extern crate proc_macro;
 
 mod de;
-mod se;
+mod ser;
 
 use std::collections::HashMap;
 
@@ -9,7 +9,7 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{parse_macro_input, Lit, Meta, NestedMeta};
 
-use crate::se::Serializer;
+use crate::ser::Serializer;
 
 const XML: &str = "xml";
 

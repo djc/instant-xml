@@ -67,7 +67,7 @@ impl<'a> Serializer {
             serializer.output.write_str("</")?;
             serializer.output.write_str(#root_name)?;
             serializer.output.write_char('>')?;
-            serializer.retrive_parent_default_namespace();
+            serializer.retrieve_parent_default_namespace();
         ));
     }
 

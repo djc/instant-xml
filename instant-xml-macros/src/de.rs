@@ -235,8 +235,8 @@ impl Deserializer {
         ));
 
         let def_prefix = match def_prefix {
-            Some(def_prefix) => quote!(let def_prefix: Option<&str> = Some(#def_prefix);),
-            None => quote!(let def_prefix: Option<&str> = None;),
+            Some(def_prefix) => quote!(Some(#def_prefix)),
+            None => quote!(None),
         };
 
         let field_namespace = match field_namespace {
@@ -256,8 +256,7 @@ impl Deserializer {
                     match item.prefix {
                         Some(item) => {
                             let parser_prefix = item.to_owned();
-                            #def_prefix
-                            match def_prefix {
+                            match #def_prefix {
                                 Some(def_prefix) => {
                                     // Check if defined and gotten namespaces equals for each field
                                     if deserializer.parser_namespace(&parser_prefix)
@@ -265,19 +264,12 @@ impl Deserializer {
                                         return Err(Error::WrongNamespace)
                                     }
                                 }
-                                None => {
-                                    return Err(Error::WrongNamespace);
-                                }
+                                None => return Err(Error::WrongNamespace),
                             }
                         }
-                        None => {
-                            #def_prefix
-                            match def_prefix {
-                                Some(_) => {
-                                    return Err(Error::WrongNamespace)
-                                },
-                                None => (),
-                            }
+                        None => match #def_prefix {
+                            Some(_) => return Err(Error::WrongNamespace),
+                            None => (),
                         }
                     }
                     #field_namespace

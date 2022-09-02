@@ -12,12 +12,12 @@ fn unit() {
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(namespace(bar = "BAZ", foo = "BAR"))]
+#[xml(ns(bar = "BAZ", foo = "BAR"))]
 struct StructWithNamedFields {
     flag: bool,
-    #[xml(namespace(bar))]
+    #[xml(ns(bar))]
     string: String,
-    #[xml(namespace("typo"))]
+    #[xml(ns("typo"))]
     number: i32,
 }
 
@@ -41,24 +41,24 @@ fn struct_with_named_fields() {
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(namespace("URI", dar = "BAZ", internal = "INTERNAL"))]
+#[xml(ns("URI", dar = "BAZ", internal = "INTERNAL"))]
 struct Nested {
-    #[xml(namespace(dar))]
+    #[xml(ns(dar))]
     flag_parent_prefix: bool,
-    #[xml(namespace(internal))]
+    #[xml(ns(internal))]
     flag_internal_prefix: bool,
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
+#[xml(ns("URI", bar = "BAZ", foo = "BAR"))]
 struct StructWithCustomField {
     #[xml(attribute)]
     int_attribute: i32,
-    #[xml(namespace("BAZ"))]
+    #[xml(ns("BAZ"))]
     flag_direct_namespace_same_the_same_as_prefix: bool,
-    #[xml(namespace(bar))]
+    #[xml(ns(bar))]
     flag_prefix: bool,
-    #[xml(namespace("DIFFERENT"))]
+    #[xml(ns("DIFFERENT"))]
     flag_direct_namespace: bool,
     test: Nested,
 }
@@ -92,16 +92,16 @@ fn struct_with_custom_field() {
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(namespace(dar = "BAZ", internal = "INTERNAL"))]
+#[xml(ns(dar = "BAZ", internal = "INTERNAL"))]
 struct NestedDifferentNamespace {
-    #[xml(namespace(dar))]
+    #[xml(ns(dar))]
     flag_parent_prefix: bool,
-    #[xml(namespace(internal))]
+    #[xml(ns(internal))]
     flag_internal_prefix: bool,
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
+#[xml(ns("URI", bar = "BAZ", foo = "BAR"))]
 struct StructChildNamespaces {
     different_child_namespace: NestedDifferentNamespace,
     same_child_namespace: Nested,
@@ -130,16 +130,16 @@ fn struct_child_namespaces() {
 }
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
-#[xml(namespace("URI", bar = "BAZ"))]
+#[xml(ns("URI", bar = "BAZ"))]
 struct NestedDe {
-    #[xml(namespace(bar))]
+    #[xml(ns(bar))]
     flag: bool,
 }
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
-#[xml(namespace("URI", bar = "BAZ", foo = "BAR"))]
+#[xml(ns("URI", bar = "BAZ", foo = "BAR"))]
 struct StructWithCustomFieldFromXml {
-    #[xml(namespace(bar))]
+    #[xml(ns(bar))]
     flag: bool,
     #[xml(attribute)]
     flag_attribute: bool,
@@ -191,13 +191,13 @@ struct NestedWrongNamespace {
 }
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
-#[xml(namespace("URI", bar = "BAZ"))]
+#[xml(ns("URI", bar = "BAZ"))]
 struct StructWithCorrectNestedNamespace {
     test: NestedDe,
 }
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
-#[xml(namespace("URI", bar = "BAZ"))]
+#[xml(ns("URI", bar = "BAZ"))]
 struct StructWithWrongNestedNamespace {
     test: NestedWrongNamespace,
 }
@@ -256,14 +256,14 @@ fn default_namespaces() {
 }
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
-#[xml(namespace("URI", bar = "BAZ"))]
+#[xml(ns("URI", bar = "BAZ"))]
 struct NestedOtherNamespace {
-    #[xml(namespace(bar))]
+    #[xml(ns(bar))]
     flag: bool,
 }
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
-#[xml(namespace("URI", bar = "BAZ"))]
+#[xml(ns("URI", bar = "BAZ"))]
 struct StructOtherNamespace {
     test: NestedOtherNamespace,
 }
@@ -343,9 +343,9 @@ fn other_namespaces() {
 }
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
-#[xml(namespace("URI"))]
+#[xml(ns("URI"))]
 struct StructDirectNamespace {
-    #[xml(namespace("BAZ"))]
+    #[xml(ns("BAZ"))]
     flag: bool,
 }
 
@@ -380,14 +380,14 @@ fn direct_namespaces() {
 }
 
 #[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
-#[xml(namespace("URI"))]
+#[xml(ns("URI"))]
 struct NestedLifetimes<'a> {
     flag: bool,
     str_type_a: &'a str,
 }
 
 #[derive(Debug, PartialEq, FromXml, ToXml)]
-#[xml(namespace("URI"))]
+#[xml(ns("URI"))]
 struct StructDeserializerScalars<'a, 'b> {
     bool_type: bool,
     i8_type: i8,
@@ -452,7 +452,7 @@ fn scalars() {
 }
 
 #[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
-#[xml(namespace("URI"))]
+#[xml(ns("URI"))]
 struct StructSpecialEntities<'a> {
     string: String,
     str: &'a str,

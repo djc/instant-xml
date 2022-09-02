@@ -95,7 +95,7 @@ impl ContainerMeta {
         let mut meta = ContainerMeta::default();
         for item in meta_items(&input.attrs) {
             match item {
-                Meta::List(list) if list.path.is_ident("namespace") => {
+                Meta::List(list) if list.path.is_ident("ns") => {
                     meta.ns = NamespaceMeta::from_list(&list.nested)
                 }
                 _ => panic!("invalid xml attribute syntax"),
@@ -117,7 +117,7 @@ impl FieldMeta {
         for item in meta_items(&input.attrs) {
             match item {
                 Meta::Path(path) if path.is_ident("attribute") => meta.attribute = true,
-                Meta::List(list) if list.path.is_ident("namespace") => {
+                Meta::List(list) if list.path.is_ident("ns") => {
                     meta.ns = NamespaceMeta::from_list(&list.nested)
                 }
                 _ => panic!("invalid xml attribute syntax"),

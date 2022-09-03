@@ -35,10 +35,9 @@ impl Deserializer {
     pub fn new(input: &syn::DeriveInput) -> Deserializer {
         let ident = &input.ident;
         let container_meta = ContainerMeta::from_derive(input);
-        let default_namespace = match &container_meta.ns.default {
-            Namespace::Default => "",
-            Namespace::Prefix(_) => panic!("container namespace cannot be prefix"),
-            Namespace::Literal(ns) => ns,
+        let default_namespace = match &container_meta.ns.uri {
+            Some(ns) => quote!(#ns),
+            None => quote!(""),
         };
 
         let mut xml_generics = input.generics.clone();
@@ -71,12 +70,6 @@ impl Deserializer {
                     syn::Fields::Named(ref fields) => {
                         fields.named.iter().enumerate().for_each(|(index, field)| {
                             let field_meta = FieldMeta::from_field(field);
-                            if let Namespace::Prefix(prefix) = &field_meta.ns.default {
-                                if !container_meta.ns.prefixes.contains_key(prefix) {
-                                    panic!("unknown prefix for this type");
-                                }
-                            }
-
                             let tokens = match field_meta.attribute {
                                 true => &mut attributes_tokens,
                                 false => &mut elements_tokens,
@@ -230,18 +223,15 @@ impl Deserializer {
         let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
         tokens.enum_.extend(quote!(#enum_name,));
 
-        let default_ns = match &field_meta.ns.default {
-            Namespace::Default => &container_meta.ns.default,
-            _ => &field_meta.ns.default,
+        let default_ns = match &field_meta.ns.uri {
+            None => &container_meta.ns.uri,
+            _ => &field_meta.ns.uri,
         };
 
         let ns = match default_ns {
-            Namespace::Default => "",
-            Namespace::Prefix(prefix) => match container_meta.ns.prefixes.get(prefix) {
-                Some(ns) => ns,
-                None => panic!("undefined prefix {prefix} in xml attribute"),
-            },
-            Namespace::Literal(ns) => ns,
+            Some(Namespace::Path(path)) => quote!(#path),
+            Some(Namespace::Literal(ns)) => quote!(#ns),
+            None => quote!(""),
         };
 
         tokens.consts.extend(quote!(

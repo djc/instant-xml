@@ -3,11 +3,13 @@ use similar_asserts::assert_eq;
 use instant_xml::{to_string, ToXml};
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(ns("URI", dar = "BAZ", internal = "INTERNAL"))]
+#[xml(ns("URI", dar = "BAZ", internal = INTERNAL))]
 struct Nested {
-    #[xml(ns(internal))]
+    #[xml(ns(INTERNAL))]
     flag_internal_prefix: bool,
 }
+
+const INTERNAL: &str = "INTERNAL";
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
 #[xml(ns("URI", bar = "BAZ", foo = "BAR"))]
@@ -42,6 +44,6 @@ fn struct_with_custom_field() {
             },
         })
         .unwrap(),
-        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" int_attribute=\"42\"><flag_direct_namespace_same_the_same_as_prefix xmlns=\"BAZ\">true</flag_direct_namespace_same_the_same_as_prefix><flag_direct_namespace xmlns=\"DIFFERENT\">true</flag_direct_namespace><Nested xmlns:internal=\"INTERNAL\"><internal:flag_internal_prefix>false</internal:flag_internal_prefix></Nested></StructWithCustomField>"
+        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" int_attribute=\"42\"><bar:flag_direct_namespace_same_the_same_as_prefix>true</bar:flag_direct_namespace_same_the_same_as_prefix><flag_direct_namespace xmlns=\"DIFFERENT\">true</flag_direct_namespace><Nested xmlns:internal=\"INTERNAL\"><internal:flag_internal_prefix>false</internal:flag_internal_prefix></Nested></StructWithCustomField>"
     );
 }

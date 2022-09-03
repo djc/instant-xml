@@ -3,21 +3,23 @@ use similar_asserts::assert_eq;
 use instant_xml::{from_str, FromXml};
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
-#[xml(ns("URI", bar = "BAZ"))]
+#[xml(ns("URI", bar = BAR))]
 struct NestedDe {
-    #[xml(ns(bar))]
+    #[xml(ns(BAR))]
     flag: bool,
 }
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
 #[xml(ns("URI", bar = "BAZ", foo = "BAR"))]
 struct StructWithCustomFieldFromXml {
-    #[xml(ns(bar))]
+    #[xml(ns(BAR))]
     flag: bool,
     #[xml(attribute)]
     flag_attribute: bool,
     test: NestedDe,
 }
+
+const BAR: &str = "BAZ";
 
 #[test]
 fn struct_with_custom_field_from_xml() {

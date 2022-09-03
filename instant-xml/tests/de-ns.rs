@@ -10,7 +10,7 @@ struct NestedWrongNamespace {
 #[derive(Debug, Eq, PartialEq, FromXml)]
 #[xml(ns("URI", bar = "BAZ"))]
 struct NestedDe {
-    #[xml(ns(bar))]
+    #[xml(ns("BAZ"))]
     flag: bool,
 }
 
@@ -78,7 +78,7 @@ fn default_namespaces() {
 #[derive(Debug, Eq, PartialEq, FromXml)]
 #[xml(ns("URI", bar = "BAZ"))]
 struct NestedOtherNamespace {
-    #[xml(ns(bar))]
+    #[xml(ns("BAZ"))]
     flag: bool,
 }
 

@@ -5,8 +5,6 @@ use instant_xml::{to_string, ToXml};
 #[derive(Debug, Eq, PartialEq, ToXml)]
 #[xml(ns("URI", dar = "BAZ", internal = "INTERNAL"))]
 struct Nested {
-    #[xml(ns(dar))]
-    flag_parent_prefix: bool,
     #[xml(ns(internal))]
     flag_internal_prefix: bool,
 }
@@ -18,8 +16,6 @@ struct StructWithCustomField {
     int_attribute: i32,
     #[xml(ns("BAZ"))]
     flag_direct_namespace_same_the_same_as_prefix: bool,
-    #[xml(ns(bar))]
-    flag_prefix: bool,
     #[xml(ns("DIFFERENT"))]
     flag_direct_namespace: bool,
     test: Nested,
@@ -40,14 +36,12 @@ fn struct_with_custom_field() {
         to_string(&StructWithCustomField {
             int_attribute: 42,
             flag_direct_namespace_same_the_same_as_prefix: true,
-            flag_prefix: false,
             flag_direct_namespace: true,
             test: Nested {
-                flag_parent_prefix: true,
                 flag_internal_prefix: false,
             },
         })
         .unwrap(),
-        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" int_attribute=\"42\"><flag_direct_namespace_same_the_same_as_prefix xmlns=\"BAZ\">true</flag_direct_namespace_same_the_same_as_prefix><bar:flag_prefix>false</bar:flag_prefix><flag_direct_namespace xmlns=\"DIFFERENT\">true</flag_direct_namespace><Nested xmlns:internal=\"INTERNAL\"><bar:flag_parent_prefix>true</bar:flag_parent_prefix><internal:flag_internal_prefix>false</internal:flag_internal_prefix></Nested></StructWithCustomField>"
+        "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" int_attribute=\"42\"><flag_direct_namespace_same_the_same_as_prefix xmlns=\"BAZ\">true</flag_direct_namespace_same_the_same_as_prefix><flag_direct_namespace xmlns=\"DIFFERENT\">true</flag_direct_namespace><Nested xmlns:internal=\"INTERNAL\"><internal:flag_internal_prefix>false</internal:flag_internal_prefix></Nested></StructWithCustomField>"
     );
 }

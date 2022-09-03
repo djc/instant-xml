@@ -6,7 +6,7 @@ use instant_xml::{to_string, ToXml};
 #[xml(ns(bar = "BAZ", foo = "BAR"))]
 struct StructWithNamedFields {
     flag: bool,
-    #[xml(ns(bar))]
+    #[xml(ns("BAZ"))]
     string: String,
     #[xml(ns("typo"))]
     number: i32,

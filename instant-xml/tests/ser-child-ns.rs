@@ -3,9 +3,9 @@ use similar_asserts::assert_eq;
 use instant_xml::{to_string, ToXml};
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(ns(dar = "BAZ", internal = "INTERNAL"))]
+#[xml(ns(dar = "BAZ", internal = INTERNAL))]
 struct NestedDifferentNamespace {
-    #[xml(ns(internal))]
+    #[xml(ns(INTERNAL))]
     flag_internal_prefix: bool,
 }
 
@@ -17,13 +17,16 @@ struct StructChildNamespaces {
 }
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
-#[xml(ns("URI", dar = "BAZ", internal = "INTERNAL"))]
+#[xml(ns("URI", dar = DAR, internal = INTERNAL))]
 struct Nested {
-    #[xml(ns(dar))]
+    #[xml(ns(DAR))]
     flag_parent_prefix: bool,
-    #[xml(ns(internal))]
+    #[xml(ns(INTERNAL))]
     flag_internal_prefix: bool,
 }
+
+const DAR: &str = "BAZ";
+const INTERNAL: &str = "INTERNAL";
 
 // Tests:
 // - Different child namespace

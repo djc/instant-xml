@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 
+use similar_asserts::assert_eq;
+
 use instant_xml::{Error, FromXml, ToXml};
 
 #[derive(Debug, Eq, PartialEq, ToXml)]

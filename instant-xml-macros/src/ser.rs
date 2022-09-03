@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::{ContainerMeta, FieldMeta, Namespace};
+use crate::{ContainerMeta, FieldMeta};
 
 pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
     let ident = &input.ident;
@@ -79,28 +79,34 @@ impl<'a> Serializer {
     fn add_header(&mut self, output: &'a mut TokenStream) {
         output.extend(quote!(
             serializer.output.write_char('<')?;
-            serializer.output.write_str(field_context.name)?;
+
         ));
 
-        let default_namespace = match &self.meta.ns.default {
-            Namespace::Default => "",
-            Namespace::Prefix(_) => panic!("type cannot have prefix as namespace"),
-            Namespace::Literal(ns) => ns,
+        let default_namespace = match &self.meta.ns.uri {
+            Some(ns) => quote!(#ns),
+            None => quote!(""),
         };
+
         output.extend(quote!(
             // Check if parent default namespace equals
             if serializer.parent_default_namespace() != #default_namespace {
-                serializer.output.write_str(" xmlns=\"")?;
-                serializer.output.write_str(#default_namespace)?;
-                serializer.output.write_char('\"')?;
+                if let Some(prefix) = serializer.parent_namespaces.get(#default_namespace) {
+                    serializer.output.write_str(prefix)?;
+                    serializer.output.write_char(':')?;
+                    serializer.output.write_str(field_context.name)?;
+                } else {
+                    serializer.output.write_str(field_context.name)?;
+                    serializer.output.write_str(" xmlns=\"")?;
+                    serializer.output.write_str(#default_namespace)?;
+                    serializer.output.write_char('\"')?;
+                }
+            } else {
+                serializer.output.write_str(field_context.name)?;
             }
             serializer.update_parent_default_namespace(#default_namespace);
         ));
 
-        let mut sorted_values: Vec<_> = self.meta.ns.prefixes.iter().collect();
-        sorted_values.sort();
-
-        for (key, val) in sorted_values {
+        for (key, val) in &self.meta.ns.prefixes {
             output.extend(quote!(
                 if serializer.parent_namespaces.get(#val).is_none() {
                     serializer.output.write_str(" xmlns:")?;
@@ -160,37 +166,20 @@ impl<'a> Serializer {
             return;
         }
 
-        if let Namespace::Literal(ns) = &field_meta.ns.default {
-            body.extend(quote!(
-                #declaration
-                field.attribute = Some(instant_xml::FieldAttribute::Namespace(#ns));
-            ));
-        } else if let Namespace::Prefix(prefix) = &field_meta.ns.default {
-            match self.meta.ns.prefixes.get(prefix) {
-                Some(val) => {
-                    body.extend(quote!(
-                        #declaration
-
-                        // Check if such namespace already exist, if so change its prefix to parent prefix
-                        let prefix_key = match serializer.parent_namespaces.get(#val) {
-                            Some(key) => key,
-                            None => #prefix,
-                        };
-                    ));
-                }
-                None => panic!("Prefix not defined: {}", prefix),
-            };
-
-            body.extend(quote!(
-                field.attribute = Some(instant_xml::FieldAttribute::Prefix(prefix_key));
-            ));
-        } else {
-            body.extend(quote!(
-                #declaration
-            ));
+        let ns = match field_meta.ns.uri {
+            Some(ns) => quote!(#ns),
+            None => match &self.meta.ns.uri {
+                Some(ns) => quote!(#ns),
+                None => quote!(""),
+            },
         };
 
         body.extend(quote!(
+            #declaration
+            match serializer.parent_namespaces.get(#ns) {
+                Some(prefix) => field.attribute = Some(::instant_xml::FieldAttribute::Prefix(prefix)),
+                None => field.attribute = Some(::instant_xml::FieldAttribute::Namespace(#ns)),
+            }
             serializer.set_field_context(field)?;
             self.#field_value.serialize(serializer)?;
         ));

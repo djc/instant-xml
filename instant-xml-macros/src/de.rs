@@ -156,10 +156,10 @@ impl Deserializer {
                         use ::instant_xml::de::Node;
 
                         #declare_values
-                        while let Some(( key, _ )) = deserializer.peek_next_attribute() {
+                        while let Some(attr) = deserializer.peek_next_attribute()? {
                             let attr = {
                                 #attributes_consts
-                                match *key {
+                                match attr.id {
                                     #attributes_names
                                     _ => __Attributes::__Ignore
                                 }
@@ -167,16 +167,17 @@ impl Deserializer {
 
                             match attr {
                                 #attr_type_match
-                                __Attributes::__Ignore => todo!(),
+                                __Attributes::__Ignore => {}
                             }
                         }
 
                         while let Some(node) = deserializer.peek_next_tag()? {
                             match node {
                                 Node::Open { ns, name } => {
+                                    let id = ::instant_xml::Id { ns, name };
                                     let element = {
                                         #elements_consts
-                                        match name {
+                                        match id {
                                             #elements_names
                                             _ => __Elements::__Ignore
                                         }
@@ -184,7 +185,9 @@ impl Deserializer {
 
                                     match element {
                                         #elem_type_match
-                                        __Elements::__Ignore => panic!("No such element"),
+                                        __Elements::__Ignore => {
+                                            deserializer.ignore(id)?;
+                                        }
                                     }
                                 }
                                 Node::Close { name } => {
@@ -216,7 +219,10 @@ impl Deserializer {
         ));
 
         out.extend(quote!(
-            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element(#name);
+            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element(::instant_xml::Id {
+                ns: #default_namespace,
+                name: #name,
+            });
         ));
 
         out = quote!(
@@ -247,8 +253,24 @@ impl Deserializer {
         let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
         tokens.enum_.extend(quote!(#enum_name,));
 
+        let default_ns = match &field_meta.ns.default {
+            Namespace::Default => &container_meta.ns.default,
+            _ => &field_meta.ns.default,
+        };
+
+        let ns = match default_ns {
+            Namespace::Default => "",
+            Namespace::Prefix(prefix) => match container_meta.ns.prefixes.get(prefix) {
+                Some(ns) => ns,
+                None => panic!("undefined prefix {prefix} in xml attribute"),
+            },
+            Namespace::Literal(ns) => ns,
+        };
+
         tokens.consts.extend(quote!(
-            const #const_field_var_str: &str = <#no_lifetime_type>::KIND.name(#field_var_str);
+            const #const_field_var_str: ::instant_xml::Id<'static> = <#no_lifetime_type>::KIND.name(
+                ::instant_xml::Id { ns: #ns, name: #field_var_str }
+            );
         ));
 
         if !field_meta.attribute {
@@ -265,29 +287,11 @@ impl Deserializer {
             let mut #enum_name: Option<#no_lifetime_type> = None;
         ));
 
-        let default_ns = match field_meta.ns.default {
-            Namespace::Default => &container_meta.ns.default,
-            _ => &field_meta.ns.default,
-        };
-
-        let new_default_ns = match default_ns  {
-            Namespace::Default => quote!(None),
-            Namespace::Prefix(prefix) => match container_meta.ns.prefixes.get(prefix) {
-                Some(ns) => quote!(Some(#ns)),
-                None => panic!("invalid prefix for xml attribute"),
-            },
-            Namespace::Literal(ns) => quote!(Some(#ns)),
-        };
-
         if !field_meta.attribute {
             tokens.match_.extend(quote!(
                 __Elements::#enum_name => {
                     if #enum_name.is_some() {
                         panic!("duplicated value");
-                    }
-
-                    if Some(ns) != #new_default_ns {
-                        return Err(Error::WrongNamespace);
                     }
 
                     #enum_name = Some(<#no_lifetime_type>::deserialize(deserializer)?);

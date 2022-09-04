@@ -1,16 +1,16 @@
 use std::collections::HashMap;
 use std::iter::Peekable;
 
-use super::Error;
+use super::{Error, Id};
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
 pub struct Deserializer<'xml> {
     parser: Peekable<XmlParser<'xml>>,
     def_namespaces: HashMap<&'xml str, &'xml str>,
-    parser_namespaces: HashMap<&'xml str, &'xml str>,
+    pub parser_namespaces: HashMap<&'xml str, &'xml str>,
     def_default_namespace: &'xml str,
     parser_default_namespace: &'xml str,
-    tag_attributes: Vec<(&'xml str, &'xml str)>,
+    tag_attributes: Vec<Attribute<'xml>>,
     next_type: EntityType,
 }
 
@@ -54,26 +54,44 @@ impl<'xml> Deserializer<'xml> {
         }))
     }
 
-    // Check if defined and gotten namespaces equals for each field
-    pub fn compare_namespace(
-        &self,
-        expected: &Option<&str>,
-        actual: Option<&str>,
-    ) -> Result<(), Error> {
-        match (expected, actual) {
-            (Some(expected), Some(actual)) => {
-                match self.parser_namespaces.get(expected) == self.def_namespaces.get(actual) {
-                    true => Ok(()),
-                    false => Err(Error::WrongNamespace),
-                }
-            }
-            (Some(_), None) | (None, Some(_)) => Err(Error::WrongNamespace),
-            (None, None) => Ok(()),
-        }
+    pub fn id(&self, item: &TagData<'xml>) -> Result<Id<'xml>, Error> {
+        let ns = match (item.ns, item.prefix) {
+            (Some(_), Some(_)) => return Err(Error::WrongNamespace),
+            (Some(ns), None) => ns,
+            (None, Some(prefix)) => match self.parser_namespaces.get(prefix) {
+                Some(ns) => ns,
+                None => return Err(Error::WrongNamespace),
+            },
+            (None, None) => "",
+        };
+
+        Ok(Id {
+            ns,
+            name: &item.key,
+        })
     }
 
-    pub fn peek_next_attribute(&self) -> Option<&(&'xml str, &'xml str)> {
-        self.tag_attributes.last()
+    pub fn peek_next_attribute(&self) -> Result<Option<AttributeNode<'xml>>, Error> {
+        let attr = match self.tag_attributes.last() {
+            Some(attr) => attr,
+            None => return Ok(None),
+        };
+
+        let ns = match attr.prefix {
+            Some(key) => match self.parser_namespaces.get(key) {
+                Some(ns) => ns,
+                None => return Err(Error::WrongNamespace),
+            },
+            None => self.parser_default_namespace,
+        };
+
+        Ok(Some(AttributeNode {
+            id: Id {
+                ns,
+                name: attr.local,
+            },
+            value: attr.value,
+        }))
     }
 
     pub fn deserialize_struct<V>(
@@ -204,9 +222,33 @@ impl<'xml> Deserializer<'xml> {
         V: Visitor<'xml>,
     {
         match self.tag_attributes.pop() {
-            Some((_, value)) => visitor.visit_str(value),
+            Some(attr) => visitor.visit_str(attr.value),
             None => Err(Error::UnexpectedEndOfStream),
         }
+    }
+
+    pub fn ignore(&mut self, id: Id<'xml>) -> Result<(), Error> {
+        let mut levels = 0;
+        while let Some(result) = self.parser.next() {
+            match result? {
+                XmlRecord::Open(item) => {
+                    if self.id(&item)? == id {
+                        levels += 1;
+                    }
+                }
+                XmlRecord::Close(item) => {
+                    if item == id.name {
+                        levels -= 1;
+                        if levels == 0 {
+                            return Ok(());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -272,12 +314,12 @@ impl<'xml> Iterator for XmlParser<'xml> {
         let mut attributes = Vec::new();
 
         loop {
-            let item = match self.iter.next() {
+            let token = match self.iter.next() {
                 Some(v) => v,
                 None => return None,
             };
 
-            match item {
+            match token {
                 Ok(Token::ElementStart { prefix, local, .. }) => {
                     key = Some(local.as_str());
                     prefix_ret = match prefix.is_empty() {
@@ -319,12 +361,13 @@ impl<'xml> Iterator for XmlParser<'xml> {
                     } else if prefix.as_str() == "xmlns" {
                         // Namespaces
                         namespaces.insert(local.as_str(), value.as_str());
-                    } else if prefix.is_empty() {
-                        // Other attributes
-                        attributes.push((local.as_str(), value.as_str()));
                     } else {
-                        // TODO: Can the attributes have the prefix?
-                        todo!();
+                        let prefix = (!prefix.is_empty()).then_some(prefix.as_str());
+                        attributes.push(Attribute {
+                            prefix,
+                            local: local.as_str(),
+                            value: value.as_str(),
+                        });
                     }
                 }
                 Ok(Token::Text { text }) => {
@@ -349,18 +392,32 @@ pub trait Visitor<'xml>: Sized {
     }
 }
 
+#[derive(Debug)]
 pub enum XmlRecord<'xml> {
     Open(TagData<'xml>),
     Element(&'xml str),
     Close(&'xml str),
 }
 
+#[derive(Debug)]
 pub struct TagData<'xml> {
     pub key: &'xml str,
-    pub attributes: Vec<(&'xml str, &'xml str)>,
+    pub attributes: Vec<Attribute<'xml>>,
     pub ns: Option<&'xml str>,
     pub prefixes: HashMap<&'xml str, &'xml str>,
     pub prefix: Option<&'xml str>,
+}
+
+pub struct AttributeNode<'xml> {
+    pub id: Id<'xml>,
+    pub value: &'xml str,
+}
+
+#[derive(Debug)]
+pub struct Attribute<'xml> {
+    pub prefix: Option<&'xml str>,
+    pub local: &'xml str,
+    pub value: &'xml str,
 }
 
 pub enum Node<'xml> {

@@ -75,7 +75,7 @@ fn default_namespaces() {
     // Wrong child namespace
     assert_eq!(
         StructWithWrongNestedNamespace::from_xml("<StructWithWrongNestedNamespace xmlns=\"URI\" xmlns:dar=\"BAZ\"><NestedWrongNamespace><flag>true</flag></NestedWrongNamespace></StructWithWrongNestedNamespace>").unwrap_err(),
-        Error::WrongNamespace
+        Error::MissingValue
     );
 }
 
@@ -118,7 +118,7 @@ fn other_namespaces() {
             "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"WRONG\"><bar:flag>true</bar:flag></NestedOtherNamespace>"
         )
         .unwrap_err(),
-        Error::WrongNamespace
+        Error::MissingValue
     );
 
     // Other namespace not-nested - missing parser prefix
@@ -127,7 +127,7 @@ fn other_namespaces() {
             "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAR\"><flag>true</flag></NestedOtherNamespace>"
         )
         .unwrap_err(),
-        Error::WrongNamespace
+        Error::MissingValue
     );
 
     // Correct child other namespace

@@ -26,7 +26,7 @@ fn direct_namespaces() {
             "<StructDirectNamespace xmlns=\"URI\"><flag xmlns=\"WRONG\">true</flag></StructDirectNamespace>"
         )
         .unwrap_err(),
-        Error::WrongNamespace
+        Error::MissingValue
     );
 
     // Wrong direct namespace - missing namespace
@@ -35,6 +35,6 @@ fn direct_namespaces() {
             "<StructDirectNamespace xmlns=\"URI\"><flag>true</flag></StructDirectNamespace>"
         )
         .unwrap_err(),
-        Error::WrongNamespace
+        Error::MissingValue
     );
 }

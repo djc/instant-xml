@@ -48,16 +48,22 @@ pub trait FromXml<'xml>: Sized {
 
 pub enum Kind {
     Scalar,
-    Element(&'static str),
+    Element(Id<'static>),
 }
 
 impl Kind {
-    pub const fn name(&self, field: &'static str) -> &'static str {
+    pub const fn name<'a>(&self, field: Id<'static>) -> Id<'static> {
         match self {
             Kind::Scalar => field,
-            Kind::Element(name) => name,
+            Kind::Element(name) => *name,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct Id<'a> {
+    pub ns: &'a str,
+    pub name: &'a str,
 }
 
 pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}

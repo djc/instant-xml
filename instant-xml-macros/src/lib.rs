@@ -85,7 +85,7 @@ pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     ))
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct ContainerMeta {
     ns: NamespaceMeta,
 }
@@ -105,7 +105,7 @@ impl ContainerMeta {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct FieldMeta {
     attribute: bool,
     ns: NamespaceMeta,
@@ -127,7 +127,7 @@ impl FieldMeta {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct NamespaceMeta {
     default: Namespace,
     prefixes: HashMap<String, String>,
@@ -181,6 +181,7 @@ fn meta_items(attrs: &[syn::Attribute]) -> impl Iterator<Item = Meta> + '_ {
         })
 }
 
+#[derive(Debug)]
 enum Namespace {
     Default,
     Prefix(String),

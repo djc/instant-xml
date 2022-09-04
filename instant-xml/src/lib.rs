@@ -62,7 +62,7 @@ impl Kind {
 
 pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum Error {
     #[error("format: {0}")]
     Format(#[from] fmt::Error),

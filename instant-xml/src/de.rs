@@ -167,12 +167,6 @@ impl<'xml> Deserializer<'xml> {
         Ok(())
     }
 
-    pub fn consume_next_def_namespace(&mut self) -> Option<&'xml str> {
-        let ret = self.next_def_namespace;
-        self.next_def_namespace = None;
-        ret
-    }
-
     pub(crate) fn deserialize_element<V>(&mut self, visitor: V) -> Result<V::Value, Error>
     where
         V: Visitor<'xml>,
@@ -183,10 +177,11 @@ impl<'xml> Deserializer<'xml> {
             _ => return Err(Error::UnexpectedValue),
         };
 
-        if tag_data.ns != self.consume_next_def_namespace() {
+        if tag_data.ns != self.next_def_namespace {
             return Err(Error::WrongNamespace);
         }
 
+        self.next_def_namespace = None;
         match self.parser.next() {
             Some(Ok(XmlRecord::Element(v))) => {
                 let ret = visitor.visit_str(v);

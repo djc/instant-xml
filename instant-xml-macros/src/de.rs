@@ -35,8 +35,8 @@ impl Deserializer {
     pub fn new(input: &syn::DeriveInput) -> Deserializer {
         let ident = &input.ident;
         let container_meta = ContainerMeta::from_derive(input);
-        let default_namespace = match container_meta.ns.default {
-            Namespace::Default => String::new(),
+        let default_namespace = match &container_meta.ns.default {
+            Namespace::Default => "",
             Namespace::Prefix(_) => panic!("container namespace cannot be prefix"),
             Namespace::Literal(ns) => ns,
         };
@@ -103,6 +103,7 @@ impl Deserializer {
                                 &mut return_val,
                                 tokens,
                                 field_meta,
+                                &container_meta,
                             );
                         });
                     }
@@ -152,6 +153,8 @@ impl Deserializer {
                         &self,
                         deserializer: &mut ::instant_xml::Deserializer<'xml>
                     ) -> Result<Self::Value, ::instant_xml::Error> {
+                        use ::instant_xml::de::Node;
+
                         #declare_values
                         while let Some(( key, _ )) = deserializer.peek_next_attribute() {
                             let attr = {
@@ -167,12 +170,13 @@ impl Deserializer {
                                 __Attributes::__Ignore => todo!(),
                             }
                         }
-                        while let Some(item) = &deserializer.peek_next_tag()? {
-                            match item {
-                                XmlRecord::Open(item) => {
+
+                        while let Some(node) = deserializer.peek_next_tag()? {
+                            match node {
+                                Node::Open { ns, name } => {
                                     let element = {
                                         #elements_consts
-                                        match item.key.as_ref() {
+                                        match name {
                                             #elements_names
                                             _ => __Elements::__Ignore
                                         }
@@ -182,13 +186,13 @@ impl Deserializer {
                                         #elem_type_match
                                         __Elements::__Ignore => panic!("No such element"),
                                     }
-                                 }
-                                 XmlRecord::Close(tag) => {
-                                    if tag == &#name {
+                                }
+                                Node::Close { name } => {
+                                    if name == #name {
                                         break;
                                     }
                                 },
-                                XmlRecord::Element(_) => panic!("Unexpected element"),
+                                Node::Text { text } => panic!("Unexpected element"),
                             }
                         }
 
@@ -232,6 +236,7 @@ impl Deserializer {
         return_val: &mut TokenStream,
         tokens: &mut Tokens,
         field_meta: FieldMeta,
+        container_meta: &ContainerMeta,
     ) {
         let field_var = field.ident.as_ref().unwrap();
         let field_var_str = field_var.to_string();
@@ -260,10 +265,18 @@ impl Deserializer {
             let mut #enum_name: Option<#no_lifetime_type> = None;
         ));
 
-        let (field_prefix, new_default_ns) = match field_meta.ns.default {
-            Namespace::Default => (quote!(None::<&str>), quote!(None::<&str>)),
-            Namespace::Prefix(prefix) => (quote!(Some(#prefix)), quote!(None)),
-            Namespace::Literal(ns) => (quote!(None::<&str>), quote!(Some(#ns))),
+        let default_ns = match field_meta.ns.default {
+            Namespace::Default => &container_meta.ns.default,
+            _ => &field_meta.ns.default,
+        };
+
+        let new_default_ns = match default_ns  {
+            Namespace::Default => quote!(None),
+            Namespace::Prefix(prefix) => match container_meta.ns.prefixes.get(prefix) {
+                Some(ns) => quote!(Some(#ns)),
+                None => panic!("invalid prefix for xml attribute"),
+            },
+            Namespace::Literal(ns) => quote!(Some(#ns)),
         };
 
         if !field_meta.attribute {
@@ -273,8 +286,10 @@ impl Deserializer {
                         panic!("duplicated value");
                     }
 
-                    deserializer.compare_namespace(&item.prefix, #field_prefix)?;
-                    deserializer.set_next_def_namespace(#new_default_ns)?;
+                    if Some(ns) != #new_default_ns {
+                        return Err(Error::WrongNamespace);
+                    }
+
                     #enum_name = Some(<#no_lifetime_type>::deserialize(deserializer)?);
                 },
             ));

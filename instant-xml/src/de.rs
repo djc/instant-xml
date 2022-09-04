@@ -5,32 +5,53 @@ use super::Error;
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
 pub struct Deserializer<'xml> {
-    parser: XmlParser<'xml>,
+    parser: Peekable<XmlParser<'xml>>,
     def_namespaces: HashMap<&'xml str, &'xml str>,
     parser_namespaces: HashMap<&'xml str, &'xml str>,
     def_default_namespace: &'xml str,
     parser_default_namespace: &'xml str,
     tag_attributes: Vec<(&'xml str, &'xml str)>,
     next_type: EntityType,
-    next_def_namespace: Option<&'xml str>,
 }
 
 impl<'xml> Deserializer<'xml> {
     pub fn new(input: &'xml str) -> Self {
         Self {
-            parser: XmlParser::new(input),
+            parser: XmlParser::new(input).peekable(),
             def_namespaces: std::collections::HashMap::new(),
             parser_namespaces: std::collections::HashMap::new(),
             def_default_namespace: "",
             parser_default_namespace: "",
             tag_attributes: Vec::new(),
             next_type: EntityType::Element,
-            next_def_namespace: None,
         }
     }
 
-    pub fn peek_next_tag(&mut self) -> Result<Option<XmlRecord<'xml>>, Error> {
-        self.parser.peek_next_tag()
+    pub fn peek_next_tag(&mut self) -> Result<Option<Node<'xml>>, Error> {
+        let record = match self.parser.peek() {
+            Some(Ok(record)) => record,
+            Some(Err(err)) => return Err(err.clone()),
+            None => return Ok(None),
+        };
+
+        Ok(Some(match record {
+            XmlRecord::Open(TagData {
+                key, ns, prefix, ..
+            }) => {
+                let ns = match (ns, prefix) {
+                    (_, Some(prefix)) => match self.parser_namespaces.get(prefix) {
+                        Some(ns) => ns,
+                        None => return Err(Error::WrongNamespace),
+                    },
+                    (Some(ns), None) => ns,
+                    (None, None) => self.parser_default_namespace,
+                };
+
+                Node::Open { ns, name: key }
+            }
+            XmlRecord::Element(text) => Node::Text { text },
+            XmlRecord::Close(name) => Node::Close { name },
+        }))
     }
 
     // Check if defined and gotten namespaces equals for each field
@@ -158,30 +179,16 @@ impl<'xml> Deserializer<'xml> {
         ret
     }
 
-    pub fn set_next_def_namespace(&mut self, namespace: Option<&'xml str>) -> Result<(), Error> {
-        if self.next_def_namespace.is_some() {
-            return Err(Error::UnexpectedState);
-        }
-
-        self.next_def_namespace = namespace;
-        Ok(())
-    }
-
     pub(crate) fn deserialize_element<V>(&mut self, visitor: V) -> Result<V::Value, Error>
     where
         V: Visitor<'xml>,
     {
         // Process open tag
-        let tag_data = match self.parser.next() {
-            Some(Ok(XmlRecord::Open(item))) => item,
+        match self.parser.next() {
+            Some(Ok(XmlRecord::Open(_))) => {}
             _ => return Err(Error::UnexpectedValue),
         };
 
-        if tag_data.ns != self.next_def_namespace {
-            return Err(Error::WrongNamespace);
-        }
-
-        self.next_def_namespace = None;
         match self.parser.next() {
             Some(Ok(XmlRecord::Element(v))) => {
                 let ret = visitor.visit_str(v);
@@ -354,6 +361,12 @@ pub struct TagData<'xml> {
     pub ns: Option<&'xml str>,
     pub prefixes: HashMap<&'xml str, &'xml str>,
     pub prefix: Option<&'xml str>,
+}
+
+pub enum Node<'xml> {
+    Open { ns: &'xml str, name: &'xml str },
+    Close { name: &'xml str },
+    Text { text: &'xml str },
 }
 
 #[derive(Clone, PartialEq, Eq)]

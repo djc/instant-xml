@@ -51,10 +51,6 @@ impl<'xml> Deserializer<'xml> {
         }
     }
 
-    pub fn compare_parser_and_def_default_namespaces(&self) -> bool {
-        self.parser_default_namespace == self.def_default_namespace
-    }
-
     pub fn peek_next_attribute(&self) -> Option<&(&'xml str, &'xml str)> {
         self.tag_attributes.last()
     }
@@ -105,7 +101,7 @@ impl<'xml> Deserializer<'xml> {
         }
 
         // Compare parser namespace with defined one
-        if !self.compare_parser_and_def_default_namespaces() {
+        if self.parser_default_namespace != self.def_default_namespace {
             return Err(Error::WrongNamespace);
         }
 

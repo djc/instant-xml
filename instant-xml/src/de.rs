@@ -92,7 +92,7 @@ impl<'xml> Deserializer<'xml> {
         let parser_default_namespace_to_revert = self.parser_default_namespace;
 
         // Set parser default namespace
-        match tag_data.default_namespace {
+        match tag_data.ns {
             Some(namespace) => {
                 self.parser_default_namespace = namespace;
             }
@@ -111,7 +111,7 @@ impl<'xml> Deserializer<'xml> {
 
         // Adding parser namespaces
         let new_parser_namespaces = tag_data
-            .namespaces
+            .prefixes
             .iter()
             .filter(|(k, v)| self.parser_namespaces.insert(k, v).is_none())
             .collect::<Vec<_>>();
@@ -179,7 +179,7 @@ impl<'xml> Deserializer<'xml> {
             _ => return Err(Error::UnexpectedValue),
         };
 
-        if tag_data.default_namespace != self.consume_next_def_namespace() {
+        if tag_data.ns != self.consume_next_def_namespace() {
             return Err(Error::WrongNamespace);
         }
 
@@ -245,8 +245,8 @@ impl<'a> XmlParser<'a> {
                 Ok(Some(XmlRecord::Open(TagData {
                     key: local.as_str(),
                     attributes: Vec::new(),
-                    default_namespace: Some(""),
-                    namespaces: HashMap::new(),
+                    ns: Some(""),
+                    prefixes: HashMap::new(),
                     prefix,
                 })))
             }
@@ -298,8 +298,8 @@ impl<'xml> Iterator for XmlParser<'xml> {
                         return Some(Ok(XmlRecord::Open(TagData {
                             key: key.unwrap(),
                             attributes,
-                            default_namespace,
-                            namespaces,
+                            ns: default_namespace,
+                            prefixes: namespaces,
                             prefix: prefix_ret,
                         })));
                     }
@@ -364,8 +364,8 @@ pub enum XmlRecord<'xml> {
 pub struct TagData<'xml> {
     pub key: &'xml str,
     pub attributes: Vec<(&'xml str, &'xml str)>,
-    pub default_namespace: Option<&'xml str>,
-    pub namespaces: HashMap<&'xml str, &'xml str>,
+    pub ns: Option<&'xml str>,
+    pub prefixes: HashMap<&'xml str, &'xml str>,
     pub prefix: Option<&'xml str>,
 }
 

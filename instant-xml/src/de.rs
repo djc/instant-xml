@@ -119,7 +119,15 @@ impl<'xml> Deserializer<'xml> {
         let ret = visitor.visit_struct(self)?;
 
         // Process close tag
-        self.check_close_tag(name)?;
+        let item = match self.parser.next() {
+            Some(item) => item?,
+            None => return Err(Error::MissingTag),
+        };
+
+        match item {
+            XmlRecord::Close(v) if v == name => {}
+            _ => return Err(Error::UnexpectedTag),
+        }
 
         // Removing parser namespaces
         let _ = new_parser_namespaces
@@ -200,18 +208,6 @@ impl<'xml> Deserializer<'xml> {
         match self.tag_attributes.pop() {
             Some((_, value)) => visitor.visit_str(value),
             None => Err(Error::UnexpectedEndOfStream),
-        }
-    }
-
-    fn check_close_tag(&mut self, name: &str) -> Result<(), Error> {
-        let item = match self.parser.next() {
-            Some(item) => item?,
-            None => return Err(Error::MissingTag),
-        };
-
-        match item {
-            XmlRecord::Close(v) if v == name => Ok(()),
-            _ => Err(Error::UnexpectedTag),
         }
     }
 }

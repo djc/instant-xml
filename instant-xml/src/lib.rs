@@ -43,7 +43,7 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
 
 pub fn to_string(value: &(impl ToXml + ?Sized)) -> Result<String, Error> {
     let mut output = String::new();
-    value.serialize(&mut Serializer::new(&mut output))?;
+    to_writer(value, &mut output)?;
     Ok(output)
 }
 

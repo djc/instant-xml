@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, Error, FromXml, ToXml};
+use instant_xml::{from_str, to_string, Error, FromXml, ToXml};
 
 #[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
 #[xml(ns("URI"))]
@@ -57,13 +57,11 @@ fn escape_back() {
 #[test]
 fn special_entities() {
     assert_eq!(
-        StructSpecialEntities{
+        to_string(&StructSpecialEntities{
             string: "&\"<>\'aa".to_string(),
             str: "&\"<>\'bb",
             cow: Cow::from("&\"<>\'cc"),
-        }
-        .to_xml()
-        .unwrap(),
-        "<StructSpecialEntities xmlns=\"URI\"><string>&amp;&quot;&lt;&gt;&apos;aa</string><str>&amp;&quot;&lt;&gt;&apos;bb</str><cow>&amp;&quot;&lt;&gt;&apos;cc</cow></StructSpecialEntities>"
+        }).unwrap(),
+        "<StructSpecialEntities xmlns=\"URI\"><string>&amp;&quot;&lt;&gt;&apos;aa</string><str>&amp;&quot;&lt;&gt;&apos;bb</str><cow>&amp;&quot;&lt;&gt;&apos;cc</cow></StructSpecialEntities>",
     );
 }

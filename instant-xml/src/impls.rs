@@ -54,10 +54,10 @@ impl<'a, T> ToXml for DisplayToXml<'a, T>
 where
     T: fmt::Display,
 {
-    fn serialize<W>(&self, serializer: &mut Serializer<W>) -> Result<(), Error>
-    where
-        W: fmt::Write,
-    {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
         let field_context = match serializer.consume_field_context() {
             Some(field_context) => field_context,
             None => return Err(Error::UnexpectedValue),
@@ -80,7 +80,7 @@ where
 macro_rules! to_xml_for_number {
     ($typ:ty) => {
         impl ToXml for $typ {
-            fn serialize<W: fmt::Write>(
+            fn serialize<W: fmt::Write + ?Sized>(
                 &self,
                 serializer: &mut Serializer<W>,
             ) -> Result<(), Error> {
@@ -321,7 +321,10 @@ to_xml_for_number!(f32);
 to_xml_for_number!(f64);
 
 impl ToXml for bool {
-    fn serialize<W: fmt::Write>(&self, serializer: &mut Serializer<W>) -> Result<(), Error> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
         let value = match self {
             true => "true",
             false => "false",
@@ -332,32 +335,47 @@ impl ToXml for bool {
 }
 
 impl ToXml for String {
-    fn serialize<W: fmt::Write>(&self, serializer: &mut Serializer<W>) -> Result<(), Error> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
         DisplayToXml(&escape(self)?).serialize(serializer)
     }
 }
 
 impl ToXml for char {
-    fn serialize<W: fmt::Write>(&self, serializer: &mut Serializer<W>) -> Result<(), Error> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
         let mut tmp = [0u8; 4];
         DisplayToXml(&escape(&*self.encode_utf8(&mut tmp))?).serialize(serializer)
     }
 }
 
 impl ToXml for &str {
-    fn serialize<W: fmt::Write>(&self, serializer: &mut Serializer<W>) -> Result<(), Error> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
         DisplayToXml(&escape(self)?).serialize(serializer)
     }
 }
 
 impl ToXml for Cow<'_, str> {
-    fn serialize<W: fmt::Write>(&self, serializer: &mut Serializer<W>) -> Result<(), Error> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
         DisplayToXml(&escape(self)?).serialize(serializer)
     }
 }
 
 impl<T: ToXml> ToXml for Option<T> {
-    fn serialize<W: fmt::Write>(&self, serializer: &mut Serializer<W>) -> Result<(), Error> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
         match self {
             Some(v) => v.serialize(serializer),
             None => Ok(()),

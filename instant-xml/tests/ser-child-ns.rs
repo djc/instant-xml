@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::ToXml;
+use instant_xml::{to_string, ToXml};
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
 #[xml(ns(dar = "BAZ", internal = "INTERNAL"))]
@@ -33,7 +33,7 @@ struct Nested {
 #[test]
 fn struct_child_namespaces() {
     assert_eq!(
-        StructChildNamespaces {
+        to_string(&StructChildNamespaces {
             different_child_namespace: NestedDifferentNamespace {
                 flag_parent_prefix: true,
                 flag_internal_prefix: false,
@@ -42,8 +42,7 @@ fn struct_child_namespaces() {
                 flag_parent_prefix: true,
                 flag_internal_prefix: false,
             },
-        }
-        .to_xml()
+        })
         .unwrap(),
         "<StructChildNamespaces xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><NestedDifferentNamespace xmlns=\"\" xmlns:internal=\"INTERNAL\"><bar:flag_parent_prefix>true</bar:flag_parent_prefix><internal:flag_internal_prefix>false</internal:flag_internal_prefix></NestedDifferentNamespace><Nested xmlns:internal=\"INTERNAL\"><bar:flag_parent_prefix>true</bar:flag_parent_prefix><internal:flag_internal_prefix>false</internal:flag_internal_prefix></Nested></StructChildNamespaces>"
     );

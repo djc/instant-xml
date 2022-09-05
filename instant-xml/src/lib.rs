@@ -13,14 +13,10 @@ pub mod ser;
 pub use ser::Serializer;
 
 pub trait ToXml {
-    fn to_xml(&self) -> Result<String, Error> {
-        let mut output = String::new();
-        let mut serializer = Serializer::new(&mut output);
-        self.serialize(&mut serializer)?;
-        Ok(output)
-    }
-
-    fn serialize<W: fmt::Write>(&self, serializer: &mut Serializer<W>) -> Result<(), Error>;
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error>;
 }
 
 pub enum FieldAttribute<'xml> {
@@ -43,6 +39,19 @@ pub trait FromXml<'xml>: Sized {
 
 pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     T::deserialize(&mut Deserializer::new(input))
+}
+
+pub fn to_string(value: &(impl ToXml + ?Sized)) -> Result<String, Error> {
+    let mut output = String::new();
+    to_writer(value, &mut output)?;
+    Ok(output)
+}
+
+pub fn to_writer(
+    value: &(impl ToXml + ?Sized),
+    output: &mut (impl fmt::Write + ?Sized),
+) -> Result<(), Error> {
+    value.serialize(&mut Serializer::new(output))
 }
 
 pub enum Kind {

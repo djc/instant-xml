@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::ToXml;
+use instant_xml::{to_string, ToXml};
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
 #[xml(ns(bar = "BAZ", foo = "BAR"))]
@@ -20,12 +20,11 @@ struct StructWithNamedFields {
 #[test]
 fn struct_with_named_fields() {
     assert_eq!(
-        StructWithNamedFields {
+        to_string(&StructWithNamedFields {
             flag: true,
             string: "test".to_string(),
             number: 1,
-        }
-        .to_xml()
+        })
         .unwrap(),
         "<StructWithNamedFields xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\"><flag>true</flag><bar:string>test</bar:string><number xmlns=\"typo\">1</number></StructWithNamedFields>"
     );

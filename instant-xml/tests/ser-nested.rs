@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::ToXml;
+use instant_xml::{to_string, ToXml};
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
 #[xml(ns("URI", dar = "BAZ", internal = "INTERNAL"))]
@@ -37,7 +37,7 @@ struct StructWithCustomField {
 #[test]
 fn struct_with_custom_field() {
     assert_eq!(
-        StructWithCustomField {
+        to_string(&StructWithCustomField {
             int_attribute: 42,
             flag_direct_namespace_same_the_same_as_prefix: true,
             flag_prefix: false,
@@ -46,8 +46,7 @@ fn struct_with_custom_field() {
                 flag_parent_prefix: true,
                 flag_internal_prefix: false,
             },
-        }
-        .to_xml()
+        })
         .unwrap(),
         "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" int_attribute=\"42\"><flag_direct_namespace_same_the_same_as_prefix xmlns=\"BAZ\">true</flag_direct_namespace_same_the_same_as_prefix><bar:flag_prefix>false</bar:flag_prefix><flag_direct_namespace xmlns=\"DIFFERENT\">true</flag_direct_namespace><Nested xmlns:internal=\"INTERNAL\"><bar:flag_parent_prefix>true</bar:flag_parent_prefix><internal:flag_internal_prefix>false</internal:flag_internal_prefix></Nested></StructWithCustomField>"
     );

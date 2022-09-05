@@ -3,7 +3,7 @@ use std::fmt::{self, Write};
 
 use super::{Error, FieldAttribute};
 
-pub struct Serializer<'xml, W: fmt::Write> {
+pub struct Serializer<'xml, W: fmt::Write + ?Sized> {
     // For parent namespaces the key is the namespace and the value is the prefix. We are adding to map
     // only if the namespaces do not exist, if it does exist then we are using an already defined parent prefix.
     #[doc(hidden)]
@@ -17,7 +17,7 @@ pub struct Serializer<'xml, W: fmt::Write> {
     next_field_context: Option<FieldContext<'xml>>,
 }
 
-impl<'xml, W: fmt::Write> Serializer<'xml, W> {
+impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
     pub fn new(output: &'xml mut W) -> Self {
         Self {
             parent_namespaces: HashMap::new(),

@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::quote;
 
 use crate::{ContainerMeta, FieldMeta, Namespace};
 
@@ -41,30 +41,16 @@ impl Deserializer {
             Namespace::Literal(ns) => ns,
         };
 
-        let generics = (&input.generics).into_token_stream();
-        let lifetimes = (&input.generics.params).into_token_stream();
+        let mut xml_generics = input.generics.clone();
+        let mut xml = syn::LifetimeDef::new(syn::Lifetime::new("'xml", Span::call_site()));
+        xml.bounds
+            .extend(xml_generics.lifetimes().map(|lt| lt.lifetime.clone()));
+        xml_generics.params.push(xml.into());
 
-        let mut lifetime_xml = TokenStream::new();
-        let mut lifetime_visitor = TokenStream::new();
-        let iter = &mut input.generics.params.iter();
-        if let Some(it) = iter.next() {
-            lifetime_xml = quote!(:);
-            lifetime_xml.extend(it.into_token_stream());
-            while let Some(it) = iter.by_ref().next() {
-                lifetime_xml.extend(quote!(+));
-                lifetime_xml.extend(it.into_token_stream());
-            }
-            lifetime_xml.extend(quote!(,));
-            lifetime_xml.extend(lifetimes.clone());
-            lifetime_visitor.extend(quote!(,));
-            lifetime_visitor.extend(lifetimes);
-        }
-
-        let name = ident.to_string();
-        let mut out = TokenStream::new();
+        let (_, ty_generics, where_clause) = input.generics.split_for_impl();
+        let (xml_impl_generics, xml_ty_generics, xml_where_clause) = xml_generics.split_for_impl();
 
         let mut namespaces_map = quote!(let mut namespaces_map = std::collections::HashMap::new(););
-
         for (k, v) in container_meta.ns.prefixes.iter() {
             namespaces_map.extend(quote!(
                 namespaces_map.insert(#k, #v);
@@ -126,6 +112,8 @@ impl Deserializer {
         let attributes_names = attributes_tokens.names;
         let attr_type_match = attributes_tokens.match_;
 
+        let name = ident.to_string();
+        let mut out = TokenStream::new();
         out.extend(quote!(
             fn deserialize(deserializer: &mut ::instant_xml::Deserializer<'xml>) -> Result<Self, ::instant_xml::Error> {
                 use ::instant_xml::de::{XmlRecord, Deserializer, Visitor};
@@ -141,13 +129,13 @@ impl Deserializer {
                     __Ignore,
                 }
 
-                struct StructVisitor<'xml #lifetime_xml> {
-                    marker: std::marker::PhantomData<#ident #generics>,
+                struct StructVisitor #xml_ty_generics {
+                    marker: std::marker::PhantomData<#ident #ty_generics>,
                     lifetime: std::marker::PhantomData<&'xml ()>,
                 }
 
-                impl<'xml #lifetime_xml> Visitor<'xml> for StructVisitor<'xml #lifetime_visitor> {
-                    type Value = #ident #generics;
+                impl #xml_impl_generics Visitor<'xml> for StructVisitor #xml_ty_generics #xml_where_clause {
+                    type Value = #ident #ty_generics;
 
                     fn visit_struct(
                         &self,
@@ -226,7 +214,7 @@ impl Deserializer {
         ));
 
         out = quote!(
-            impl<'xml #lifetime_xml> FromXml<'xml> for #ident #generics {
+            impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
                 #out
             }
         );

@@ -1,11 +1,11 @@
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::quote;
 
 use crate::{ContainerMeta, FieldMeta, Namespace};
 
 pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
     let ident = &input.ident;
-    let generics = (&input.generics).into_token_stream();
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
     let root_name = ident.to_string();
     let mut serializer = Serializer::new(&input);
@@ -36,7 +36,7 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
     let current_namespaces = serializer.namespaces_token();
 
     quote!(
-        impl #generics ToXml for #ident #generics {
+        impl #impl_generics ToXml for #ident #ty_generics #where_clause {
             fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
                 &self,
                 serializer: &mut instant_xml::Serializer<W>,

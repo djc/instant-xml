@@ -138,8 +138,7 @@ impl Deserializer {
                     type Value = #ident #ty_generics;
 
                     fn visit_struct(
-                        &self,
-                        deserializer: &mut ::instant_xml::Deserializer<'xml>
+                        deserializer: &mut ::instant_xml::Deserializer<'xml>,
                     ) -> Result<Self::Value, ::instant_xml::Error> {
                         use ::instant_xml::de::Node;
 
@@ -194,11 +193,7 @@ impl Deserializer {
                 }
 
                 #namespaces_map;
-                deserializer.deserialize_struct(
-                    StructVisitor{
-                        marker: std::marker::PhantomData,
-                        lifetime: std::marker::PhantomData
-                    },
+                deserializer.deserialize_struct::<StructVisitor>(
                     #name,
                     #default_namespace,
                     &namespaces_map

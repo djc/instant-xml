@@ -96,7 +96,6 @@ impl<'xml> Deserializer<'xml> {
 
     pub fn deserialize_struct<V>(
         &mut self,
-        visitor: V,
         name: &str,
         def_default_namespace: &'xml str,
         def_namespaces: &HashMap<&'xml str, &'xml str>,
@@ -151,7 +150,7 @@ impl<'xml> Deserializer<'xml> {
             .filter(|(k, v)| self.parser_namespaces.insert(k, v).is_none())
             .collect::<Vec<_>>();
 
-        let ret = visitor.visit_struct(self)?;
+        let ret = V::visit_struct(self)?;
 
         // Process close tag
         let item = match self.parser.next() {
@@ -197,7 +196,7 @@ impl<'xml> Deserializer<'xml> {
         ret
     }
 
-    pub(crate) fn deserialize_element<V>(&mut self, visitor: V) -> Result<V::Value, Error>
+    pub(crate) fn deserialize_element<V>(&mut self) -> Result<V::Value, Error>
     where
         V: Visitor<'xml>,
     {
@@ -209,7 +208,7 @@ impl<'xml> Deserializer<'xml> {
 
         match self.parser.next() {
             Some(Ok(XmlRecord::Element(v))) => {
-                let ret = visitor.visit_str(v);
+                let ret = V::visit_str(v);
                 self.parser.next();
                 ret
             }
@@ -217,12 +216,9 @@ impl<'xml> Deserializer<'xml> {
         }
     }
 
-    pub(crate) fn deserialize_attribute<V>(&mut self, visitor: V) -> Result<V::Value, Error>
-    where
-        V: Visitor<'xml>,
-    {
+    pub(crate) fn deserialize_attribute<V: Visitor<'xml>>(&mut self) -> Result<V::Value, Error> {
         match self.tag_attributes.pop() {
-            Some(attr) => visitor.visit_str(attr.value),
+            Some(attr) => V::visit_str(attr.value),
             None => Err(Error::UnexpectedEndOfStream),
         }
     }
@@ -383,11 +379,11 @@ impl<'xml> Iterator for XmlParser<'xml> {
 pub trait Visitor<'xml>: Sized {
     type Value;
 
-    fn visit_str(self, _value: &'xml str) -> Result<Self::Value, Error> {
+    fn visit_str(_value: &'xml str) -> Result<Self::Value, Error> {
         unimplemented!();
     }
 
-    fn visit_struct(&self, _deserializer: &mut Deserializer<'xml>) -> Result<Self::Value, Error> {
+    fn visit_struct(_deserializer: &mut Deserializer<'xml>) -> Result<Self::Value, Error> {
         unimplemented!();
     }
 }

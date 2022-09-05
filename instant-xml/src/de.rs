@@ -71,24 +71,6 @@ impl<'xml> Deserializer<'xml> {
         })
     }
 
-    // Check if defined and gotten namespaces equals for each field
-    pub fn compare_namespace(
-        &self,
-        expected: &Option<&str>,
-        actual: Option<&str>,
-    ) -> Result<(), Error> {
-        match (expected, actual) {
-            (Some(expected), Some(actual)) => {
-                match self.parser_namespaces.get(expected) == self.def_namespaces.get(actual) {
-                    true => Ok(()),
-                    false => Err(Error::WrongNamespace),
-                }
-            }
-            (Some(_), None) | (None, Some(_)) => Err(Error::WrongNamespace),
-            (None, None) => Ok(()),
-        }
-    }
-
     pub fn peek_next_attribute(&self) -> Result<Option<AttributeNode<'xml>>, Error> {
         let attr = match self.tag_attributes.last() {
             Some(attr) => attr,

@@ -5,76 +5,14 @@ mod ser;
 
 use std::collections::HashMap;
 
-use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::punctuated::Punctuated;
 use syn::{parse_macro_input, Meta, NestedMeta};
-
-use crate::ser::Serializer;
 
 #[proc_macro_derive(ToXml, attributes(xml))]
 pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
-
-    let ident = &ast.ident;
-    let generics = (&ast.generics).into_token_stream();
-
-    let root_name = ident.to_string();
-    let mut serializer = Serializer::new(&ast);
-
-    let mut header = TokenStream::new();
-    serializer.add_header(&mut header);
-
-    let mut body = TokenStream::new();
-    let mut attributes = TokenStream::new();
-    match &ast.data {
-        syn::Data::Struct(ref data) => {
-            match data.fields {
-                syn::Fields::Named(ref fields) => {
-                    fields.named.iter().for_each(|field| {
-                        serializer.process_named_field(field, &mut body, &mut attributes);
-                    });
-                }
-                syn::Fields::Unnamed(_) => todo!(),
-                syn::Fields::Unit => {}
-            };
-        }
-        _ => todo!(),
-    };
-
-    let mut footer = TokenStream::new();
-    serializer.add_footer(&root_name, &mut footer);
-
-    let current_namespaces = serializer.namespaces_token();
-
-    proc_macro::TokenStream::from(quote!(
-        impl #generics ToXml for #ident #generics {
-            fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
-                &self,
-                serializer: &mut instant_xml::Serializer<W>,
-            ) -> Result<(), instant_xml::Error> {
-                let _ = serializer.consume_field_context();
-                let mut field_context = instant_xml::ser::FieldContext {
-                    name: #root_name,
-                    attribute: None,
-                };
-
-                #attributes
-
-                #header
-                #current_namespaces
-                #body
-                #footer
-
-                // Removing current namespaces
-                for it in to_remove {
-                    serializer.parent_namespaces.remove(it);
-                }
-
-                Ok(())
-            }
-        };
-    ))
+    ser::to_xml(&ast).into()
 }
 
 #[proc_macro_derive(FromXml, attributes(xml))]

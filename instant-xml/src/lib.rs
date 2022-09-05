@@ -30,11 +30,6 @@ pub enum FieldAttribute<'xml> {
 }
 
 pub trait FromXml<'xml>: Sized {
-    fn from_xml(input: &'xml str) -> Result<Self, Error> {
-        let mut deserializer = Deserializer::new(input);
-        Self::deserialize(&mut deserializer)
-    }
-
     fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error>;
 
     // If the missing field is of type `Option<T>` then treat is as `None`,
@@ -44,6 +39,10 @@ pub trait FromXml<'xml>: Sized {
     }
 
     const KIND: Kind;
+}
+
+pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
+    T::deserialize(&mut Deserializer::new(input))
 }
 
 pub enum Kind {

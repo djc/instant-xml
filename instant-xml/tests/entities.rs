@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use similar_asserts::assert_eq;
 
-use instant_xml::{Error, FromXml, ToXml};
+use instant_xml::{from_str, Error, FromXml, ToXml};
 
 #[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
 #[xml(ns("URI"))]
@@ -15,28 +15,26 @@ struct StructSpecialEntities<'a> {
 #[test]
 fn escape_back() {
     assert_eq!(
-        StructSpecialEntities::from_xml(
+        from_str(
             "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str</str><cow>str&amp;</cow></StructSpecialEntities>"
-        )
-        .unwrap(),
-        StructSpecialEntities {
+        ),
+        Ok(StructSpecialEntities {
             string: String::from("<>&\"'adsad\""),
             str: "str",
             cow: Cow::Owned("str&".to_string()),
-        }
+        })
     );
 
     // Wrong str char
     assert_eq!(
-        StructSpecialEntities::from_xml(
+        from_str(
             "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str&amp;</str></StructSpecialEntities>"
-        )
-        .unwrap_err(),
-        Error::Other("Unsupported char: str&".to_string())
+        ),
+        Err::<StructSpecialEntities, _>(Error::Other("Unsupported char: str&".to_string()))
     );
 
     // Borrowed
-    let escape_back = StructSpecialEntities::from_xml(
+    let escape_back = from_str::<StructSpecialEntities>(
         "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str</str><cow>str</cow></StructSpecialEntities>"
     )
     .unwrap();
@@ -46,7 +44,7 @@ fn escape_back() {
     }
 
     // Owned
-    let escape_back = StructSpecialEntities::from_xml(
+    let escape_back = from_str::<StructSpecialEntities>(
             "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str</str><cow>str&amp;</cow></StructSpecialEntities>"
         )
         .unwrap();

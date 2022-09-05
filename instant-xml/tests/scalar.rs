@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use similar_asserts::assert_eq;
 
-use instant_xml::{FromXml, ToXml};
+use instant_xml::{from_str, FromXml, ToXml};
 
 #[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
 #[xml(ns("URI"))]
@@ -30,11 +30,10 @@ struct StructDeserializerScalars<'a, 'b> {
 #[test]
 fn scalars() {
     assert_eq!(
-        StructDeserializerScalars::from_xml(
+        from_str(
             "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.20</f32_type><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes><cow>123</cow></StructDeserializerScalars>"
-        )
-        .unwrap(),
-        StructDeserializerScalars{
+        ),
+        Ok(StructDeserializerScalars{
             bool_type: true,
             i8_type: 1,
             u32_type: 42,
@@ -49,15 +48,15 @@ fn scalars() {
             },
             cow: Cow::from("123"),
             option: None,
-        }
+        })
     );
 
     // Option none
     assert_eq!(
-        StructDeserializerScalars::from_xml(
+        from_str(
             "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.2</f32_type><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes><cow>123</cow><option>asd</option></StructDeserializerScalars>"
-        ).unwrap(),
-        StructDeserializerScalars{
+        ),
+        Ok(StructDeserializerScalars{
             bool_type: true,
             i8_type: 1,
             u32_type: 42,
@@ -72,6 +71,6 @@ fn scalars() {
             },
             cow: Cow::from("123"),
             option: Some("asd"),
-        }
+        })
     );
 }

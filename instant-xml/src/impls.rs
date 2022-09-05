@@ -18,7 +18,8 @@ where
     <T as FromStr>::Err: std::fmt::Display,
 {
     type Value = T;
-    fn visit_str(self, value: &str) -> Result<Self::Value, Error> {
+
+    fn visit_str(value: &str) -> Result<Self::Value, Error> {
         match FromStr::from_str(value) {
             Ok(v) => Ok(v),
             Err(e) => Err(Error::Other(e.to_string())),
@@ -31,8 +32,8 @@ struct BoolVisitor;
 impl<'xml> Visitor<'xml> for BoolVisitor {
     type Value = bool;
 
-    fn visit_str(self, value: &str) -> Result<Self::Value, Error> {
-        FromStrToVisitor(PhantomData::<Self::Value>).visit_str(value)
+    fn visit_str(value: &str) -> Result<Self::Value, Error> {
+        FromStrToVisitor::<Self::Value>::visit_str(value)
     }
 }
 
@@ -41,8 +42,8 @@ impl<'xml> FromXml<'xml> for bool {
 
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
         match deserializer.consume_next_type() {
-            EntityType::Element => deserializer.deserialize_element(BoolVisitor),
-            EntityType::Attribute => deserializer.deserialize_attribute(BoolVisitor),
+            EntityType::Element => deserializer.deserialize_element::<BoolVisitor>(),
+            EntityType::Attribute => deserializer.deserialize_attribute::<BoolVisitor>(),
         }
     }
 }
@@ -105,8 +106,8 @@ where
 {
     type Value = T;
 
-    fn visit_str(self, value: &str) -> Result<Self::Value, Error> {
-        FromStrToVisitor(PhantomData::<Self::Value>).visit_str(value)
+    fn visit_str(value: &str) -> Result<Self::Value, Error> {
+        FromStrToVisitor::<Self::Value>::visit_str(value)
     }
 }
 
@@ -115,12 +116,12 @@ macro_rules! from_xml_for_number {
         impl<'xml> FromXml<'xml> for $typ {
             fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
                 match deserializer.consume_next_type() {
-                    EntityType::Element => deserializer.deserialize_element(NumberVisitor {
-                        marker: PhantomData,
-                    }),
-                    EntityType::Attribute => deserializer.deserialize_attribute(NumberVisitor {
-                        marker: PhantomData,
-                    }),
+                    EntityType::Element => {
+                        deserializer.deserialize_element::<NumberVisitor<$typ>>()
+                    }
+                    EntityType::Attribute => {
+                        deserializer.deserialize_attribute::<NumberVisitor<$typ>>()
+                    }
                 }
             }
 
@@ -147,7 +148,7 @@ struct StringVisitor;
 impl<'xml> Visitor<'xml> for StringVisitor {
     type Value = String;
 
-    fn visit_str(self, value: &str) -> Result<Self::Value, Error> {
+    fn visit_str(value: &str) -> Result<Self::Value, Error> {
         Ok(escape_back(value).into_owned())
     }
 }
@@ -158,8 +159,8 @@ impl<'xml> FromXml<'xml> for String {
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
         //<&'xml str>::deserialize(deserializer);
         match deserializer.consume_next_type() {
-            EntityType::Element => deserializer.deserialize_element(StringVisitor),
-            EntityType::Attribute => deserializer.deserialize_attribute(StringVisitor),
+            EntityType::Element => deserializer.deserialize_element::<StringVisitor>(),
+            EntityType::Attribute => deserializer.deserialize_attribute::<StringVisitor>(),
         }
     }
 }
@@ -169,7 +170,7 @@ struct CharVisitor;
 impl<'xml> Visitor<'xml> for CharVisitor {
     type Value = char;
 
-    fn visit_str(self, value: &str) -> Result<Self::Value, Error> {
+    fn visit_str(value: &str) -> Result<Self::Value, Error> {
         match value.len() {
             1 => Ok(value.chars().next().expect("char type")),
             _ => Err(Error::Other("Expected char type".to_string())),
@@ -182,8 +183,8 @@ impl<'xml> FromXml<'xml> for char {
 
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
         match deserializer.consume_next_type() {
-            EntityType::Element => deserializer.deserialize_element(CharVisitor),
-            EntityType::Attribute => deserializer.deserialize_attribute(CharVisitor),
+            EntityType::Element => deserializer.deserialize_element::<CharVisitor>(),
+            EntityType::Attribute => deserializer.deserialize_attribute::<CharVisitor>(),
         }
     }
 }
@@ -193,7 +194,7 @@ struct StrVisitor;
 impl<'a> Visitor<'a> for StrVisitor {
     type Value = &'a str;
 
-    fn visit_str(self, value: &'a str) -> Result<Self::Value, Error> {
+    fn visit_str(value: &'a str) -> Result<Self::Value, Error> {
         match escape_back(value) {
             Cow::Owned(v) => Err(Error::Other(format!("Unsupported char: {}", v))),
             Cow::Borrowed(v) => Ok(v),
@@ -206,8 +207,8 @@ impl<'xml> FromXml<'xml> for &'xml str {
 
     fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error> {
         match deserializer.consume_next_type() {
-            EntityType::Element => deserializer.deserialize_element(StrVisitor),
-            EntityType::Attribute => deserializer.deserialize_attribute(StrVisitor),
+            EntityType::Element => deserializer.deserialize_element::<StrVisitor>(),
+            EntityType::Attribute => deserializer.deserialize_attribute::<StrVisitor>(),
         }
     }
 }
@@ -217,18 +218,18 @@ struct CowStrVisitor;
 impl<'a> Visitor<'a> for CowStrVisitor {
     type Value = Cow<'a, str>;
 
-    fn visit_str(self, value: &'a str) -> Result<Self::Value, Error> {
+    fn visit_str(value: &'a str) -> Result<Self::Value, Error> {
         Ok(escape_back(value))
     }
 }
 
 impl<'xml> FromXml<'xml> for Cow<'xml, str> {
-    const KIND: Kind = <&str>::KIND;
+    const KIND: Kind = Kind::Scalar;
 
     fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error> {
         match deserializer.consume_next_type() {
-            EntityType::Element => deserializer.deserialize_element(CowStrVisitor),
-            EntityType::Attribute => deserializer.deserialize_attribute(CowStrVisitor),
+            EntityType::Element => deserializer.deserialize_element::<CowStrVisitor>(),
+            EntityType::Attribute => deserializer.deserialize_attribute::<CowStrVisitor>(),
         }
     }
 }

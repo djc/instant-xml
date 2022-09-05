@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::{Error, FromXml};
+use instant_xml::{from_str, Error, FromXml};
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
 struct NestedWrongNamespace {
@@ -30,52 +30,48 @@ struct StructWithWrongNestedNamespace {
 fn default_namespaces() {
     // Default namespace not-nested
     assert_eq!(
-        NestedDe::from_xml(
-            "<NestedDe xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe>"
-        )
-        .unwrap(),
-        NestedDe { flag: true }
+        from_str("<NestedDe xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe>"),
+        Ok(NestedDe { flag: true })
     );
 
     // Default namespace not-nested - wrong namespace
     assert_eq!(
-        NestedDe::from_xml(
+        from_str(
             "<NestedDe xmlns=\"WRONG\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe>"
-        )
-        .unwrap_err(),
-        Error::WrongNamespace
+        ),
+        Err::<NestedDe, _>(Error::WrongNamespace)
     );
 
     // Correct child namespace
     assert_eq!(
-        StructWithCorrectNestedNamespace::from_xml("<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedDe xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe></StructWithCorrectNestedNamespace>").unwrap(),
-        StructWithCorrectNestedNamespace {
+        from_str("<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedDe xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe></StructWithCorrectNestedNamespace>"),
+        Ok(StructWithCorrectNestedNamespace {
             test: NestedDe { flag: true }
-        }
+        })
     );
 
     // Correct child namespace - without child redefinition
     assert_eq!(
-        StructWithCorrectNestedNamespace::from_xml("<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedDe><bar:flag>true</bar:flag></NestedDe></StructWithCorrectNestedNamespace>").unwrap(),
-        StructWithCorrectNestedNamespace {
+        from_str("<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedDe><bar:flag>true</bar:flag></NestedDe></StructWithCorrectNestedNamespace>"),
+        Ok(StructWithCorrectNestedNamespace {
             test: NestedDe { flag: true }
-        }
+        })
     );
 
     // Different child namespace
     assert_eq!(
-        StructWithWrongNestedNamespace::from_xml("<StructWithWrongNestedNamespace xmlns=\"URI\" xmlns:dar=\"BAZ\"><NestedWrongNamespace xmlns=\"\"><flag>true</flag></NestedWrongNamespace></StructWithWrongNestedNamespace>").unwrap(),
-        StructWithWrongNestedNamespace {
+        from_str("<StructWithWrongNestedNamespace xmlns=\"URI\" xmlns:dar=\"BAZ\"><NestedWrongNamespace xmlns=\"\"><flag>true</flag></NestedWrongNamespace></StructWithWrongNestedNamespace>"),
+        Ok(StructWithWrongNestedNamespace {
             test: NestedWrongNamespace {
                 flag: true
             }
-        }
+        })
     );
 
     // Wrong child namespace
     assert_eq!(
-        StructWithWrongNestedNamespace::from_xml("<StructWithWrongNestedNamespace xmlns=\"URI\" xmlns:dar=\"BAZ\"><NestedWrongNamespace><flag>true</flag></NestedWrongNamespace></StructWithWrongNestedNamespace>").unwrap_err(),
-        Error::MissingValue
+        from_str("<StructWithWrongNestedNamespace xmlns=\"URI\" xmlns:dar=\"BAZ\"><NestedWrongNamespace><flag>true</flag></NestedWrongNamespace></StructWithWrongNestedNamespace>"),
+        Err::<StructWithWrongNestedNamespace, _>(Error::MissingValue)
     );
 }
 
@@ -96,72 +92,65 @@ struct StructOtherNamespace {
 fn other_namespaces() {
     // Other namespace not-nested
     assert_eq!(
-        NestedOtherNamespace::from_xml(
+        from_str(
             "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedOtherNamespace>"
-        )
-        .unwrap(),
-        NestedOtherNamespace { flag: true }
+        ),
+        Ok(NestedOtherNamespace { flag: true })
     );
 
     // Other namespace not-nested - wrong defined namespace
     assert_eq!(
-        NestedOtherNamespace::from_xml(
+        from_str(
             "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><wrong:flag>true</wrong:flag></NestedOtherNamespace>"
-        )
-        .unwrap_err(),
-        Error::WrongNamespace
+        ),
+        Err::<NestedOtherNamespace, _>(Error::WrongNamespace)
     );
 
     // Other namespace not-nested - wrong parser namespace
     assert_eq!(
-        NestedOtherNamespace::from_xml(
+        from_str(
             "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"WRONG\"><bar:flag>true</bar:flag></NestedOtherNamespace>"
-        )
-        .unwrap_err(),
-        Error::MissingValue
+        ),
+        Err::<NestedOtherNamespace, _>(Error::MissingValue)
     );
 
     // Other namespace not-nested - missing parser prefix
     assert_eq!(
-        NestedOtherNamespace::from_xml(
+        from_str(
             "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAR\"><flag>true</flag></NestedOtherNamespace>"
-        )
-        .unwrap_err(),
-        Error::MissingValue
+        ),
+        Err::<NestedOtherNamespace, _>(Error::MissingValue)
     );
 
     // Correct child other namespace
     assert_eq!(
-        StructOtherNamespace::from_xml(
+        from_str(
             "<StructOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedOtherNamespace></StructOtherNamespace>"
-        )
-        .unwrap(),
-        StructOtherNamespace {
+        ),
+        Ok(StructOtherNamespace {
             test: NestedOtherNamespace {
                 flag: true,
             }
-        }
+        })
     );
 
     // Correct child other namespace - without child redefinition
     assert_eq!(
-        StructOtherNamespace::from_xml(
+        from_str(
             "<StructOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedOtherNamespace><bar:flag>true</bar:flag></NestedOtherNamespace></StructOtherNamespace>"
-        )
-        .unwrap(),
-        StructOtherNamespace {
+        ),
+        Ok(StructOtherNamespace {
             test: NestedOtherNamespace {
                 flag: true,
             }
-        }
+        })
     );
 
     // Wrong child other namespace - without child redefinition
     assert_eq!(
-        StructOtherNamespace::from_xml(
+        from_str(
             "<StructOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedOtherNamespace><wrong:flag>true</wrong:flag></NestedOtherNamespace></StructOtherNamespace>"
-        )
-        .unwrap_err(),
-        Error::WrongNamespace
+        ),
+        Err::<StructOtherNamespace, _>(Error::WrongNamespace)
     );
 }

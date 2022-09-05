@@ -1,20 +1,82 @@
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 
 use crate::{ContainerMeta, FieldMeta, Namespace};
 
-pub struct Serializer {
+pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
+    let ident = &input.ident;
+    let generics = (&input.generics).into_token_stream();
+
+    let root_name = ident.to_string();
+    let mut serializer = Serializer::new(input);
+
+    let mut header = TokenStream::new();
+    serializer.add_header(&mut header);
+
+    let mut body = TokenStream::new();
+    let mut attributes = TokenStream::new();
+    match &input.data {
+        syn::Data::Struct(ref data) => {
+            match data.fields {
+                syn::Fields::Named(ref fields) => {
+                    fields.named.iter().for_each(|field| {
+                        serializer.process_named_field(field, &mut body, &mut attributes);
+                    });
+                }
+                syn::Fields::Unnamed(_) => todo!(),
+                syn::Fields::Unit => {}
+            };
+        }
+        _ => todo!(),
+    };
+
+    let mut footer = TokenStream::new();
+    serializer.add_footer(&root_name, &mut footer);
+
+    let current_namespaces = serializer.namespaces_token();
+
+    quote!(
+        impl #generics ToXml for #ident #generics {
+            fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
+                &self,
+                serializer: &mut instant_xml::Serializer<W>,
+            ) -> Result<(), instant_xml::Error> {
+                let _ = serializer.consume_field_context();
+                let mut field_context = instant_xml::ser::FieldContext {
+                    name: #root_name,
+                    attribute: None,
+                };
+
+                #attributes
+
+                #header
+                #current_namespaces
+                #body
+                #footer
+
+                // Removing current namespaces
+                for it in to_remove {
+                    serializer.parent_namespaces.remove(it);
+                }
+
+                Ok(())
+            }
+        };
+    )
+}
+
+struct Serializer {
     meta: ContainerMeta,
 }
 
 impl<'a> Serializer {
-    pub fn new(input: &syn::DeriveInput) -> Self {
+    fn new(input: &syn::DeriveInput) -> Self {
         Self {
             meta: ContainerMeta::from_derive(input),
         }
     }
 
-    pub fn add_header(&mut self, output: &'a mut TokenStream) {
+    fn add_header(&mut self, output: &'a mut TokenStream) {
         output.extend(quote!(
             serializer.output.write_char('<')?;
             serializer.output.write_str(field_context.name)?;
@@ -60,7 +122,7 @@ impl<'a> Serializer {
         ));
     }
 
-    pub fn add_footer(&mut self, root_name: &str, output: &'a mut TokenStream) {
+    fn add_footer(&mut self, root_name: &str, output: &'a mut TokenStream) {
         output.extend(quote!(
             serializer.output.write_str("</")?;
             serializer.output.write_str(#root_name)?;
@@ -69,7 +131,7 @@ impl<'a> Serializer {
         ));
     }
 
-    pub fn process_named_field(
+    fn process_named_field(
         &mut self,
         field: &syn::Field,
         body: &mut TokenStream,
@@ -134,7 +196,7 @@ impl<'a> Serializer {
         ));
     }
 
-    pub fn namespaces_token(&self) -> TokenStream {
+    fn namespaces_token(&self) -> TokenStream {
         let mut namespaces = quote!(
             let mut to_remove: Vec<&str> = Vec::new();
         );

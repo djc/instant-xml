@@ -115,7 +115,7 @@ impl Deserializer {
         let name = ident.to_string();
         let mut out = TokenStream::new();
         out.extend(quote!(
-            fn deserialize(deserializer: &mut ::instant_xml::Deserializer<'xml>) -> Result<Self, ::instant_xml::Error> {
+            fn deserialize<'cx>(deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>) -> Result<Self, ::instant_xml::Error> {
                 use ::instant_xml::de::{XmlRecord, Deserializer, Visitor};
                 use ::instant_xml::Error;
 
@@ -137,31 +137,34 @@ impl Deserializer {
                 impl #xml_impl_generics Visitor<'xml> for StructVisitor #xml_ty_generics #xml_where_clause {
                     type Value = #ident #ty_generics;
 
-                    fn visit_struct(
-                        deserializer: &mut ::instant_xml::Deserializer<'xml>,
-                    ) -> Result<Self::Value, ::instant_xml::Error> {
-                        use ::instant_xml::de::Node;
-
+                    fn visit_struct<'cx>(
+                        deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>,
+                    ) -> Result<Self::Value, Error> {
                         #declare_values
-                        while let Some(attr) = deserializer.peek_next_attribute()? {
-                            let attr = {
-                                #attributes_consts
-                                match attr.id {
-                                    #attributes_names
-                                    _ => __Attributes::__Ignore
-                                }
+                        loop {
+                            let node = match deserializer.next() {
+                                Some(result) => result?,
+                                None => break,
                             };
 
-                            match attr {
-                                #attr_type_match
-                                __Attributes::__Ignore => {}
-                            }
-                        }
-
-                        while let Some(node) = deserializer.peek_next_tag()? {
                             match node {
-                                Node::Open { ns, name } => {
-                                    let id = ::instant_xml::Id { ns, name };
+                                XmlRecord::Attribute(attr) => {
+                                    let id = deserializer.attribute_id(&attr)?;
+                                    let field = {
+                                        #attributes_consts
+                                        match id {
+                                            #attributes_names
+                                            _ => __Attributes::__Ignore
+                                        }
+                                    };
+
+                                    match field {
+                                        #attr_type_match
+                                        __Attributes::__Ignore => {}
+                                    }
+                                }
+                                XmlRecord::Open(data) => {
+                                    let id = deserializer.element_id(&data)?;
                                     let element = {
                                         #elements_consts
                                         match id {
@@ -173,31 +176,22 @@ impl Deserializer {
                                     match element {
                                         #elem_type_match
                                         __Elements::__Ignore => {
-                                            deserializer.ignore(id)?;
+                                            let mut nested = deserializer.nested(data);
+                                            nested.ignore()?;
                                         }
                                     }
                                 }
-                                Node::Close { name } => {
-                                    if name == #name {
-                                        break;
-                                    }
-                                },
-                                Node::Text { text } => panic!("Unexpected element"),
+                                _ => return Err(Error::UnexpectedState),
                             }
                         }
 
                         Ok(Self::Value {
                             #return_val
-                    })
+                        })
                     }
                 }
 
-                #namespaces_map;
-                deserializer.deserialize_struct::<StructVisitor>(
-                    #name,
-                    #default_namespace,
-                    &namespaces_map
-                )
+                StructVisitor::visit_struct(deserializer)
             }
         ));
 
@@ -277,7 +271,8 @@ impl Deserializer {
                         panic!("duplicated value");
                     }
 
-                    #enum_name = Some(<#no_lifetime_type>::deserialize(deserializer)?);
+                    let mut nested = deserializer.nested(data);
+                    #enum_name = Some(<#no_lifetime_type>::deserialize(&mut nested)?);
                 },
             ));
         } else {
@@ -287,8 +282,8 @@ impl Deserializer {
                         panic!("duplicated value");
                     }
 
-                    deserializer.set_next_type_as_attribute()?;
-                    #enum_name = Some(<#no_lifetime_type>::deserialize(deserializer)?);
+                    let mut nested = deserializer.for_attr(attr);
+                    #enum_name = Some(<#no_lifetime_type>::deserialize(&mut nested)?);
                 },
             ));
         }

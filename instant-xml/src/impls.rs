@@ -3,7 +3,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::str::FromStr;
 
-use crate::de::{EntityType, Visitor};
+use crate::de::{Visitor, XmlRecord};
 use crate::{Deserializer, Error, FieldAttribute, FromXml, Kind, Serializer, ToXml};
 
 // Deserializer
@@ -12,7 +12,7 @@ where
     T: FromStr,
     <T as FromStr>::Err: std::fmt::Display;
 
-impl<'xml, T> Visitor<'xml> for FromStrToVisitor<T>
+impl<'xml, T: 'xml> Visitor<'xml> for FromStrToVisitor<T>
 where
     T: FromStr,
     <T as FromStr>::Err: std::fmt::Display,
@@ -40,11 +40,8 @@ impl<'xml> Visitor<'xml> for BoolVisitor {
 impl<'xml> FromXml<'xml> for bool {
     const KIND: Kind = Kind::Scalar;
 
-    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
-        match deserializer.consume_next_type() {
-            EntityType::Element => deserializer.deserialize_element::<BoolVisitor>(),
-            EntityType::Attribute => deserializer.deserialize_attribute::<BoolVisitor>(),
-        }
+    fn deserialize(deserializer: &mut Deserializer<'_, 'xml>) -> Result<Self, Error> {
+        deserialize_scalar::<BoolVisitor>(deserializer)
     }
 }
 
@@ -99,7 +96,7 @@ where
     marker: PhantomData<T>,
 }
 
-impl<'xml, T> Visitor<'xml> for NumberVisitor<T>
+impl<'xml, T: 'xml> Visitor<'xml> for NumberVisitor<T>
 where
     T: FromStr,
     <T as FromStr>::Err: std::fmt::Display,
@@ -115,14 +112,7 @@ macro_rules! from_xml_for_number {
     ($typ:ty) => {
         impl<'xml> FromXml<'xml> for $typ {
             fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
-                match deserializer.consume_next_type() {
-                    EntityType::Element => {
-                        deserializer.deserialize_element::<NumberVisitor<$typ>>()
-                    }
-                    EntityType::Attribute => {
-                        deserializer.deserialize_attribute::<NumberVisitor<$typ>>()
-                    }
-                }
+                deserialize_scalar::<NumberVisitor<$typ>>(deserializer)
             }
 
             const KIND: Kind = Kind::Scalar;
@@ -157,11 +147,7 @@ impl<'xml> FromXml<'xml> for String {
     const KIND: Kind = Kind::Scalar;
 
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
-        //<&'xml str>::deserialize(deserializer);
-        match deserializer.consume_next_type() {
-            EntityType::Element => deserializer.deserialize_element::<StringVisitor>(),
-            EntityType::Attribute => deserializer.deserialize_attribute::<StringVisitor>(),
-        }
+        deserialize_scalar::<StringVisitor>(deserializer)
     }
 }
 
@@ -182,10 +168,7 @@ impl<'xml> FromXml<'xml> for char {
     const KIND: Kind = Kind::Scalar;
 
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
-        match deserializer.consume_next_type() {
-            EntityType::Element => deserializer.deserialize_element::<CharVisitor>(),
-            EntityType::Attribute => deserializer.deserialize_attribute::<CharVisitor>(),
-        }
+        deserialize_scalar::<CharVisitor>(deserializer)
     }
 }
 
@@ -205,11 +188,8 @@ impl<'a> Visitor<'a> for StrVisitor {
 impl<'xml> FromXml<'xml> for &'xml str {
     const KIND: Kind = Kind::Scalar;
 
-    fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error> {
-        match deserializer.consume_next_type() {
-            EntityType::Element => deserializer.deserialize_element::<StrVisitor>(),
-            EntityType::Attribute => deserializer.deserialize_attribute::<StrVisitor>(),
-        }
+    fn deserialize(deserializer: &mut Deserializer<'_, 'xml>) -> Result<Self, Error> {
+        deserialize_scalar::<StrVisitor>(deserializer)
     }
 }
 
@@ -226,11 +206,8 @@ impl<'a> Visitor<'a> for CowStrVisitor {
 impl<'xml> FromXml<'xml> for Cow<'xml, str> {
     const KIND: Kind = Kind::Scalar;
 
-    fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error> {
-        match deserializer.consume_next_type() {
-            EntityType::Element => deserializer.deserialize_element::<CowStrVisitor>(),
-            EntityType::Attribute => deserializer.deserialize_attribute::<CowStrVisitor>(),
-        }
+    fn deserialize(deserializer: &mut Deserializer<'_, 'xml>) -> Result<Self, Error> {
+        deserialize_scalar::<CowStrVisitor>(deserializer)
     }
 }
 
@@ -240,7 +217,7 @@ where
 {
     const KIND: Kind = <T>::KIND;
 
-    fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error> {
+    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
         match <T>::deserialize(deserializer) {
             Ok(v) => Ok(Some(v)),
             Err(e) => Err(e),
@@ -381,6 +358,27 @@ impl<T: ToXml> ToXml for Option<T> {
             Some(v) => v.serialize(serializer),
             None => Ok(()),
         }
+    }
+}
+
+fn deserialize_scalar<'xml, V: Visitor<'xml>>(
+    deserializer: &mut Deserializer<'_, 'xml>,
+) -> Result<V::Value, Error>
+where
+    V::Value: FromXml<'xml>,
+{
+    let value = match deserializer.next() {
+        Some(Ok(XmlRecord::AttributeValue(s))) => return V::visit_str(s),
+        Some(Ok(XmlRecord::Element(s))) => V::visit_str(s)?,
+        Some(Ok(_)) => return Err(Error::ExpectedScalar),
+        Some(Err(e)) => return Err(e),
+        None => return <V::Value as FromXml<'_>>::missing_value(),
+    };
+
+    match deserializer.next() {
+        Some(Ok(_)) => Err(Error::UnexpectedState),
+        Some(Err(e)) => Err(e),
+        None => Ok(value),
     }
 }
 

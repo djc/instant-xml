@@ -7,6 +7,7 @@ pub use macros::{FromXml, ToXml};
 #[doc(hidden)]
 pub mod de;
 mod impls;
+use de::Context;
 pub use de::Deserializer;
 #[doc(hidden)]
 pub mod ser;
@@ -26,7 +27,7 @@ pub enum FieldAttribute<'xml> {
 }
 
 pub trait FromXml<'xml>: Sized {
-    fn deserialize(deserializer: &mut Deserializer<'xml>) -> Result<Self, Error>;
+    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error>;
 
     // If the missing field is of type `Option<T>` then treat is as `None`,
     // otherwise it is an error.
@@ -38,7 +39,18 @@ pub trait FromXml<'xml>: Sized {
 }
 
 pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
-    T::deserialize(&mut Deserializer::new(input))
+    let (mut context, root) = Context::new(input)?;
+    let id = context.element_id(&root)?;
+    let expected = match T::KIND {
+        Kind::Scalar => return Err(Error::UnexpectedState),
+        Kind::Element(expected) => expected,
+    };
+
+    if id != expected {
+        return Err(Error::UnexpectedValue);
+    }
+
+    T::deserialize(&mut Deserializer::new(root, &mut context))
 }
 
 pub fn to_string(value: &(impl ToXml + ?Sized)) -> Result<String, Error> {
@@ -100,6 +112,8 @@ pub enum Error {
     MissingdPrefix,
     #[error("unexpected state")]
     UnexpectedState,
+    #[error("expected scalar")]
+    ExpectedScalar,
     #[error("wrong namespace")]
     WrongNamespace,
 }

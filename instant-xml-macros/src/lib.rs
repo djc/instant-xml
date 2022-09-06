@@ -5,7 +5,7 @@ mod ser;
 
 use std::collections::BTreeMap;
 
-use proc_macro2::{Delimiter, Group, Ident, Punct, TokenStream, TokenTree, Literal};
+use proc_macro2::{Delimiter, Group, Ident, Literal, Punct, TokenStream, TokenTree};
 use quote::{quote, ToTokens};
 use syn::parse_macro_input;
 use syn::punctuated::Punctuated;
@@ -299,11 +299,21 @@ impl NamespaceMeta {
 
         match state {
             NsState::Start | NsState::Comma => {}
-            NsState::Path { colon1: None, colon2: None, path: Some(path) } => {
+            NsState::Path {
+                colon1: None,
+                colon2: None,
+                path: Some(path),
+            } => {
                 new.uri = Some(Namespace::Path(path));
             }
-            NsState::PrefixPath { prefix, colon1: None, colon2: None, path: Some(path) } => {
-                new.prefixes.insert(prefix.to_string(), Namespace::Path(path));
+            NsState::PrefixPath {
+                prefix,
+                colon1: None,
+                colon2: None,
+                path: Some(path),
+            } => {
+                new.prefixes
+                    .insert(prefix.to_string(), Namespace::Path(path));
             }
             state => panic!("invalid ns end state in xml attribute ({})", state.name()),
         }

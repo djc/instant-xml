@@ -90,4 +90,6 @@ pub enum Error {
     ExpectedScalar,
     #[error("wrong namespace")]
     WrongNamespace,
+    #[error("duplicate value")]
+    DuplicateValue,
 }

@@ -1,49 +1,51 @@
 use std::borrow::Cow;
 use std::fmt;
-use std::marker::PhantomData;
 use std::str::FromStr;
 
-use crate::de::{Kind, Node, Visitor};
+use crate::de::{Kind, Node};
 use crate::ser::FieldAttribute;
 use crate::{Deserializer, Error, FromXml, Serializer, ToXml};
 
 // Deserializer
-struct FromStrToVisitor<T: FromStr>(PhantomData<T>)
-where
-    T: FromStr,
-    <T as FromStr>::Err: std::fmt::Display;
+struct FromXmlStr<T: FromStr>(Option<T>);
 
-impl<'xml, T: 'xml> Visitor<'xml> for FromStrToVisitor<T>
-where
-    T: FromStr,
-    <T as FromStr>::Err: std::fmt::Display,
-{
-    type Value = T;
+impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
+    fn deserialize(deserializer: &mut Deserializer<'_, 'xml>) -> Result<Self, Error> {
+        let (value, element) = match deserializer.next() {
+            Some(Ok(Node::AttributeValue(s))) => (s, false),
+            Some(Ok(Node::Element(s))) => (s, true),
+            Some(Ok(_)) => return Err(Error::ExpectedScalar),
+            Some(Err(e)) => return Err(e),
+            None => return Ok(Self(None)),
+        };
 
-    fn visit_str(value: &str) -> Result<Self::Value, Error> {
-        match FromStr::from_str(value) {
-            Ok(v) => Ok(v),
-            Err(e) => Err(Error::Other(e.to_string())),
+        let value = match T::from_str(value) {
+            Ok(value) => value,
+            Err(_) => return Err(Error::UnexpectedValue),
+        };
+
+        if element {
+            match deserializer.next() {
+                Some(Ok(_)) => return Err(Error::UnexpectedState),
+                Some(Err(e)) => return Err(e),
+                _ => {}
+            }
         }
+
+        Ok(Self(Some(value)))
     }
-}
 
-struct BoolVisitor;
-
-impl<'xml> Visitor<'xml> for BoolVisitor {
-    type Value = bool;
-
-    fn visit_str(value: &str) -> Result<Self::Value, Error> {
-        FromStrToVisitor::<Self::Value>::visit_str(value)
-    }
+    const KIND: Kind = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for bool {
-    const KIND: Kind = Kind::Scalar;
-
-    fn deserialize(deserializer: &mut Deserializer<'_, 'xml>) -> Result<Self, Error> {
-        deserialize_scalar::<BoolVisitor>(deserializer)
+    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
+        FromXmlStr::<Self>::deserialize(deserializer)?
+            .0
+            .ok_or(Error::MissingValue)
     }
+
+    const KIND: Kind = Kind::Scalar;
 }
 
 // Serializer
@@ -89,31 +91,15 @@ macro_rules! to_xml_for_number {
     };
 }
 
-struct NumberVisitor<T>
-where
-    T: FromStr,
-    <T as FromStr>::Err: std::fmt::Display,
-{
-    marker: PhantomData<T>,
-}
-
-impl<'xml, T: 'xml> Visitor<'xml> for NumberVisitor<T>
-where
-    T: FromStr,
-    <T as FromStr>::Err: std::fmt::Display,
-{
-    type Value = T;
-
-    fn visit_str(value: &str) -> Result<Self::Value, Error> {
-        FromStrToVisitor::<Self::Value>::visit_str(value)
-    }
-}
-
 macro_rules! from_xml_for_number {
     ($typ:ty) => {
         impl<'xml> FromXml<'xml> for $typ {
-            fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
-                deserialize_scalar::<NumberVisitor<$typ>>(deserializer)
+            fn deserialize<'cx>(
+                deserializer: &'cx mut Deserializer<'cx, 'xml>,
+            ) -> Result<Self, Error> {
+                FromXmlStr::<Self>::deserialize(deserializer)?
+                    .0
+                    .ok_or(Error::MissingValue)
             }
 
             const KIND: Kind = Kind::Scalar;
@@ -134,90 +120,66 @@ from_xml_for_number!(usize);
 from_xml_for_number!(f32);
 from_xml_for_number!(f64);
 
-struct StringVisitor;
-
-impl<'xml> Visitor<'xml> for StringVisitor {
-    type Value = String;
-
-    fn visit_str(value: &str) -> Result<Self::Value, Error> {
-        Ok(escape_back(value).into_owned())
+impl<'xml> FromXml<'xml> for char {
+    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
+        FromXmlStr::<Self>::deserialize(deserializer)?
+            .0
+            .ok_or(Error::MissingValue)
     }
+
+    const KIND: Kind = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for String {
+    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
+        Ok(<Cow<'xml, str> as FromXml<'xml>>::deserialize(deserializer)?.into_owned())
+    }
+
     const KIND: Kind = Kind::Scalar;
-
-    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
-        deserialize_scalar::<StringVisitor>(deserializer)
-    }
-}
-
-struct CharVisitor;
-
-impl<'xml> Visitor<'xml> for CharVisitor {
-    type Value = char;
-
-    fn visit_str(value: &str) -> Result<Self::Value, Error> {
-        match value.len() {
-            1 => Ok(value.chars().next().expect("char type")),
-            _ => Err(Error::Other("Expected char type".to_string())),
-        }
-    }
-}
-
-impl<'xml> FromXml<'xml> for char {
-    const KIND: Kind = Kind::Scalar;
-
-    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, Error> {
-        deserialize_scalar::<CharVisitor>(deserializer)
-    }
-}
-
-struct StrVisitor;
-
-impl<'a> Visitor<'a> for StrVisitor {
-    type Value = &'a str;
-
-    fn visit_str(value: &'a str) -> Result<Self::Value, Error> {
-        match escape_back(value) {
-            Cow::Owned(v) => Err(Error::Other(format!("Unsupported char: {}", v))),
-            Cow::Borrowed(v) => Ok(v),
-        }
-    }
 }
 
 impl<'xml> FromXml<'xml> for &'xml str {
+    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
+        Ok(
+            match <Cow<'xml, str> as FromXml<'xml>>::deserialize(deserializer)? {
+                Cow::Borrowed(s) => s,
+                Cow::Owned(_) => return Err(Error::UnexpectedValue),
+            },
+        )
+    }
+
     const KIND: Kind = Kind::Scalar;
-
-    fn deserialize(deserializer: &mut Deserializer<'_, 'xml>) -> Result<Self, Error> {
-        deserialize_scalar::<StrVisitor>(deserializer)
-    }
-}
-
-struct CowStrVisitor;
-
-impl<'a> Visitor<'a> for CowStrVisitor {
-    type Value = Cow<'a, str>;
-
-    fn visit_str(value: &'a str) -> Result<Self::Value, Error> {
-        Ok(escape_back(value))
-    }
 }
 
 impl<'xml> FromXml<'xml> for Cow<'xml, str> {
-    const KIND: Kind = Kind::Scalar;
-
     fn deserialize(deserializer: &mut Deserializer<'_, 'xml>) -> Result<Self, Error> {
-        deserialize_scalar::<CowStrVisitor>(deserializer)
+        let (value, element) = match deserializer.next() {
+            Some(Ok(Node::AttributeValue(s))) => (s, false),
+            Some(Ok(Node::Element(s))) => (s, true),
+            Some(Ok(_)) => return Err(Error::ExpectedScalar),
+            Some(Err(e)) => return Err(e),
+            None => return Err(Error::MissingValue),
+        };
+
+        let value = escape_back(value);
+        if element {
+            match deserializer.next() {
+                Some(Ok(_)) => return Err(Error::UnexpectedState),
+                Some(Err(e)) => return Err(e),
+                _ => {}
+            }
+        }
+
+        Ok(value)
     }
+
+    const KIND: Kind = Kind::Scalar;
 }
 
 impl<'xml, T> FromXml<'xml> for Option<T>
 where
     T: FromXml<'xml>,
 {
-    const KIND: Kind = <T>::KIND;
-
     fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
         match <T>::deserialize(deserializer) {
             Ok(v) => Ok(Some(v)),
@@ -228,6 +190,8 @@ where
     fn missing_value() -> Result<Self, Error> {
         Ok(None)
     }
+
+    const KIND: Kind = <T>::KIND;
 }
 
 fn escape_back(input: &str) -> Cow<'_, str> {
@@ -359,27 +323,6 @@ impl<T: ToXml> ToXml for Option<T> {
             Some(v) => v.serialize(serializer),
             None => Ok(()),
         }
-    }
-}
-
-fn deserialize_scalar<'xml, V: Visitor<'xml>>(
-    deserializer: &mut Deserializer<'_, 'xml>,
-) -> Result<V::Value, Error>
-where
-    V::Value: FromXml<'xml>,
-{
-    let value = match deserializer.next() {
-        Some(Ok(Node::AttributeValue(s))) => return V::visit_str(s),
-        Some(Ok(Node::Element(s))) => V::visit_str(s)?,
-        Some(Ok(_)) => return Err(Error::ExpectedScalar),
-        Some(Err(e)) => return Err(e),
-        None => return <V::Value as FromXml<'_>>::missing_value(),
-    };
-
-    match deserializer.next() {
-        Some(Ok(_)) => Err(Error::UnexpectedState),
-        Some(Err(e)) => Err(e),
-        None => Ok(value),
     }
 }
 

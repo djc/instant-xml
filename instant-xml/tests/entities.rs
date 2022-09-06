@@ -30,7 +30,7 @@ fn escape_back() {
         from_str(
             "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str&amp;</str></StructSpecialEntities>"
         ),
-        Err::<StructSpecialEntities, _>(Error::Other("Unsupported char: str&".to_string()))
+        Err::<StructSpecialEntities, _>(Error::UnexpectedValue)
     );
 
     // Borrowed

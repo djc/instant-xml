@@ -259,7 +259,7 @@ impl Deserializer {
             tokens.match_.extend(quote!(
                 __Elements::#enum_name => {
                     if #enum_name.is_some() {
-                        panic!("duplicated value");
+                        return Err(Error::DuplicateValue);
                     }
 
                     let mut nested = deserializer.nested(data);
@@ -270,7 +270,7 @@ impl Deserializer {
             tokens.match_.extend(quote!(
                 __Attributes::#enum_name => {
                     if #enum_name.is_some() {
-                        panic!("duplicated value");
+                        return Err(Error::DuplicateValue);
                     }
 
                     let mut nested = deserializer.for_attr(attr);

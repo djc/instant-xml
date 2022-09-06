@@ -109,8 +109,9 @@ impl Deserializer {
         let mut out = TokenStream::new();
         out.extend(quote!(
             fn deserialize<'cx>(deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>) -> Result<Self, ::instant_xml::Error> {
-                use ::instant_xml::de::{XmlRecord, Deserializer, Visitor};
+                use ::instant_xml::de::{Deserializer, Id, Visitor, XmlRecord};
                 use ::instant_xml::Error;
+                use ::core::marker::PhantomData;
 
                 enum __Elements {
                     #elements_enum
@@ -123,15 +124,15 @@ impl Deserializer {
                 }
 
                 struct StructVisitor #xml_ty_generics {
-                    marker: std::marker::PhantomData<#ident #ty_generics>,
-                    lifetime: std::marker::PhantomData<&'xml ()>,
+                    marker: PhantomData<#ident #ty_generics>,
+                    lifetime: PhantomData<&'xml ()>,
                 }
 
                 impl #xml_impl_generics Visitor<'xml> for StructVisitor #xml_ty_generics #xml_where_clause {
                     type Value = #ident #ty_generics;
 
                     fn visit_struct<'cx>(
-                        deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>,
+                        deserializer: &'cx mut Deserializer<'cx, 'xml>,
                     ) -> Result<Self::Value, Error> {
                         #declare_values
                         loop {
@@ -189,7 +190,7 @@ impl Deserializer {
         ));
 
         out.extend(quote!(
-            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element(::instant_xml::Id {
+            const KIND: ::instant_xml::de::Kind = ::instant_xml::de::Kind::Element(::instant_xml::de::Id {
                 ns: #default_namespace,
                 name: #name,
             });
@@ -235,8 +236,8 @@ impl Deserializer {
         };
 
         tokens.consts.extend(quote!(
-            const #const_field_var_str: ::instant_xml::Id<'static> = <#no_lifetime_type>::KIND.name(
-                ::instant_xml::Id { ns: #ns, name: #field_var_str }
+            const #const_field_var_str: Id<'static> = <#no_lifetime_type>::KIND.name(
+                Id { ns: #ns, name: #field_var_str }
             );
         ));
 

@@ -41,8 +41,10 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
                 &self,
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> Result<(), instant_xml::Error> {
+                use ::instant_xml::ser::{FieldAttribute, FieldContext};
+
                 let _ = serializer.consume_field_context();
-                let mut field_context = instant_xml::ser::FieldContext {
+                let mut field_context = FieldContext {
                     name: #root_name,
                     attribute: None,
                 };
@@ -147,7 +149,7 @@ impl<'a> Serializer {
         let field_value = field.ident.as_ref().unwrap();
 
         let declaration = quote!(
-            let mut field = instant_xml::ser::FieldContext {
+            let mut field = FieldContext {
                 name: #name,
                 attribute: None,
             };
@@ -159,7 +161,7 @@ impl<'a> Serializer {
                 #declaration
 
                 serializer.add_attribute_key(&#name)?;
-                field.attribute = Some(instant_xml::FieldAttribute::Attribute);
+                field.attribute = Some(FieldAttribute::Attribute);
                 serializer.set_field_context(field)?;
                 self.#field_value.serialize(serializer)?;
             ));
@@ -177,8 +179,8 @@ impl<'a> Serializer {
         body.extend(quote!(
             #declaration
             match serializer.parent_namespaces.get(#ns) {
-                Some(prefix) => field.attribute = Some(::instant_xml::FieldAttribute::Prefix(prefix)),
-                None => field.attribute = Some(::instant_xml::FieldAttribute::Namespace(#ns)),
+                Some(prefix) => field.attribute = Some(FieldAttribute::Prefix(prefix)),
+                None => field.attribute = Some(FieldAttribute::Namespace(#ns)),
             }
             serializer.set_field_context(field)?;
             self.#field_value.serialize(serializer)?;

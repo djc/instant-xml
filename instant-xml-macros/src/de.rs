@@ -106,99 +106,92 @@ impl Deserializer {
         let attr_type_match = attributes_tokens.match_;
 
         let name = ident.to_string();
-        let mut out = TokenStream::new();
-        out.extend(quote!(
-            fn deserialize<'cx>(deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>) -> Result<Self, ::instant_xml::Error> {
-                use ::instant_xml::de::{Deserializer, Id, Visitor, Node};
-                use ::instant_xml::Error;
-                use ::core::marker::PhantomData;
-
-                enum __Elements {
-                    #elements_enum
-                    __Ignore,
-                }
-
-                enum __Attributes {
-                    #attributes_enum
-                    __Ignore,
-                }
-
-                struct StructVisitor #xml_ty_generics {
-                    marker: PhantomData<#ident #ty_generics>,
-                    lifetime: PhantomData<&'xml ()>,
-                }
-
-                impl #xml_impl_generics Visitor<'xml> for StructVisitor #xml_ty_generics #xml_where_clause {
-                    type Value = #ident #ty_generics;
-
-                    fn visit_struct<'cx>(
-                        deserializer: &'cx mut Deserializer<'cx, 'xml>,
-                    ) -> Result<Self::Value, Error> {
-                        #declare_values
-                        loop {
-                            let node = match deserializer.next() {
-                                Some(result) => result?,
-                                None => break,
-                            };
-
-                            match node {
-                                Node::Attribute(attr) => {
-                                    let id = deserializer.attribute_id(&attr)?;
-                                    let field = {
-                                        #attributes_consts
-                                        match id {
-                                            #attributes_names
-                                            _ => __Attributes::__Ignore
-                                        }
-                                    };
-
-                                    match field {
-                                        #attr_type_match
-                                        __Attributes::__Ignore => {}
-                                    }
-                                }
-                                Node::Open(data) => {
-                                    let id = deserializer.element_id(&data)?;
-                                    let element = {
-                                        #elements_consts
-                                        match id {
-                                            #elements_names
-                                            _ => __Elements::__Ignore
-                                        }
-                                    };
-
-                                    match element {
-                                        #elem_type_match
-                                        __Elements::__Ignore => {
-                                            let mut nested = deserializer.nested(data);
-                                            nested.ignore()?;
-                                        }
-                                    }
-                                }
-                                _ => return Err(Error::UnexpectedState),
-                            }
-                        }
-
-                        Ok(Self::Value {
-                            #return_val
-                        })
-                    }
-                }
-
-                StructVisitor::visit_struct(deserializer)
-            }
-        ));
-
-        out.extend(quote!(
-            const KIND: ::instant_xml::de::Kind = ::instant_xml::de::Kind::Element(::instant_xml::de::Id {
-                ns: #default_namespace,
-                name: #name,
-            });
-        ));
-
-        out = quote!(
+        let out = quote!(
             impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
-                #out
+                fn deserialize<'cx>(deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>) -> Result<Self, ::instant_xml::Error> {
+                    use ::instant_xml::de::{Deserializer, Id, Visitor, Node};
+                    use ::instant_xml::Error;
+                    use ::core::marker::PhantomData;
+
+                    enum __Elements {
+                        #elements_enum
+                        __Ignore,
+                    }
+
+                    enum __Attributes {
+                        #attributes_enum
+                        __Ignore,
+                    }
+
+                    struct StructVisitor #xml_ty_generics {
+                        marker: PhantomData<#ident #ty_generics>,
+                        lifetime: PhantomData<&'xml ()>,
+                    }
+
+                    impl #xml_impl_generics Visitor<'xml> for StructVisitor #xml_ty_generics #xml_where_clause {
+                        type Value = #ident #ty_generics;
+
+                        fn visit_struct<'cx>(
+                            deserializer: &'cx mut Deserializer<'cx, 'xml>,
+                        ) -> Result<Self::Value, Error> {
+                            #declare_values
+                            loop {
+                                let node = match deserializer.next() {
+                                    Some(result) => result?,
+                                    None => break,
+                                };
+
+                                match node {
+                                    Node::Attribute(attr) => {
+                                        let id = deserializer.attribute_id(&attr)?;
+                                        let field = {
+                                            #attributes_consts
+                                            match id {
+                                                #attributes_names
+                                                _ => __Attributes::__Ignore
+                                            }
+                                        };
+
+                                        match field {
+                                            #attr_type_match
+                                            __Attributes::__Ignore => {}
+                                        }
+                                    }
+                                    Node::Open(data) => {
+                                        let id = deserializer.element_id(&data)?;
+                                        let element = {
+                                            #elements_consts
+                                            match id {
+                                                #elements_names
+                                                _ => __Elements::__Ignore
+                                            }
+                                        };
+
+                                        match element {
+                                            #elem_type_match
+                                            __Elements::__Ignore => {
+                                                let mut nested = deserializer.nested(data);
+                                                nested.ignore()?;
+                                            }
+                                        }
+                                    }
+                                    _ => return Err(Error::UnexpectedState),
+                                }
+                            }
+
+                            Ok(Self::Value {
+                                #return_val
+                            })
+                        }
+                    }
+
+                    StructVisitor::visit_struct(deserializer)
+                }
+
+                const KIND: ::instant_xml::de::Kind = ::instant_xml::de::Kind::Element(::instant_xml::de::Id {
+                    ns: #default_namespace,
+                    name: #name,
+                });
             }
         );
 

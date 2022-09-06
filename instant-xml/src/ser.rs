@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{self, Write};
 
-use super::{Error, FieldAttribute};
+use super::Error;
 
 pub struct Serializer<'xml, W: fmt::Write + ?Sized> {
     // For parent namespaces the key is the namespace and the value is the prefix. We are adding to map
@@ -131,4 +131,10 @@ pub struct FieldContext<'xml> {
     pub name: &'xml str,
     #[doc(hidden)]
     pub attribute: Option<FieldAttribute<'xml>>,
+}
+
+pub enum FieldAttribute<'xml> {
+    Prefix(&'xml str),
+    Namespace(&'xml str),
+    Attribute,
 }

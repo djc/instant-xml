@@ -267,20 +267,6 @@ impl<'xml> Iterator for Context<'xml> {
     }
 }
 
-pub trait Visitor<'xml>: Sized {
-    type Value;
-
-    fn visit_str(_value: &'xml str) -> Result<Self::Value, Error> {
-        unimplemented!();
-    }
-
-    fn visit_struct<'cx>(
-        _deserializer: &'cx mut Deserializer<'cx, 'xml>,
-    ) -> Result<Self::Value, Error> {
-        unimplemented!();
-    }
-}
-
 #[derive(Debug)]
 pub enum Node<'xml> {
     Attribute(Attribute<'xml>),

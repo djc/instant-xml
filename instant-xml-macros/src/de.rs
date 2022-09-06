@@ -47,7 +47,7 @@ impl Deserializer {
         xml_generics.params.push(xml.into());
 
         let (_, ty_generics, where_clause) = input.generics.split_for_impl();
-        let (xml_impl_generics, xml_ty_generics, xml_where_clause) = xml_generics.split_for_impl();
+        let (xml_impl_generics, _, _) = xml_generics.split_for_impl();
 
         let mut namespaces_map = quote!(let mut namespaces_map = std::collections::HashMap::new(););
         for (k, v) in container_meta.ns.prefixes.iter() {
@@ -109,7 +109,7 @@ impl Deserializer {
         let out = quote!(
             impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
                 fn deserialize<'cx>(deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>) -> Result<Self, ::instant_xml::Error> {
-                    use ::instant_xml::de::{Deserializer, Id, Visitor, Node};
+                    use ::instant_xml::de::{Deserializer, Id, Node};
                     use ::instant_xml::Error;
                     use ::core::marker::PhantomData;
 
@@ -123,69 +123,52 @@ impl Deserializer {
                         __Ignore,
                     }
 
-                    struct StructVisitor #xml_ty_generics {
-                        marker: PhantomData<#ident #ty_generics>,
-                        lifetime: PhantomData<&'xml ()>,
-                    }
+                    #declare_values
+                    loop {
+                        let node = match deserializer.next() {
+                            Some(result) => result?,
+                            None => break,
+                        };
 
-                    impl #xml_impl_generics Visitor<'xml> for StructVisitor #xml_ty_generics #xml_where_clause {
-                        type Value = #ident #ty_generics;
-
-                        fn visit_struct<'cx>(
-                            deserializer: &'cx mut Deserializer<'cx, 'xml>,
-                        ) -> Result<Self::Value, Error> {
-                            #declare_values
-                            loop {
-                                let node = match deserializer.next() {
-                                    Some(result) => result?,
-                                    None => break,
+                        match node {
+                            Node::Attribute(attr) => {
+                                let id = deserializer.attribute_id(&attr)?;
+                                let field = {
+                                    #attributes_consts
+                                    match id {
+                                        #attributes_names
+                                        _ => __Attributes::__Ignore
+                                    }
                                 };
 
-                                match node {
-                                    Node::Attribute(attr) => {
-                                        let id = deserializer.attribute_id(&attr)?;
-                                        let field = {
-                                            #attributes_consts
-                                            match id {
-                                                #attributes_names
-                                                _ => __Attributes::__Ignore
-                                            }
-                                        };
-
-                                        match field {
-                                            #attr_type_match
-                                            __Attributes::__Ignore => {}
-                                        }
-                                    }
-                                    Node::Open(data) => {
-                                        let id = deserializer.element_id(&data)?;
-                                        let element = {
-                                            #elements_consts
-                                            match id {
-                                                #elements_names
-                                                _ => __Elements::__Ignore
-                                            }
-                                        };
-
-                                        match element {
-                                            #elem_type_match
-                                            __Elements::__Ignore => {
-                                                let mut nested = deserializer.nested(data);
-                                                nested.ignore()?;
-                                            }
-                                        }
-                                    }
-                                    _ => return Err(Error::UnexpectedState),
+                                match field {
+                                    #attr_type_match
+                                    __Attributes::__Ignore => {}
                                 }
                             }
+                            Node::Open(data) => {
+                                let id = deserializer.element_id(&data)?;
+                                let element = {
+                                    #elements_consts
+                                    match id {
+                                        #elements_names
+                                        _ => __Elements::__Ignore
+                                    }
+                                };
 
-                            Ok(Self::Value {
-                                #return_val
-                            })
+                                match element {
+                                    #elem_type_match
+                                    __Elements::__Ignore => {
+                                        let mut nested = deserializer.nested(data);
+                                        nested.ignore()?;
+                                    }
+                                }
+                            }
+                            _ => return Err(Error::UnexpectedState),
                         }
                     }
 
-                    StructVisitor::visit_struct(deserializer)
+                    Ok(Self { #return_val })
                 }
 
                 const KIND: ::instant_xml::de::Kind = ::instant_xml::de::Kind::Element(::instant_xml::de::Id {

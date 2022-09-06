@@ -3,7 +3,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::str::FromStr;
 
-use crate::de::{Visitor, XmlRecord, Kind};
+use crate::de::{Kind, Node, Visitor};
 use crate::ser::FieldAttribute;
 use crate::{Deserializer, Error, FromXml, Serializer, ToXml};
 
@@ -369,8 +369,8 @@ where
     V::Value: FromXml<'xml>,
 {
     let value = match deserializer.next() {
-        Some(Ok(XmlRecord::AttributeValue(s))) => return V::visit_str(s),
-        Some(Ok(XmlRecord::Element(s))) => V::visit_str(s)?,
+        Some(Ok(Node::AttributeValue(s))) => return V::visit_str(s),
+        Some(Ok(Node::Element(s))) => V::visit_str(s)?,
         Some(Ok(_)) => return Err(Error::ExpectedScalar),
         Some(Err(e)) => return Err(e),
         None => return <V::Value as FromXml<'_>>::missing_value(),

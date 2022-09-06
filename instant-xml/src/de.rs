@@ -12,24 +12,24 @@ pub struct Deserializer<'cx, 'xml> {
 }
 
 impl<'cx, 'xml> Deserializer<'cx, 'xml> {
-    pub(crate) fn new(data: TagData<'xml>, context: &'cx mut Context<'xml>) -> Self {
+    pub(crate) fn new(element: Element<'xml>, context: &'cx mut Context<'xml>) -> Self {
         let level = context.stack.len();
-        context.stack.push(data.level);
+        context.stack.push(element.level);
 
         Self {
-            local: data.key,
-            prefix: data.prefix,
+            local: element.local,
+            prefix: element.prefix,
             level,
             done: false,
             context,
         }
     }
 
-    pub fn nested<'a>(&'a mut self, data: TagData<'xml>) -> Deserializer<'a, 'xml>
+    pub fn nested<'a>(&'a mut self, element: Element<'xml>) -> Deserializer<'a, 'xml>
     where
         'cx: 'a,
     {
-        Deserializer::new(data, self.context)
+        Deserializer::new(element, self.context)
     }
 
     pub fn for_attr<'a>(&'a mut self, attr: Attribute<'xml>) -> Deserializer<'a, 'xml>
@@ -38,7 +38,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
     {
         self.context
             .records
-            .push_front(XmlRecord::AttributeValue(attr.value));
+            .push_front(Node::AttributeValue(attr.value));
 
         Deserializer {
             local: self.local,
@@ -53,8 +53,8 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         loop {
             match self.next() {
                 Some(Err(e)) => return Err(e),
-                Some(Ok(XmlRecord::Open(data))) => {
-                    let mut nested = self.nested(data);
+                Some(Ok(Node::Open(element))) => {
+                    let mut nested = self.nested(element);
                     nested.ignore()?;
                 }
                 Some(_) => continue,
@@ -64,8 +64,8 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
     }
 
     #[inline]
-    pub fn element_id(&self, item: &TagData<'xml>) -> Result<Id<'xml>, Error> {
-        self.context.element_id(item)
+    pub fn element_id(&self, element: &Element<'xml>) -> Result<Id<'xml>, Error> {
+        self.context.element_id(element)
     }
 
     #[inline]
@@ -75,7 +75,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
 }
 
 impl<'xml> Iterator for Deserializer<'_, 'xml> {
-    type Item = Result<XmlRecord<'xml>, Error>;
+    type Item = Result<Node<'xml>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
@@ -83,7 +83,7 @@ impl<'xml> Iterator for Deserializer<'_, 'xml> {
         }
 
         let (prefix, local) = match self.context.next() {
-            Some(Ok(XmlRecord::Close { prefix, local })) => (prefix, local),
+            Some(Ok(Node::Close { prefix, local })) => (prefix, local),
             item => return item,
         };
 
@@ -99,11 +99,11 @@ impl<'xml> Iterator for Deserializer<'_, 'xml> {
 pub(crate) struct Context<'xml> {
     parser: Tokenizer<'xml>,
     stack: Vec<Level<'xml>>,
-    records: VecDeque<XmlRecord<'xml>>,
+    records: VecDeque<Node<'xml>>,
 }
 
 impl<'xml> Context<'xml> {
-    pub(crate) fn new(input: &'xml str) -> Result<(Self, TagData<'xml>), Error> {
+    pub(crate) fn new(input: &'xml str) -> Result<(Self, Element<'xml>), Error> {
         let mut new = Self {
             parser: Tokenizer::from(input),
             stack: Vec::new(),
@@ -112,7 +112,7 @@ impl<'xml> Context<'xml> {
 
         let root = match new.next() {
             Some(result) => match result? {
-                XmlRecord::Open(data) => data,
+                Node::Open(element) => element,
                 _ => return Err(Error::UnexpectedState),
             },
             None => return Err(Error::UnexpectedEndOfStream),
@@ -121,8 +121,8 @@ impl<'xml> Context<'xml> {
         Ok((new, root))
     }
 
-    pub(crate) fn element_id(&self, item: &TagData<'xml>) -> Result<Id<'xml>, Error> {
-        let ns = match (item.ns, item.prefix) {
+    pub(crate) fn element_id(&self, element: &Element<'xml>) -> Result<Id<'xml>, Error> {
+        let ns = match (element.default_ns, element.prefix) {
             (_, Some(prefix)) => match self.lookup(prefix) {
                 Some(ns) => ns,
                 None => return Err(Error::WrongNamespace),
@@ -133,7 +133,7 @@ impl<'xml> Context<'xml> {
 
         Ok(Id {
             ns,
-            name: &item.key,
+            name: element.local,
         })
     }
 
@@ -169,7 +169,7 @@ impl<'xml> Context<'xml> {
 }
 
 impl<'xml> Iterator for Context<'xml> {
-    type Item = Result<XmlRecord<'xml>, Error>;
+    type Item = Result<Node<'xml>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(record) = self.records.pop_front() {
@@ -200,14 +200,14 @@ impl<'xml> Iterator for Context<'xml> {
                             None => return Some(Err(Error::UnexpectedState)),
                         };
 
-                        let data = TagData {
-                            key: level.local,
+                        let element = Element {
+                            local: level.local,
                             prefix: level.prefix,
-                            ns: level.default_ns,
+                            default_ns: level.default_ns,
                             level,
                         };
 
-                        return Some(Ok(XmlRecord::Open(data)));
+                        return Some(Ok(Node::Open(element)));
                     }
                     ElementEnd::Close(prefix, v) => {
                         let level = match self.stack.pop() {
@@ -218,7 +218,7 @@ impl<'xml> Iterator for Context<'xml> {
                         let prefix = (!prefix.is_empty()).then_some(prefix.as_str());
                         match v.as_str() == level.local && prefix == level.prefix {
                             true => {
-                                return Some(Ok(XmlRecord::Close {
+                                return Some(Ok(Node::Close {
                                     prefix,
                                     local: level.local,
                                 }))
@@ -250,7 +250,7 @@ impl<'xml> Iterator for Context<'xml> {
                         }
                     } else {
                         let prefix = (!prefix.is_empty()).then_some(prefix.as_str());
-                        self.records.push_back(XmlRecord::Attribute(Attribute {
+                        self.records.push_back(Node::Attribute(Attribute {
                             prefix,
                             local: local.as_str(),
                             value: value.as_str(),
@@ -258,7 +258,7 @@ impl<'xml> Iterator for Context<'xml> {
                     }
                 }
                 Ok(Token::Text { text }) => {
-                    return Some(Ok(XmlRecord::Element(text.as_str())));
+                    return Some(Ok(Node::Element(text.as_str())));
                 }
                 Ok(_) => return Some(Err(Error::UnexpectedToken)),
                 Err(e) => return Some(Err(Error::Parse(e))),
@@ -282,7 +282,7 @@ pub trait Visitor<'xml>: Sized {
 }
 
 #[derive(Debug)]
-pub enum XmlRecord<'xml> {
+pub enum Node<'xml> {
     Attribute(Attribute<'xml>),
     AttributeValue(&'xml str),
     Close {
@@ -290,13 +290,13 @@ pub enum XmlRecord<'xml> {
         local: &'xml str,
     },
     Element(&'xml str),
-    Open(TagData<'xml>),
+    Open(Element<'xml>),
 }
 
 #[derive(Debug)]
-pub struct TagData<'xml> {
-    key: &'xml str,
-    ns: Option<&'xml str>,
+pub struct Element<'xml> {
+    local: &'xml str,
+    default_ns: Option<&'xml str>,
     prefix: Option<&'xml str>,
     level: Level<'xml>,
 }

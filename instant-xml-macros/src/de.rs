@@ -109,7 +109,7 @@ impl Deserializer {
         let mut out = TokenStream::new();
         out.extend(quote!(
             fn deserialize<'cx>(deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>) -> Result<Self, ::instant_xml::Error> {
-                use ::instant_xml::de::{Deserializer, Id, Visitor, XmlRecord};
+                use ::instant_xml::de::{Deserializer, Id, Visitor, Node};
                 use ::instant_xml::Error;
                 use ::core::marker::PhantomData;
 
@@ -142,7 +142,7 @@ impl Deserializer {
                             };
 
                             match node {
-                                XmlRecord::Attribute(attr) => {
+                                Node::Attribute(attr) => {
                                     let id = deserializer.attribute_id(&attr)?;
                                     let field = {
                                         #attributes_consts
@@ -157,7 +157,7 @@ impl Deserializer {
                                         __Attributes::__Ignore => {}
                                     }
                                 }
-                                XmlRecord::Open(data) => {
+                                Node::Open(data) => {
                                     let id = deserializer.element_id(&data)?;
                                     let element = {
                                         #elements_consts

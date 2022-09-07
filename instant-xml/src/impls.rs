@@ -137,7 +137,7 @@ impl<'xml> FromXml<'xml> for &'xml str {
 impl<'xml> FromXml<'xml> for Cow<'xml, str> {
     fn deserialize(deserializer: &mut Deserializer<'_, 'xml>) -> Result<Self, Error> {
         let value = deserializer.take_str()?;
-        Ok(escape_back(value))
+        Ok(decode(value))
     }
 
     const KIND: Kind = Kind::Scalar;
@@ -161,7 +161,108 @@ where
     const KIND: Kind = <T>::KIND;
 }
 
-fn escape_back(input: &str) -> Cow<'_, str> {
+to_xml_for_number!(i8);
+to_xml_for_number!(i16);
+to_xml_for_number!(i32);
+to_xml_for_number!(i64);
+to_xml_for_number!(isize);
+to_xml_for_number!(u8);
+to_xml_for_number!(u16);
+to_xml_for_number!(u32);
+to_xml_for_number!(u64);
+to_xml_for_number!(usize);
+to_xml_for_number!(f32);
+to_xml_for_number!(f64);
+
+impl ToXml for bool {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        let value = match self {
+            true => "true",
+            false => "false",
+        };
+
+        DisplayToXml(&value).serialize(serializer)
+    }
+}
+
+impl ToXml for String {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        DisplayToXml(&encode(self)?).serialize(serializer)
+    }
+}
+
+impl ToXml for char {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        let mut tmp = [0u8; 4];
+        DisplayToXml(&encode(&*self.encode_utf8(&mut tmp))?).serialize(serializer)
+    }
+}
+
+impl ToXml for &str {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        DisplayToXml(&encode(self)?).serialize(serializer)
+    }
+}
+
+impl ToXml for Cow<'_, str> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        DisplayToXml(&encode(self)?).serialize(serializer)
+    }
+}
+
+impl<T: ToXml> ToXml for Option<T> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        match self {
+            Some(v) => v.serialize(serializer),
+            None => Ok(()),
+        }
+    }
+}
+
+fn encode(input: &str) -> Result<Cow<'_, str>, Error> {
+    let mut result = String::with_capacity(input.len());
+    let mut last_end = 0;
+    for (start, c) in input.chars().enumerate() {
+        let to = match c {
+            '&' => "&amp;",
+            '"' => "&quot;",
+            '<' => "&lt;",
+            '>' => "&gt;",
+            '\'' => "&apos;",
+            _ => continue,
+        };
+        result.push_str(input.get(last_end..start).unwrap());
+        result.push_str(to);
+        last_end = start + 1;
+    }
+
+    if result.is_empty() {
+        return Ok(Cow::Borrowed(input));
+    }
+
+    result.push_str(input.get(last_end..input.len()).unwrap());
+    Ok(Cow::Owned(result))
+}
+
+fn decode(input: &str) -> Cow<'_, str> {
     let mut result = String::with_capacity(input.len());
     let input_len = input.len();
 
@@ -215,105 +316,4 @@ fn escape_back(input: &str) -> Cow<'_, str> {
     }
 
     Cow::Owned(result)
-}
-
-to_xml_for_number!(i8);
-to_xml_for_number!(i16);
-to_xml_for_number!(i32);
-to_xml_for_number!(i64);
-to_xml_for_number!(isize);
-to_xml_for_number!(u8);
-to_xml_for_number!(u16);
-to_xml_for_number!(u32);
-to_xml_for_number!(u64);
-to_xml_for_number!(usize);
-to_xml_for_number!(f32);
-to_xml_for_number!(f64);
-
-impl ToXml for bool {
-    fn serialize<W: fmt::Write + ?Sized>(
-        &self,
-        serializer: &mut Serializer<W>,
-    ) -> Result<(), Error> {
-        let value = match self {
-            true => "true",
-            false => "false",
-        };
-
-        DisplayToXml(&value).serialize(serializer)
-    }
-}
-
-impl ToXml for String {
-    fn serialize<W: fmt::Write + ?Sized>(
-        &self,
-        serializer: &mut Serializer<W>,
-    ) -> Result<(), Error> {
-        DisplayToXml(&escape(self)?).serialize(serializer)
-    }
-}
-
-impl ToXml for char {
-    fn serialize<W: fmt::Write + ?Sized>(
-        &self,
-        serializer: &mut Serializer<W>,
-    ) -> Result<(), Error> {
-        let mut tmp = [0u8; 4];
-        DisplayToXml(&escape(&*self.encode_utf8(&mut tmp))?).serialize(serializer)
-    }
-}
-
-impl ToXml for &str {
-    fn serialize<W: fmt::Write + ?Sized>(
-        &self,
-        serializer: &mut Serializer<W>,
-    ) -> Result<(), Error> {
-        DisplayToXml(&escape(self)?).serialize(serializer)
-    }
-}
-
-impl ToXml for Cow<'_, str> {
-    fn serialize<W: fmt::Write + ?Sized>(
-        &self,
-        serializer: &mut Serializer<W>,
-    ) -> Result<(), Error> {
-        DisplayToXml(&escape(self)?).serialize(serializer)
-    }
-}
-
-impl<T: ToXml> ToXml for Option<T> {
-    fn serialize<W: fmt::Write + ?Sized>(
-        &self,
-        serializer: &mut Serializer<W>,
-    ) -> Result<(), Error> {
-        match self {
-            Some(v) => v.serialize(serializer),
-            None => Ok(()),
-        }
-    }
-}
-
-fn escape(input: &str) -> Result<Cow<'_, str>, Error> {
-    let mut result = String::with_capacity(input.len());
-    let mut last_end = 0;
-    for (start, c) in input.chars().enumerate() {
-        let to = match c {
-            '&' => "&amp;",
-            '"' => "&quot;",
-            '<' => "&lt;",
-            '>' => "&gt;",
-            '\'' => "&apos;",
-            _ => continue,
-        };
-        result.push_str(input.get(last_end..start).unwrap());
-        result.push_str(to);
-        last_end = start + 1;
-    }
-
-    if result.is_empty() {
-        return Ok(Cow::Borrowed(input));
-    }
-
-    result.push_str(input.get(last_end..input.len()).unwrap());
-    Ok(Cow::Owned(result))
 }

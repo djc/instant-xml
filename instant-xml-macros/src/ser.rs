@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
 use crate::Namespace;
@@ -42,8 +42,11 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
     }
 
     let ident = &input.ident;
-    let root_name = ident.to_string();
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let tag = match &meta.rename {
+        Some(rename) => quote!(#rename),
+        None => ident.to_string().into_token_stream(),
+    };
 
     quote!(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {
@@ -52,7 +55,7 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> Result<(), instant_xml::Error> {
                 // Start tag
-                let prefix = serializer.write_start(#root_name, #default_namespace, false)?;
+                let prefix = serializer.write_start(#tag, #default_namespace, false)?;
                 debug_assert_eq!(prefix, None);
 
                 // Set up element context, this will also emit namespace declarations
@@ -66,7 +69,7 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
                 #body
 
                 // Close tag
-                serializer.write_close(prefix, #root_name)?;
+                serializer.write_close(prefix, #tag)?;
                 serializer.pop(old);
 
                 Ok(())
@@ -74,7 +77,7 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
 
             const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element(::instant_xml::Id {
                 ns: #default_namespace,
-                name: #root_name,
+                name: #tag,
             });
         };
     )
@@ -86,9 +89,12 @@ fn process_named_field(
     attributes: &mut TokenStream,
     meta: &ContainerMeta,
 ) {
-    let name = field.ident.as_ref().unwrap().to_string();
-    let field_value = field.ident.as_ref().unwrap();
+    let field_name = field.ident.as_ref().unwrap();
     let field_meta = FieldMeta::from_field(field);
+    let tag = match &field_meta.rename {
+        Some(rename) => quote!(#rename),
+        None => field_name.to_string().into_token_stream(),
+    };
 
     let default_ns = &meta.ns.uri;
     if field_meta.attribute {
@@ -130,7 +136,7 @@ fn process_named_field(
 
         attributes.extend(quote!(
             #error
-            serializer.write_attr(#name, #ns, &self.#field_value)?;
+            serializer.write_attr(#tag, #ns, &self.#field_name)?;
         ));
         return;
     }
@@ -148,13 +154,13 @@ fn process_named_field(
     body.extend(quote!(
         match <#no_lifetime_type as ToXml>::KIND {
             ::instant_xml::Kind::Element(_) => {
-                self.#field_value.serialize(serializer)?;
+                self.#field_name.serialize(serializer)?;
             }
             ::instant_xml::Kind::Scalar => {
-                let prefix = serializer.write_start(#name, #ns, true)?;
+                let prefix = serializer.write_start(#tag, #ns, true)?;
                 serializer.end_start()?;
-                self.#field_value.serialize(serializer)?;
-                serializer.write_close(prefix, #name)?;
+                self.#field_name.serialize(serializer)?;
+                serializer.write_close(prefix, #tag)?;
             }
         }
     ));

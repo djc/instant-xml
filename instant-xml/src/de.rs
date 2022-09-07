@@ -28,7 +28,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
     pub fn take_str(&mut self) -> Result<&'xml str, Error> {
         let (value, element) = match self.next() {
             Some(Ok(Node::AttributeValue(s))) => (s, false),
-            Some(Ok(Node::Element(s))) => (s, true),
+            Some(Ok(Node::Text(s))) => (s, true),
             Some(Ok(_)) => return Err(Error::ExpectedScalar),
             Some(Err(e)) => return Err(e),
             None => return Ok(""),
@@ -278,7 +278,7 @@ impl<'xml> Iterator for Context<'xml> {
                     }
                 }
                 Ok(Token::Text { text }) => {
-                    return Some(Ok(Node::Element(text.as_str())));
+                    return Some(Ok(Node::Text(text.as_str())));
                 }
                 Ok(_) => return Some(Err(Error::UnexpectedToken)),
                 Err(e) => return Some(Err(Error::Parse(e))),
@@ -295,7 +295,7 @@ pub enum Node<'xml> {
         prefix: Option<&'xml str>,
         local: &'xml str,
     },
-    Element(&'xml str),
+    Text(&'xml str),
     Open(Element<'xml>),
 }
 

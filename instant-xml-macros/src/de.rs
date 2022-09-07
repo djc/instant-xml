@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 
 use super::{discard_lifetimes, ContainerMeta, FieldMeta, Namespace};
 
@@ -76,7 +76,10 @@ pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
     let attributes_names = attributes_tokens.names;
     let attr_type_match = attributes_tokens.r#match;
 
-    let name = ident.to_string();
+    let name = match &container_meta.rename {
+        Some(name) => quote!(#name),
+        None => ident.to_string().into_token_stream(),
+    };
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
             fn deserialize<'cx>(deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>) -> Result<Self, ::instant_xml::Error> {
@@ -160,9 +163,13 @@ fn process_field(
     field_meta: FieldMeta,
     container_meta: &ContainerMeta,
 ) {
-    let field_var = field.ident.as_ref().unwrap();
-    let field_var_str = field_var.to_string();
-    let const_field_var_str = Ident::new(&field_var_str.to_uppercase(), Span::call_site());
+    let field_name = field.ident.as_ref().unwrap();
+    let field_tag = match field_meta.rename {
+        Some(name) => quote!(#name),
+        None => field_name.to_string().into_token_stream(),
+    };
+
+    let const_field_var_str = Ident::new(&field_name.to_string().to_uppercase(), Span::call_site());
     let mut no_lifetime_type = field.ty.clone();
     discard_lifetimes(&mut no_lifetime_type);
 
@@ -182,7 +189,7 @@ fn process_field(
 
     tokens.consts.extend(quote!(
         const #const_field_var_str: Id<'static> = <#no_lifetime_type as FromXml<'_>>::KIND.name(
-            Id { ns: #ns, name: #field_var_str }
+            Id { ns: #ns, name: #field_tag }
         );
     ));
 
@@ -225,7 +232,7 @@ fn process_field(
     }
 
     return_val.extend(quote!(
-        #field_var: match #enum_name {
+        #field_name: match #enum_name {
             Some(v) => v,
             None => <#no_lifetime_type>::missing_value()?,
         },

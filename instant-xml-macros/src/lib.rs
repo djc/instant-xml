@@ -24,9 +24,10 @@ pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     proc_macro::TokenStream::from(de::from_xml(&ast))
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct ContainerMeta {
     ns: NamespaceMeta,
+    rename: Option<Literal>,
 }
 
 impl ContainerMeta {
@@ -36,16 +37,18 @@ impl ContainerMeta {
             match item {
                 MetaItem::Attribute => panic!("attribute key invalid in container xml attribute"),
                 MetaItem::Ns(ns) => meta.ns = ns,
+                MetaItem::Rename(lit) => meta.rename = Some(lit),
             }
         }
         meta
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct FieldMeta {
     attribute: bool,
     ns: NamespaceMeta,
+    rename: Option<Literal>,
 }
 
 impl FieldMeta {
@@ -55,13 +58,14 @@ impl FieldMeta {
             match item {
                 MetaItem::Attribute => meta.attribute = true,
                 MetaItem::Ns(ns) => meta.ns = ns,
+                MetaItem::Rename(lit) => meta.rename = Some(lit),
             }
         }
         meta
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct NamespaceMeta {
     uri: Option<Namespace>,
     prefixes: BTreeMap<String, Namespace>,
@@ -346,6 +350,8 @@ fn meta_items(attrs: &[syn::Attribute]) -> Vec<MetaItem> {
                     MetaState::Comma
                 } else if id == "ns" {
                     MetaState::Ns
+                } else if id == "rename" {
+                    MetaState::Rename
                 } else {
                     panic!("unexpected key in xml attribute");
                 }
@@ -357,6 +363,13 @@ fn meta_items(attrs: &[syn::Attribute]) -> Vec<MetaItem> {
                 if group.delimiter() == Delimiter::Parenthesis =>
             {
                 items.push(MetaItem::Ns(NamespaceMeta::from_tokens(group)));
+                MetaState::Comma
+            }
+            (MetaState::Rename, TokenTree::Punct(punct)) if punct.as_char() == '=' => {
+                MetaState::RenameValue
+            }
+            (MetaState::RenameValue, TokenTree::Literal(lit)) => {
+                items.push(MetaItem::Rename(lit));
                 MetaState::Comma
             }
             (state, tree) => {
@@ -376,6 +389,8 @@ enum MetaState {
     Start,
     Comma,
     Ns,
+    Rename,
+    RenameValue,
 }
 
 impl MetaState {
@@ -384,6 +399,8 @@ impl MetaState {
             MetaState::Start => "Start",
             MetaState::Comma => "Comma",
             MetaState::Ns => "Ns",
+            MetaState::Rename => "Rename",
+            MetaState::RenameValue => "RenameValue",
         }
     }
 }
@@ -438,9 +455,11 @@ impl NsState {
     }
 }
 
+#[derive(Debug)]
 enum MetaItem {
-    Ns(NamespaceMeta),
     Attribute,
+    Ns(NamespaceMeta),
+    Rename(Literal),
 }
 
 enum Namespace {

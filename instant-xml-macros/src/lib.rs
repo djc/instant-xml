@@ -4,6 +4,7 @@ mod de;
 mod ser;
 
 use std::collections::BTreeMap;
+use std::fmt;
 
 use proc_macro2::{Delimiter, Group, Ident, Literal, Punct, Span, TokenStream, TokenTree};
 use quote::ToTokens;
@@ -452,6 +453,18 @@ impl ToTokens for Namespace {
         match self {
             Namespace::Path(path) => path.to_tokens(tokens),
             Namespace::Literal(lit) => lit.to_tokens(tokens),
+        }
+    }
+}
+
+impl fmt::Debug for Namespace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Path(arg0) => f
+                .debug_tuple("Path")
+                .field(&arg0.into_token_stream().to_string())
+                .finish(),
+            Self::Literal(arg0) => f.debug_tuple("Literal").field(arg0).finish(),
         }
     }
 }

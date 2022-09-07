@@ -1,5 +1,8 @@
 use proc_macro2::TokenStream;
 use quote::quote;
+use syn::spanned::Spanned;
+
+use crate::Namespace;
 
 use super::{discard_lifetimes, ContainerMeta, FieldMeta};
 
@@ -85,11 +88,46 @@ fn process_named_field(
 ) {
     let name = field.ident.as_ref().unwrap().to_string();
     let field_value = field.ident.as_ref().unwrap();
-
     let field_meta = FieldMeta::from_field(field);
+
+    let default_ns = &meta.ns.uri;
     if field_meta.attribute {
+        let (ns, error) = match &field_meta.ns.uri {
+            Some(Namespace::Path(path)) => match path.get_ident() {
+                Some(prefix) => match &meta.ns.prefixes.get(&prefix.to_string()) {
+                    Some(ns) => (quote!(#ns), quote!()),
+                    None => (
+                        quote!(""),
+                        syn::Error::new(
+                            field_meta.ns.uri.span(),
+                            &format!("unknown prefix `{prefix}` (prefix must be defined on the field's type)"),
+                        )
+                        .into_compile_error(),
+                    ),
+                },
+                None => (
+                    quote!(""),
+                    syn::Error::new(
+                        field_meta.ns.uri.span(),
+                        "attribute namespace must be a prefix identifier",
+                    )
+                    .into_compile_error(),
+                ),
+            },
+            Some(Namespace::Literal(_)) => (
+                quote!(""),
+                syn::Error::new(
+                    field_meta.ns.uri.span(),
+                    "attribute namespace must be a prefix identifier",
+                )
+                .into_compile_error(),
+            ),
+            None => (quote!(#default_ns), quote!()),
+        };
+
         attributes.extend(quote!(
-            serializer.write_attr(#name, &self.#field_value)?;
+            #error
+            serializer.write_attr(#name, #ns, &self.#field_value)?;
         ));
         return;
     }

@@ -22,28 +22,25 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
         _ => todo!(),
     };
 
-    let mut prefixes = TokenStream::new();
-    for (key, val) in &meta.ns.prefixes {
-        prefixes.extend(quote!(
-            if serializer.parent_namespaces.get(#val).is_none() {
-                serializer.write_prefix(#key, #val)?;
-            }
+    let default_namespace = match &meta.ns.uri {
+        Some(ns) => quote!(#ns),
+        None => quote!(""),
+    };
 
-            if let ::std::collections::hash_map::Entry::Vacant(v) = serializer.parent_namespaces.entry(#val) {
-                v.insert(#key);
-                // Will remove added namespaces when going "up"
-                to_remove.push(#val);
-            };
+    let cx_len = meta.ns.prefixes.len();
+    let mut context = quote!(
+        let mut new = ::instant_xml::ser::Context::<#cx_len>::default();
+        new.default_ns = #default_namespace;
+    );
+    for (i, (prefix, ns)) in meta.ns.prefixes.iter().enumerate() {
+        context.extend(quote!(
+            new.prefixes[#i] = ::instant_xml::ser::Prefix { ns: #ns, prefix: #prefix };
         ));
     }
 
     let ident = &input.ident;
     let root_name = ident.to_string();
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let default_namespace = match &meta.ns.uri {
-        Some(ns) => quote!(#ns),
-        None => quote!(""),
-    };
 
     quote!(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {
@@ -52,14 +49,14 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> Result<(), instant_xml::Error> {
                 // Start tag
-                match serializer.parent_default_namespace() == #default_namespace {
+                match serializer.default_ns() == #default_namespace {
                     true => serializer.write_start(None, #root_name, None)?,
                     false => serializer.write_start(None, #root_name, Some(#default_namespace))?,
                 }
 
-                serializer.update_parent_default_namespace(#default_namespace);
-                let mut to_remove: Vec<&str> = Vec::new();
-                #prefixes
+                #context
+                let old = serializer.push(new)?;
+
                 #attributes
                 serializer.end_start()?;
 
@@ -67,12 +64,7 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
 
                 // Close tag
                 serializer.write_close(None, #root_name)?;
-                serializer.retrieve_parent_default_namespace();
-
-                // Removing current namespaces
-                for it in to_remove {
-                    serializer.parent_namespaces.remove(it);
-                }
+                serializer.pop(old);
 
                 Ok(())
             }
@@ -118,10 +110,10 @@ fn process_named_field(
                 self.#field_value.serialize(serializer)?;
             }
             ::instant_xml::Kind::Scalar => {
-                let (prefix, ns) = match serializer.parent_default_namespace() == #ns {
+                let (prefix, ns) = match serializer.default_ns() == #ns {
                     true => (None, None),
-                    false => match serializer.parent_namespaces.get(#ns) {
-                        Some(&prefix) => (Some(prefix), None),
+                    false => match serializer.prefix(#ns) {
+                        Some(prefix) => (Some(prefix), None),
                         None => (None, Some(#ns)),
                     },
                 };

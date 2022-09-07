@@ -65,16 +65,16 @@ pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
     };
 
     // Elements
-    let elements_enum = elements_tokens.enum_;
+    let elements_enum = elements_tokens.r#enum;
     let elements_consts = elements_tokens.consts;
     let elements_names = elements_tokens.names;
-    let elem_type_match = elements_tokens.match_;
+    let elem_type_match = elements_tokens.r#match;
 
     // Attributes
-    let attributes_enum = attributes_tokens.enum_;
+    let attributes_enum = attributes_tokens.r#enum;
     let attributes_consts = attributes_tokens.consts;
     let attributes_names = attributes_tokens.names;
-    let attr_type_match = attributes_tokens.match_;
+    let attr_type_match = attributes_tokens.r#match;
 
     let name = ident.to_string();
     quote!(
@@ -167,7 +167,7 @@ fn process_field(
     discard_lifetimes(&mut no_lifetime_type);
 
     let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
-    tokens.enum_.extend(quote!(#enum_name,));
+    tokens.r#enum.extend(quote!(#enum_name,));
 
     let default_ns = match &field_meta.ns.uri {
         None => &container_meta.ns.uri,
@@ -201,7 +201,7 @@ fn process_field(
     ));
 
     if !field_meta.attribute {
-        tokens.match_.extend(quote!(
+        tokens.r#match.extend(quote!(
             __Elements::#enum_name => {
                 if #enum_name.is_some() {
                     return Err(Error::DuplicateValue);
@@ -212,7 +212,7 @@ fn process_field(
             },
         ));
     } else {
-        tokens.match_.extend(quote!(
+        tokens.r#match.extend(quote!(
             __Attributes::#enum_name => {
                 if #enum_name.is_some() {
                     return Err(Error::DuplicateValue);
@@ -233,19 +233,19 @@ fn process_field(
 }
 
 struct Tokens {
-    enum_: TokenStream,
+    r#enum: TokenStream,
     consts: TokenStream,
     names: TokenStream,
-    match_: TokenStream,
+    r#match: TokenStream,
 }
 
 impl Default for Tokens {
     fn default() -> Self {
         Self {
-            enum_: TokenStream::new(),
+            r#enum: TokenStream::new(),
             consts: TokenStream::new(),
             names: TokenStream::new(),
-            match_: TokenStream::new(),
+            r#match: TokenStream::new(),
         }
     }
 }

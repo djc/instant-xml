@@ -49,14 +49,14 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> Result<(), instant_xml::Error> {
                 // Start tag
-                match serializer.default_ns() == #default_namespace {
-                    true => serializer.write_start(None, #root_name, None)?,
-                    false => serializer.write_start(None, #root_name, Some(#default_namespace))?,
-                }
+                let prefix = serializer.write_start(#root_name, #default_namespace, false)?;
+                debug_assert_eq!(prefix, None);
 
+                // Set up element context, this will also emit namespace declarations
                 #context
                 let old = serializer.push(new)?;
 
+                // Finalize start element
                 #attributes
                 serializer.end_start()?;
 
@@ -110,15 +110,7 @@ fn process_named_field(
                 self.#field_value.serialize(serializer)?;
             }
             ::instant_xml::Kind::Scalar => {
-                let (prefix, ns) = match serializer.default_ns() == #ns {
-                    true => (None, None),
-                    false => match serializer.prefix(#ns) {
-                        Some(prefix) => (Some(prefix), None),
-                        None => (None, Some(#ns)),
-                    },
-                };
-
-                serializer.write_start(prefix, #name, ns)?;
+                let prefix = serializer.write_start(#name, #ns, true)?;
                 serializer.end_start()?;
                 self.#field_value.serialize(serializer)?;
                 serializer.write_close(prefix, #name)?;

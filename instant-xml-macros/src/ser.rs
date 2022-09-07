@@ -122,7 +122,10 @@ fn process_named_field(
                 )
                 .into_compile_error(),
             ),
-            None => (quote!(#default_ns), quote!()),
+            None => (match default_ns {
+                Some(ns) => quote!(#ns),
+                None => quote!(""),
+            }, quote!()),
         };
 
         attributes.extend(quote!(

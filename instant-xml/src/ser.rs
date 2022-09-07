@@ -63,12 +63,24 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         Ok(prefix)
     }
 
-    pub fn write_attr<V: ToXml + ?Sized>(&mut self, name: &str, value: &V) -> Result<(), Error> {
+    pub fn write_attr<V: ToXml + ?Sized>(
+        &mut self,
+        name: &str,
+        ns: &str,
+        value: &V,
+    ) -> Result<(), Error> {
         if self.state != State::Attribute {
             return Err(Error::UnexpectedState);
         }
 
-        self.output.write_fmt(format_args!(" {}=\"", name))?;
+        match ns == self.default_ns {
+            true => self.output.write_fmt(format_args!(" {name}=\""))?,
+            false => {
+                let prefix = self.prefixes.get(ns).ok_or(dbg!(Error::UnexpectedState))?;
+                self.output.write_fmt(format_args!(" {prefix}:{name}=\""))?;
+            }
+        }
+
         self.state = State::Scalar;
         value.serialize(self)?;
         self.state = State::Attribute;

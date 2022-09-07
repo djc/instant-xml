@@ -6,7 +6,7 @@ mod ser;
 use std::collections::BTreeMap;
 
 use proc_macro2::{Delimiter, Group, Ident, Literal, Punct, TokenStream, TokenTree};
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use syn::parse_macro_input;
 use syn::punctuated::Punctuated;
 use syn::token::Colon2;
@@ -20,12 +20,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[proc_macro_derive(FromXml, attributes(xml))]
 pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
-
-    let deserializer = de::Deserializer::new(&ast);
-
-    proc_macro::TokenStream::from(quote!(
-        #deserializer
-    ))
+    proc_macro::TokenStream::from(de::from_xml(&ast))
 }
 
 #[derive(Default)]

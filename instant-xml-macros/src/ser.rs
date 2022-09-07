@@ -4,23 +4,15 @@ use quote::quote;
 use crate::{ContainerMeta, FieldMeta};
 
 pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
-    let ident = &input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-
-    let root_name = ident.to_string();
-    let mut serializer = Serializer::new(input);
-
-    let mut header = TokenStream::new();
-    serializer.add_header(&mut header);
-
     let mut body = TokenStream::new();
     let mut attributes = TokenStream::new();
+    let meta = ContainerMeta::from_derive(input);
     match &input.data {
         syn::Data::Struct(ref data) => {
             match data.fields {
                 syn::Fields::Named(ref fields) => {
                     fields.named.iter().for_each(|field| {
-                        serializer.process_named_field(field, &mut body, &mut attributes);
+                        process_named_field(field, &mut body, &mut attributes, &meta);
                     });
                 }
                 syn::Fields::Unnamed(_) => todo!(),
@@ -30,10 +22,32 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
         _ => todo!(),
     };
 
-    let mut footer = TokenStream::new();
-    serializer.add_footer(&root_name, &mut footer);
+    let mut prefixes = TokenStream::new();
+    for (key, val) in &meta.ns.prefixes {
+        prefixes.extend(quote!(
+            if serializer.parent_namespaces.get(#val).is_none() {
+                serializer.output.write_str(" xmlns:")?;
+                serializer.output.write_str(#key)?;
+                serializer.output.write_str("=\"")?;
+                serializer.output.write_str(#val)?;
+                serializer.output.write_char('\"')?;
+            }
 
-    let current_namespaces = serializer.namespaces_token();
+            if let ::std::collections::hash_map::Entry::Vacant(v) = serializer.parent_namespaces.entry(#val) {
+                v.insert(#key);
+                // Will remove added namespaces when going "up"
+                to_remove.push(#val);
+            };
+        ));
+    }
+
+    let ident = &input.ident;
+    let root_name = ident.to_string();
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let default_namespace = match &meta.ns.uri {
+        Some(ns) => quote!(#ns),
+        None => quote!(""),
+    };
 
     quote!(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {
@@ -49,12 +63,37 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
                     attribute: None,
                 };
 
-                #attributes
+                // Start tag
+                serializer.output.write_char('<')?;
+                if serializer.parent_default_namespace() != #default_namespace {
+                    if let Some(prefix) = serializer.parent_namespaces.get(#default_namespace) {
+                        serializer.output.write_str(prefix)?;
+                        serializer.output.write_char(':')?;
+                        serializer.output.write_str(field_context.name)?;
+                    } else {
+                        serializer.output.write_str(field_context.name)?;
+                        serializer.output.write_str(" xmlns=\"")?;
+                        serializer.output.write_str(#default_namespace)?;
+                        serializer.output.write_char('\"')?;
+                    }
+                } else {
+                    serializer.output.write_str(field_context.name)?;
+                }
 
-                #header
-                #current_namespaces
+                serializer.update_parent_default_namespace(#default_namespace);
+                let mut to_remove: Vec<&str> = Vec::new();
+                #prefixes
+                #attributes
+                serializer.consume_current_attributes()?;
+                serializer.output.write_char('>')?;
+
                 #body
-                #footer
+
+                // Close tag
+                serializer.output.write_str("</")?;
+                serializer.output.write_str(#root_name)?;
+                serializer.output.write_char('>')?;
+                serializer.retrieve_parent_default_namespace();
 
                 // Removing current namespaces
                 for it in to_remove {
@@ -67,140 +106,50 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
     )
 }
 
-struct Serializer {
-    meta: ContainerMeta,
-}
+fn process_named_field(
+    field: &syn::Field,
+    body: &mut TokenStream,
+    attributes: &mut TokenStream,
+    meta: &ContainerMeta,
+) {
+    let name = field.ident.as_ref().unwrap().to_string();
+    let field_value = field.ident.as_ref().unwrap();
 
-impl<'a> Serializer {
-    fn new(input: &syn::DeriveInput) -> Self {
-        Self {
-            meta: ContainerMeta::from_derive(input),
-        }
-    }
-
-    fn add_header(&mut self, output: &'a mut TokenStream) {
-        output.extend(quote!(
-            serializer.output.write_char('<')?;
-
-        ));
-
-        let default_namespace = match &self.meta.ns.uri {
-            Some(ns) => quote!(#ns),
-            None => quote!(""),
+    let declaration = quote!(
+        let mut field = FieldContext {
+            name: #name,
+            attribute: None,
         };
+    );
 
-        output.extend(quote!(
-            // Check if parent default namespace equals
-            if serializer.parent_default_namespace() != #default_namespace {
-                if let Some(prefix) = serializer.parent_namespaces.get(#default_namespace) {
-                    serializer.output.write_str(prefix)?;
-                    serializer.output.write_char(':')?;
-                    serializer.output.write_str(field_context.name)?;
-                } else {
-                    serializer.output.write_str(field_context.name)?;
-                    serializer.output.write_str(" xmlns=\"")?;
-                    serializer.output.write_str(#default_namespace)?;
-                    serializer.output.write_char('\"')?;
-                }
-            } else {
-                serializer.output.write_str(field_context.name)?;
-            }
-            serializer.update_parent_default_namespace(#default_namespace);
-        ));
-
-        for (key, val) in &self.meta.ns.prefixes {
-            output.extend(quote!(
-                if serializer.parent_namespaces.get(#val).is_none() {
-                    serializer.output.write_str(" xmlns:")?;
-                    serializer.output.write_str(#key)?;
-                    serializer.output.write_str("=\"")?;
-                    serializer.output.write_str(#val)?;
-                    serializer.output.write_char('\"')?;
-                }
-            ));
-        }
-
-        // Attributes
-        output.extend(quote!(
-            serializer.consume_current_attributes()?;
-        ));
-
-        output.extend(quote!(
-            serializer.output.write_char('>')?;
-        ));
-    }
-
-    fn add_footer(&mut self, root_name: &str, output: &'a mut TokenStream) {
-        output.extend(quote!(
-            serializer.output.write_str("</")?;
-            serializer.output.write_str(#root_name)?;
-            serializer.output.write_char('>')?;
-            serializer.retrieve_parent_default_namespace();
-        ));
-    }
-
-    fn process_named_field(
-        &mut self,
-        field: &syn::Field,
-        body: &mut TokenStream,
-        attributes: &mut TokenStream,
-    ) {
-        let name = field.ident.as_ref().unwrap().to_string();
-        let field_value = field.ident.as_ref().unwrap();
-
-        let declaration = quote!(
-            let mut field = FieldContext {
-                name: #name,
-                attribute: None,
-            };
-        );
-
-        let field_meta = FieldMeta::from_field(field);
-        if field_meta.attribute {
-            attributes.extend(quote!(
-                #declaration
-
-                serializer.add_attribute_key(&#name)?;
-                field.attribute = Some(FieldAttribute::Attribute);
-                serializer.set_field_context(field)?;
-                self.#field_value.serialize(serializer)?;
-            ));
-            return;
-        }
-
-        let ns = match field_meta.ns.uri {
-            Some(ns) => quote!(#ns),
-            None => match &self.meta.ns.uri {
-                Some(ns) => quote!(#ns),
-                None => quote!(""),
-            },
-        };
-
-        body.extend(quote!(
+    let field_meta = FieldMeta::from_field(field);
+    if field_meta.attribute {
+        attributes.extend(quote!(
             #declaration
-            match serializer.parent_namespaces.get(#ns) {
-                Some(prefix) => field.attribute = Some(FieldAttribute::Prefix(prefix)),
-                None => field.attribute = Some(FieldAttribute::Namespace(#ns)),
-            }
+
+            serializer.add_attribute_key(&#name)?;
+            field.attribute = Some(FieldAttribute::Attribute);
             serializer.set_field_context(field)?;
             self.#field_value.serialize(serializer)?;
         ));
+        return;
     }
 
-    fn namespaces_token(&self) -> TokenStream {
-        let mut namespaces = quote!(
-            let mut to_remove: Vec<&str> = Vec::new();
-        );
-        for (k, v) in self.meta.ns.prefixes.iter() {
-            namespaces.extend(quote!(
-                // Only adding to HashMap if namespace do not exist, if it exist it will use the parent defined prefix
-                if let std::collections::hash_map::Entry::Vacant(v) = serializer.parent_namespaces.entry(#v) {
-                    v.insert(#k);
-                    // Will remove added namespaces when going "up"
-                    to_remove.push(#v);
-                };
-            ))
+    let ns = match field_meta.ns.uri {
+        Some(ns) => quote!(#ns),
+        None => match &meta.ns.uri {
+            Some(ns) => quote!(#ns),
+            None => quote!(""),
+        },
+    };
+
+    body.extend(quote!(
+        #declaration
+        match serializer.parent_namespaces.get(#ns) {
+            Some(prefix) => field.attribute = Some(FieldAttribute::Prefix(prefix)),
+            None => field.attribute = Some(FieldAttribute::Namespace(#ns)),
         }
-        namespaces
-    }
+        serializer.set_field_context(field)?;
+        self.#field_value.serialize(serializer)?;
+    ));
 }

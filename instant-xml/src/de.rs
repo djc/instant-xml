@@ -25,6 +25,26 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
+    pub fn take_str(&mut self) -> Result<&'xml str, Error> {
+        let (value, element) = match self.next() {
+            Some(Ok(Node::AttributeValue(s))) => (s, false),
+            Some(Ok(Node::Element(s))) => (s, true),
+            Some(Ok(_)) => return Err(Error::ExpectedScalar),
+            Some(Err(e)) => return Err(e),
+            None => return Ok(""),
+        };
+
+        if element {
+            match self.next() {
+                Some(Ok(_)) => return Err(Error::UnexpectedState),
+                Some(Err(e)) => return Err(e),
+                _ => {}
+            }
+        }
+
+        Ok(value)
+    }
+
     pub fn nested<'a>(&'a mut self, element: Element<'xml>) -> Deserializer<'a, 'xml>
     where
         'cx: 'a,

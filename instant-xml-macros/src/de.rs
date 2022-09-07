@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
-use crate::{ContainerMeta, FieldMeta, Namespace};
+use super::{discard_lifetimes, ContainerMeta, FieldMeta, Namespace};
 
 pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
     let ident = &input.ident;
@@ -80,8 +80,8 @@ pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
             fn deserialize<'cx>(deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>) -> Result<Self, ::instant_xml::Error> {
-                use ::instant_xml::de::{Deserializer, Id, Node};
-                use ::instant_xml::Error;
+                use ::instant_xml::de::{Deserializer, Node};
+                use ::instant_xml::{Error, Id};
                 use ::core::marker::PhantomData;
 
                 enum __Elements {
@@ -142,7 +142,7 @@ pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
                 Ok(Self { #return_val })
             }
 
-            const KIND: ::instant_xml::de::Kind = ::instant_xml::de::Kind::Element(::instant_xml::de::Id {
+            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element(::instant_xml::Id {
                 ns: #default_namespace,
                 name: #name,
             });
@@ -181,7 +181,7 @@ fn process_field(
     };
 
     tokens.consts.extend(quote!(
-        const #const_field_var_str: Id<'static> = <#no_lifetime_type>::KIND.name(
+        const #const_field_var_str: Id<'static> = <#no_lifetime_type as FromXml<'_>>::KIND.name(
             Id { ns: #ns, name: #field_var_str }
         );
     ));
@@ -246,43 +246,6 @@ impl Default for Tokens {
             consts: TokenStream::new(),
             names: TokenStream::new(),
             r#match: TokenStream::new(),
-        }
-    }
-}
-
-fn discard_lifetimes(ty: &mut syn::Type) {
-    match ty {
-        syn::Type::Path(ty) => discard_path_lifetimes(ty),
-        syn::Type::Reference(ty) => {
-            ty.lifetime = None;
-            discard_lifetimes(&mut ty.elem);
-        }
-        _ => {}
-    }
-}
-
-fn discard_path_lifetimes(path: &mut syn::TypePath) {
-    if let Some(q) = &mut path.qself {
-        discard_lifetimes(&mut q.ty);
-    }
-
-    for segment in &mut path.path.segments {
-        match &mut segment.arguments {
-            syn::PathArguments::None => {}
-            syn::PathArguments::AngleBracketed(args) => {
-                args.args.iter_mut().for_each(|arg| match arg {
-                    syn::GenericArgument::Lifetime(lt) => {
-                        *lt = syn::Lifetime::new("'_", Span::call_site())
-                    }
-                    syn::GenericArgument::Type(ty) => discard_lifetimes(ty),
-                    syn::GenericArgument::Binding(_)
-                    | syn::GenericArgument::Constraint(_)
-                    | syn::GenericArgument::Const(_) => {}
-                })
-            }
-            syn::PathArguments::Parenthesized(args) => {
-                args.inputs.iter_mut().for_each(discard_lifetimes)
-            }
         }
     }
 }

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, VecDeque};
 
-use super::Error;
+use super::{Error, Id};
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
 pub struct Deserializer<'cx, 'xml> {
@@ -320,24 +320,4 @@ pub struct Attribute<'xml> {
     pub prefix: Option<&'xml str>,
     pub local: &'xml str,
     pub value: &'xml str,
-}
-
-pub enum Kind {
-    Scalar,
-    Element(Id<'static>),
-}
-
-impl Kind {
-    pub const fn name(&self, field: Id<'static>) -> Id<'static> {
-        match self {
-            Kind::Scalar => field,
-            Kind::Element(name) => *name,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct Id<'a> {
-    pub ns: &'a str,
-    pub name: &'a str,
 }

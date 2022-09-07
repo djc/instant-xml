@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
-use crate::de::{Kind, Node};
+use crate::de::Kind;
 use crate::ser::FieldAttribute;
 use crate::{Deserializer, Error, FromXml, Serializer, ToXml};
 
@@ -11,28 +11,11 @@ struct FromXmlStr<T: FromStr>(Option<T>);
 
 impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
     fn deserialize(deserializer: &mut Deserializer<'_, 'xml>) -> Result<Self, Error> {
-        let (value, element) = match deserializer.next() {
-            Some(Ok(Node::AttributeValue(s))) => (s, false),
-            Some(Ok(Node::Element(s))) => (s, true),
-            Some(Ok(_)) => return Err(Error::ExpectedScalar),
-            Some(Err(e)) => return Err(e),
-            None => return Ok(Self(None)),
-        };
-
-        let value = match T::from_str(value) {
-            Ok(value) => value,
-            Err(_) => return Err(Error::UnexpectedValue),
-        };
-
-        if element {
-            match deserializer.next() {
-                Some(Ok(_)) => return Err(Error::UnexpectedState),
-                Some(Err(e)) => return Err(e),
-                _ => {}
-            }
+        let value = deserializer.take_str()?;
+        match T::from_str(value) {
+            Ok(value) => Ok(Self(Some(value))),
+            Err(_) => Err(Error::UnexpectedValue),
         }
-
-        Ok(Self(Some(value)))
     }
 
     const KIND: Kind = Kind::Scalar;
@@ -153,24 +136,8 @@ impl<'xml> FromXml<'xml> for &'xml str {
 
 impl<'xml> FromXml<'xml> for Cow<'xml, str> {
     fn deserialize(deserializer: &mut Deserializer<'_, 'xml>) -> Result<Self, Error> {
-        let (value, element) = match deserializer.next() {
-            Some(Ok(Node::AttributeValue(s))) => (s, false),
-            Some(Ok(Node::Element(s))) => (s, true),
-            Some(Ok(_)) => return Err(Error::ExpectedScalar),
-            Some(Err(e)) => return Err(e),
-            None => return Err(Error::MissingValue),
-        };
-
-        let value = escape_back(value);
-        if element {
-            match deserializer.next() {
-                Some(Ok(_)) => return Err(Error::UnexpectedState),
-                Some(Err(e)) => return Err(e),
-                _ => {}
-            }
-        }
-
-        Ok(value)
+        let value = deserializer.take_str()?;
+        Ok(escape_back(value))
     }
 
     const KIND: Kind = Kind::Scalar;

@@ -7,8 +7,8 @@ pub use macros::{FromXml, ToXml};
 #[doc(hidden)]
 pub mod de;
 mod impls;
+use de::Context;
 pub use de::Deserializer;
-use de::{Context, Kind};
 #[doc(hidden)]
 pub mod ser;
 pub use ser::Serializer;
@@ -18,6 +18,8 @@ pub trait ToXml {
         &self,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error>;
+
+    const KIND: Kind;
 }
 
 pub trait FromXml<'xml>: Sized {
@@ -92,4 +94,24 @@ pub enum Error {
     WrongNamespace,
     #[error("duplicate value")]
     DuplicateValue,
+}
+
+pub enum Kind {
+    Scalar,
+    Element(Id<'static>),
+}
+
+impl Kind {
+    pub const fn name(&self, field: Id<'static>) -> Id<'static> {
+        match self {
+            Kind::Scalar => field,
+            Kind::Element(name) => *name,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct Id<'a> {
+    pub ns: &'a str,
+    pub name: &'a str,
 }

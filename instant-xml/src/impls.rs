@@ -2,9 +2,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
-use crate::de::Kind;
-use crate::ser::FieldAttribute;
-use crate::{Deserializer, Error, FromXml, Serializer, ToXml};
+use crate::{Deserializer, Error, FromXml, Kind, Serializer, ToXml};
 
 // Deserializer
 struct FromXmlStr<T: FromStr>(Option<T>);
@@ -42,23 +40,10 @@ where
         &self,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        let field_context = match serializer.consume_field_context() {
-            Some(field_context) => field_context,
-            None => return Err(Error::UnexpectedValue),
-        };
-
-        match field_context.attribute {
-            Some(FieldAttribute::Attribute) => {
-                serializer.add_attribute_value(&self.0)?;
-            }
-            _ => {
-                serializer.add_open_tag(&field_context)?;
-                write!(serializer.output, "{}", self.0)?;
-                serializer.add_close_tag(field_context)?;
-            }
-        }
-        Ok(())
+        serializer.write_str(self.0)
     }
+
+    const KIND: Kind = Kind::Scalar;
 }
 
 macro_rules! to_xml_for_number {
@@ -70,6 +55,8 @@ macro_rules! to_xml_for_number {
             ) -> Result<(), Error> {
                 DisplayToXml(self).serialize(serializer)
             }
+
+            const KIND: Kind = DisplayToXml::<Self>::KIND;
         }
     };
 }
@@ -186,6 +173,8 @@ impl ToXml for bool {
 
         DisplayToXml(&value).serialize(serializer)
     }
+
+    const KIND: Kind = DisplayToXml::<Self>::KIND;
 }
 
 impl ToXml for String {
@@ -195,6 +184,8 @@ impl ToXml for String {
     ) -> Result<(), Error> {
         DisplayToXml(&encode(self)?).serialize(serializer)
     }
+
+    const KIND: Kind = DisplayToXml::<Self>::KIND;
 }
 
 impl ToXml for char {
@@ -205,6 +196,8 @@ impl ToXml for char {
         let mut tmp = [0u8; 4];
         DisplayToXml(&encode(&*self.encode_utf8(&mut tmp))?).serialize(serializer)
     }
+
+    const KIND: Kind = DisplayToXml::<Self>::KIND;
 }
 
 impl ToXml for &str {
@@ -214,6 +207,8 @@ impl ToXml for &str {
     ) -> Result<(), Error> {
         DisplayToXml(&encode(self)?).serialize(serializer)
     }
+
+    const KIND: Kind = DisplayToXml::<Self>::KIND;
 }
 
 impl ToXml for Cow<'_, str> {
@@ -223,6 +218,8 @@ impl ToXml for Cow<'_, str> {
     ) -> Result<(), Error> {
         DisplayToXml(&encode(self)?).serialize(serializer)
     }
+
+    const KIND: Kind = DisplayToXml::<Self>::KIND;
 }
 
 impl<T: ToXml> ToXml for Option<T> {
@@ -235,6 +232,8 @@ impl<T: ToXml> ToXml for Option<T> {
             None => Ok(()),
         }
     }
+
+    const KIND: Kind = T::KIND;
 }
 
 fn encode(input: &str) -> Result<Cow<'_, str>, Error> {

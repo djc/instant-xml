@@ -5,7 +5,7 @@ mod ser;
 
 use std::collections::BTreeMap;
 
-use proc_macro2::{Delimiter, Group, Ident, Literal, Punct, TokenStream, TokenTree};
+use proc_macro2::{Delimiter, Group, Ident, Literal, Punct, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use syn::parse_macro_input;
 use syn::punctuated::Punctuated;
@@ -452,6 +452,43 @@ impl ToTokens for Namespace {
         match self {
             Namespace::Path(path) => path.to_tokens(tokens),
             Namespace::Literal(lit) => lit.to_tokens(tokens),
+        }
+    }
+}
+
+fn discard_lifetimes(ty: &mut syn::Type) {
+    match ty {
+        syn::Type::Path(ty) => discard_path_lifetimes(ty),
+        syn::Type::Reference(ty) => {
+            ty.lifetime = None;
+            discard_lifetimes(&mut ty.elem);
+        }
+        _ => {}
+    }
+}
+
+fn discard_path_lifetimes(path: &mut syn::TypePath) {
+    if let Some(q) = &mut path.qself {
+        discard_lifetimes(&mut q.ty);
+    }
+
+    for segment in &mut path.path.segments {
+        match &mut segment.arguments {
+            syn::PathArguments::None => {}
+            syn::PathArguments::AngleBracketed(args) => {
+                args.args.iter_mut().for_each(|arg| match arg {
+                    syn::GenericArgument::Lifetime(lt) => {
+                        *lt = syn::Lifetime::new("'_", Span::call_site())
+                    }
+                    syn::GenericArgument::Type(ty) => discard_lifetimes(ty),
+                    syn::GenericArgument::Binding(_)
+                    | syn::GenericArgument::Constraint(_)
+                    | syn::GenericArgument::Const(_) => {}
+                })
+            }
+            syn::PathArguments::Parenthesized(args) => {
+                args.inputs.iter_mut().for_each(discard_lifetimes)
+            }
         }
     }
 }

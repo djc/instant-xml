@@ -1,20 +1,18 @@
 use std::collections::HashMap;
-use std::fmt::{self, Write};
+use std::fmt::{self};
 
 use super::Error;
+use crate::ToXml;
 
 pub struct Serializer<'xml, W: fmt::Write + ?Sized> {
     // For parent namespaces the key is the namespace and the value is the prefix. We are adding to map
     // only if the namespaces do not exist, if it does exist then we are using an already defined parent prefix.
     #[doc(hidden)]
     pub parent_namespaces: HashMap<&'xml str, &'xml str>,
-    #[doc(hidden)]
-    pub output: &'xml mut W,
-
+    output: &'xml mut W,
     parent_default_namespace: &'xml str,
     parent_default_namespace_to_revert: &'xml str,
-    current_attributes: String,
-    next_field_context: Option<FieldContext<'xml>>,
+    state: State,
 }
 
 impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
@@ -24,42 +22,88 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
             output,
             parent_default_namespace: "",
             parent_default_namespace_to_revert: "",
-            next_field_context: None,
-            current_attributes: String::new(),
+            state: State::Element,
         }
     }
 
-    pub fn consume_current_attributes(&mut self) -> Result<(), Error> {
-        self.output.write_str(&self.current_attributes)?;
-        self.current_attributes.clear();
-        Ok(())
-    }
-
-    pub fn add_attribute_key(&mut self, attr_key: &impl fmt::Display) -> Result<(), Error> {
-        self.current_attributes.push(' ');
-        write!(self.current_attributes, "{}", attr_key)?;
-        self.current_attributes.push('=');
-        Ok(())
-    }
-
-    pub fn add_attribute_value(&mut self, attr_value: &impl fmt::Display) -> Result<(), Error> {
-        self.current_attributes.push('"');
-        write!(self.current_attributes, "{}", attr_value)?;
-        self.current_attributes.push('"');
-        Ok(())
-    }
-
-    pub fn set_field_context(&mut self, field_context: FieldContext<'xml>) -> Result<(), Error> {
-        if self.next_field_context.is_some() {
+    pub fn write_start(
+        &mut self,
+        prefix: Option<&str>,
+        name: &str,
+        ns: Option<&str>,
+    ) -> Result<(), Error> {
+        if self.state != State::Element {
             return Err(Error::UnexpectedState);
-        };
+        }
 
-        self.next_field_context = Some(field_context);
+        match prefix {
+            Some(prefix) => self.output.write_fmt(format_args!("<{prefix}:{name}"))?,
+            None => match ns {
+                Some(ns) => self
+                    .output
+                    .write_fmt(format_args!("<{name} xmlns=\"{ns}\""))?,
+                None => self.output.write_fmt(format_args!("<{name}"))?,
+            },
+        }
+
+        self.state = State::Attribute;
         Ok(())
     }
 
-    pub fn consume_field_context(&mut self) -> Option<FieldContext<'xml>> {
-        self.next_field_context.take()
+    pub fn write_attr<V: ToXml + ?Sized>(&mut self, name: &str, value: &V) -> Result<(), Error> {
+        if self.state != State::Attribute {
+            return Err(Error::UnexpectedState);
+        }
+
+        self.output.write_fmt(format_args!(" {}=\"", name))?;
+        self.state = State::Scalar;
+        value.serialize(self)?;
+        self.state = State::Attribute;
+        self.output.write_char('"')?;
+        Ok(())
+    }
+
+    pub fn write_prefix(&mut self, prefix: &str, ns: &str) -> Result<(), Error> {
+        if self.state != State::Attribute {
+            return Err(Error::UnexpectedState);
+        }
+
+        self.output
+            .write_fmt(format_args!(" xmlns:{prefix}=\"{ns}\""))?;
+        Ok(())
+    }
+
+    pub fn write_str<V: fmt::Display + ?Sized>(&mut self, value: &V) -> Result<(), Error> {
+        if !matches!(self.state, State::Element | State::Scalar) {
+            return Err(Error::UnexpectedState);
+        }
+
+        self.output.write_fmt(format_args!("{}", value))?;
+        self.state = State::Element;
+        Ok(())
+    }
+
+    pub fn end_start(&mut self) -> Result<(), Error> {
+        if self.state != State::Attribute {
+            return Err(Error::UnexpectedState);
+        }
+
+        self.output.write_char('>')?;
+        self.state = State::Element;
+        Ok(())
+    }
+
+    pub fn write_close(&mut self, prefix: Option<&str>, name: &str) -> Result<(), Error> {
+        if self.state != State::Element {
+            return Err(Error::UnexpectedState);
+        }
+
+        match prefix {
+            Some(prefix) => self.output.write_fmt(format_args!("</{prefix}:{name}>"))?,
+            None => self.output.write_fmt(format_args!("</{name}>"))?,
+        }
+
+        Ok(())
     }
 
     pub fn set_parent_default_namespace(&mut self, namespace: &'xml str) -> Result<(), Error> {
@@ -79,62 +123,11 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
     pub fn retrieve_parent_default_namespace(&mut self) {
         self.parent_default_namespace = self.parent_default_namespace_to_revert;
     }
-
-    pub fn add_open_tag(&mut self, field_context: &FieldContext) -> Result<(), Error> {
-        match field_context.attribute {
-            Some(FieldAttribute::Prefix(prefix)) => {
-                self.output.write_char('<')?;
-                self.output.write_str(prefix)?;
-                self.output.write_char(':')?;
-                self.output.write_str(field_context.name)?;
-                self.output.write_char('>')?;
-            }
-            Some(FieldAttribute::Namespace(namespace))
-                if self.parent_default_namespace != namespace =>
-            {
-                self.output.write_char('<')?;
-                self.output.write_str(field_context.name)?;
-                self.output.write_str(" xmlns=\"")?;
-                self.output.write_str(namespace)?;
-                self.output.write_str("\">")?;
-            }
-            _ => {
-                self.output.write_char('<')?;
-                self.output.write_str(field_context.name)?;
-                self.output.write_char('>')?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn add_close_tag(&mut self, field_context: FieldContext) -> Result<(), Error> {
-        match field_context.attribute {
-            Some(FieldAttribute::Prefix(prefix)) => {
-                self.output.write_str("</")?;
-                self.output.write_str(prefix)?;
-                self.output.write_char(':')?;
-                self.output.write_str(field_context.name)?;
-                self.output.write_char('>')?;
-            }
-            _ => {
-                self.output.write_str("</")?;
-                self.output.write_str(field_context.name)?;
-                self.output.write_char('>')?;
-            }
-        }
-        Ok(())
-    }
 }
 
-pub struct FieldContext<'xml> {
-    #[doc(hidden)]
-    pub name: &'xml str,
-    #[doc(hidden)]
-    pub attribute: Option<FieldAttribute<'xml>>,
-}
-
-pub enum FieldAttribute<'xml> {
-    Prefix(&'xml str),
-    Namespace(&'xml str),
+#[derive(Debug, Eq, PartialEq)]
+enum State {
     Attribute,
+    Element,
+    Scalar,
 }

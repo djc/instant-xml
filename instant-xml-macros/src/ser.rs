@@ -63,7 +63,7 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
                 #body
 
                 // Close tag
-                serializer.write_close(None, #root_name)?;
+                serializer.write_close(prefix, #root_name)?;
                 serializer.pop(old);
 
                 Ok(())

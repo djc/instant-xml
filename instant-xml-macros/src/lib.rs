@@ -10,6 +10,7 @@ use proc_macro2::{Delimiter, Group, Ident, Literal, Punct, Span, TokenStream, To
 use quote::ToTokens;
 use syn::parse_macro_input;
 use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::token::Colon2;
 
 #[proc_macro_derive(ToXml, attributes(xml))]
@@ -28,6 +29,7 @@ pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 struct ContainerMeta {
     ns: NamespaceMeta,
     rename: Option<Literal>,
+    scalar: bool,
 }
 
 impl ContainerMeta {
@@ -38,6 +40,7 @@ impl ContainerMeta {
                 MetaItem::Attribute => panic!("attribute key invalid in container xml attribute"),
                 MetaItem::Ns(ns) => meta.ns = ns,
                 MetaItem::Rename(lit) => meta.rename = Some(lit),
+                MetaItem::Scalar => meta.scalar = true,
             }
         }
         meta
@@ -59,9 +62,89 @@ impl FieldMeta {
                 MetaItem::Attribute => meta.attribute = true,
                 MetaItem::Ns(ns) => meta.ns = ns,
                 MetaItem::Rename(lit) => meta.rename = Some(lit),
+                MetaItem::Scalar => panic!("attribute 'scalar' invalid in field xml attribute"),
             }
         }
         meta
+    }
+}
+
+#[derive(Debug, Default)]
+struct VariantMeta {
+    serialize_as: TokenStream,
+}
+
+impl VariantMeta {
+    fn from_variant(input: &syn::Variant) -> Result<VariantMeta, syn::Error> {
+        if !input.fields.is_empty() {
+            return Err(syn::Error::new(
+                input.fields.span(),
+                "only unit enum variants are permitted!",
+            ));
+        }
+
+        let mut rename = None;
+        for item in meta_items(&input.attrs) {
+            match item {
+                MetaItem::Attribute => {
+                    return Err(syn::Error::new(
+                        input.span(),
+                        "attribute 'attribute' is invalid for enum variants",
+                    ))
+                }
+                MetaItem::Ns(_ns) => {
+                    return Err(syn::Error::new(
+                        input.span(),
+                        "attribute 'ns' is invalid for enum variants",
+                    ))
+                }
+                MetaItem::Rename(lit) => rename = Some(lit.to_token_stream()),
+                MetaItem::Scalar => {
+                    return Err(syn::Error::new(
+                        input.span(),
+                        "attribute 'scalar' is invalid for enum variants",
+                    ))
+                }
+            }
+        }
+
+        let discriminant = match input.discriminant {
+            Some((
+                _,
+                syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(ref lit),
+                    ..
+                }),
+            )) => Some(lit.to_token_stream()),
+            Some((
+                _,
+                syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Int(ref lit),
+                    ..
+                }),
+            )) => Some(lit.base10_digits().to_token_stream()),
+            Some((_, ref value)) => {
+                return Err(syn::Error::new(
+                    value.span(),
+                    "invalid field discriminant value!",
+                ))
+            }
+            None => None,
+        };
+
+        if discriminant.is_some() && rename.is_some() {
+            return Err(syn::Error::new(
+                input.span(),
+                "conflicting `rename` attribute and variant discriminant!",
+            ));
+        }
+
+        let serialize_as = match rename.or(discriminant) {
+            Some(lit) => lit.into_token_stream(),
+            None => input.ident.to_string().to_token_stream(),
+        };
+
+        Ok(VariantMeta { serialize_as })
     }
 }
 
@@ -352,6 +435,9 @@ fn meta_items(attrs: &[syn::Attribute]) -> Vec<MetaItem> {
                     MetaState::Ns
                 } else if id == "rename" {
                     MetaState::Rename
+                } else if id == "scalar" {
+                    items.push(MetaItem::Scalar);
+                    MetaState::Comma
                 } else {
                     panic!("unexpected key in xml attribute");
                 }
@@ -460,6 +546,7 @@ enum MetaItem {
     Attribute,
     Ns(NamespaceMeta),
     Rename(Literal),
+    Scalar,
 }
 
 enum Namespace {
@@ -522,5 +609,120 @@ fn discard_path_lifetimes(path: &mut syn::TypePath) {
                 args.inputs.iter_mut().for_each(discard_lifetimes)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use syn::parse_quote;
+
+    #[test]
+    #[rustfmt::skip]
+    fn unit_enum_scalar_ser() {
+        let input = parse_quote! {
+        #[xml(scalar)]
+        pub enum TestEnum {
+            Foo,
+            Bar,
+            Baz = 1,
+        }
+        };
+
+        assert_eq!(super::ser::to_xml(&input).to_string(),
+"impl ToXml for TestEnum { fn serialize < W : :: core :: fmt :: Write + ? :: core :: marker :: Sized > (& self , serializer : & mut instant_xml :: Serializer < W > ,) -> Result < () , instant_xml :: Error > { serializer . write_str (match self { TestEnum :: Foo => \"Foo\" , TestEnum :: Bar => \"Bar\" , TestEnum :: Baz => \"1\" , }) } }"
+	)
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn unit_enum_scalar_de() {
+        let input = parse_quote! {
+        #[xml(scalar)]
+        pub enum TestEnum {
+            Foo,
+            Bar,
+            Baz = 1,
+        }
+        };
+
+        assert_eq!(super::de::from_xml(&input).to_string(),
+"impl FromXml < 'xml > for TestEnum { fn deserialize < 'cx > (deserializer : & 'cx mut :: instant_xml :: Deserializer < 'cx , 'xml >) -> Result < Self , :: instant_xml :: Error > { match deserializer . take_str () { Ok (\"Foo\") => TestEnum :: Foo , Ok (\"Bar\") => TestEnum :: Bar , Ok (\"1\") => TestEnum :: Baz , _ => Err (:: instant_xml :: Error :: UnexpectedValue) } } }"
+	)
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn enum_variant_rename_and_discriminant_conflict() {
+        super::ser::to_xml(&parse_quote! {
+            #[xml(scalar)]
+            pub enum TestEnum {
+		Foo,
+		Bar,
+		#[xml(rename = 2)]
+		Baz = 1,
+            }
+        }).to_string().find("compile_error ! { \"conflicting `rename` attribute and variant discriminant!\" }").unwrap();
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn non_unit_enum_variant_unsupported() {
+        super::ser::to_xml(&parse_quote! {
+            #[xml(scalar)]
+            pub enum TestEnum {
+		Foo(String),
+		Bar,
+		Baz
+            }
+        }).to_string().find("compile_error ! { \"only unit enum variants are permitted!\" }").unwrap();
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn non_scalar_enums_unsupported() {
+        super::ser::to_xml(&parse_quote! {
+            #[xml()]
+            pub enum TestEnum {
+		Foo,
+		Bar,
+		Baz
+            }
+        }).to_string().find("compile_error ! { \"non-scalar enums are currently unsupported!\" }").unwrap();
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn scalar_variant_attribute_not_permitted() {
+        super::ser::to_xml(&parse_quote! {
+            #[xml(scalar)]
+            pub enum TestEnum {
+		Foo,
+		Bar,
+		#[xml(scalar)]
+		Baz
+            }
+        }).to_string().find("compile_error ! { \"attribute 'scalar' is invalid for enum variants\" }").unwrap();
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn scalar_discrimintant_must_be_literal() {
+        assert_eq!(None, super::ser::to_xml(&parse_quote! {
+            #[xml(scalar)]
+            pub enum TestEnum {
+		Foo = 1,
+		Bar,
+		Baz
+            }
+        }).to_string().find("compile_error ! { \"invalid field discriminant value!\" }"));
+
+        super::ser::to_xml(&parse_quote! {
+            #[xml(scalar)]
+            pub enum TestEnum {
+		Foo = 1+1,
+		Bar,
+		Baz
+            }
+        }).to_string().find("compile_error ! { \"invalid field discriminant value!\" }").unwrap();
     }
 }

@@ -1,16 +1,55 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
+use syn::spanned::Spanned;
 
-use super::{discard_lifetimes, ContainerMeta, FieldMeta, Namespace};
+use super::{discard_lifetimes, ContainerMeta, FieldMeta, Namespace, VariantMeta};
 
 pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
     let ident = &input.ident;
     let meta = ContainerMeta::from_derive(input);
 
     match &input.data {
+        syn::Data::Struct(_) if meta.scalar => {
+            syn::Error::new(input.span(), "scalar structs are unsupported!").to_compile_error()
+        }
         syn::Data::Struct(ref data) => deserialize_struct(input, data, meta, ident),
+        syn::Data::Enum(_) if !meta.scalar => {
+            syn::Error::new(input.span(), "non-scalar enums are currently unsupported!")
+                .to_compile_error()
+        }
+        syn::Data::Enum(ref data) => deserialize_enum(input, data),
         _ => todo!(),
     }
+}
+
+#[rustfmt::skip]
+fn deserialize_enum(input: &syn::DeriveInput, data: &syn::DataEnum) -> TokenStream {
+    let ident = &input.ident;
+    let mut variants = TokenStream::new();
+
+    for variant in data.variants.iter() {
+	let v_ident = &variant.ident;
+        let meta = match VariantMeta::from_variant(variant) {
+	    Ok(meta) => meta,
+	    Err(err) => return err.to_compile_error()
+	};
+
+        let serialize_as = meta.serialize_as;
+        variants.extend(quote!(Ok(#serialize_as) => #ident::#v_ident,));
+    }
+
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
+    quote!(
+	impl #impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
+            fn deserialize<'cx>(deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>) -> Result<Self, ::instant_xml::Error> {
+		match deserializer.take_str() {
+		    #variants
+		    _ => Err(::instant_xml::Error::UnexpectedValue)
+		}
+	    }
+	}
+    )
 }
 
 fn deserialize_struct(

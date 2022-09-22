@@ -4,14 +4,55 @@ use syn::spanned::Spanned;
 
 use crate::Namespace;
 
-use super::{discard_lifetimes, ContainerMeta, FieldMeta};
+use super::{discard_lifetimes, ContainerMeta, FieldMeta, VariantMeta};
 
 pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
     let meta = ContainerMeta::from_derive(input);
     match &input.data {
+        syn::Data::Struct(_) if meta.scalar => {
+            syn::Error::new(input.span(), "scalar structs are unsupported!").to_compile_error()
+        }
         syn::Data::Struct(ref data) => serialize_struct(input, data, meta),
+        syn::Data::Enum(_) if !meta.scalar => {
+            syn::Error::new(input.span(), "non-scalar enums are currently unsupported!")
+                .to_compile_error()
+        }
+        syn::Data::Enum(ref data) => serialize_enum(input, data),
         _ => todo!(),
     }
+}
+
+#[rustfmt::skip]
+fn serialize_enum(
+    input: &syn::DeriveInput,
+    data: &syn::DataEnum,
+) -> TokenStream {
+    let ident = &input.ident;
+    let mut variants = TokenStream::new();
+
+    for variant in data.variants.iter() {
+	let v_ident = &variant.ident;
+        let meta = match VariantMeta::from_variant(variant) {
+	    Ok(meta) => meta,
+	    Err(err) => return err.to_compile_error()
+	};
+
+        let serialize_as = meta.serialize_as;
+        variants.extend(quote!(#ident::#v_ident => #serialize_as,));
+    }
+
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
+    quote!(
+        impl #impl_generics ToXml for #ident #ty_generics #where_clause {
+            fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
+                &self,
+                serializer: &mut instant_xml::Serializer<W>,
+            ) -> Result<(), instant_xml::Error> {
+		serializer.write_str(match self { #variants })
+            }
+	}
+    )
 }
 
 fn serialize_struct(

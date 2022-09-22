@@ -5,7 +5,20 @@ use super::{discard_lifetimes, ContainerMeta, FieldMeta, Namespace};
 
 pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
     let ident = &input.ident;
-    let container_meta = ContainerMeta::from_derive(input);
+    let meta = ContainerMeta::from_derive(input);
+
+    match &input.data {
+        syn::Data::Struct(ref data) => deserialize_struct(input, data, meta, ident),
+        _ => todo!(),
+    }
+}
+
+fn deserialize_struct(
+    input: &syn::DeriveInput,
+    data: &syn::DataStruct,
+    container_meta: ContainerMeta,
+    ident: &Ident,
+) -> TokenStream {
     let default_namespace = match &container_meta.ns.uri {
         Some(ns) => quote!(#ns),
         None => quote!(""),
@@ -35,33 +48,28 @@ pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
     let mut declare_values = TokenStream::new();
     let mut return_val = TokenStream::new();
 
-    match &input.data {
-        syn::Data::Struct(ref data) => {
-            match data.fields {
-                syn::Fields::Named(ref fields) => {
-                    fields.named.iter().enumerate().for_each(|(index, field)| {
-                        let field_meta = FieldMeta::from_field(field);
-                        let tokens = match field_meta.attribute {
-                            true => &mut attributes_tokens,
-                            false => &mut elements_tokens,
-                        };
+    match data.fields {
+        syn::Fields::Named(ref fields) => {
+            fields.named.iter().enumerate().for_each(|(index, field)| {
+                let field_meta = FieldMeta::from_field(field);
+                let tokens = match field_meta.attribute {
+                    true => &mut attributes_tokens,
+                    false => &mut elements_tokens,
+                };
 
-                        process_field(
-                            field,
-                            index,
-                            &mut declare_values,
-                            &mut return_val,
-                            tokens,
-                            field_meta,
-                            &container_meta,
-                        );
-                    });
-                }
-                syn::Fields::Unnamed(_) => panic!("unamed"),
-                syn::Fields::Unit => {}
-            };
+                process_field(
+                    field,
+                    index,
+                    &mut declare_values,
+                    &mut return_val,
+                    tokens,
+                    field_meta,
+                    &container_meta,
+                );
+            });
         }
-        _ => todo!(),
+        syn::Fields::Unnamed(_) => panic!("unamed"),
+        syn::Fields::Unit => {}
     };
 
     // Elements
@@ -80,6 +88,7 @@ pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
         Some(name) => quote!(#name),
         None => ident.to_string().into_token_stream(),
     };
+
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
             fn deserialize<'cx>(deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>) -> Result<Self, ::instant_xml::Error> {

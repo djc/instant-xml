@@ -7,22 +7,29 @@ use crate::Namespace;
 use super::{discard_lifetimes, ContainerMeta, FieldMeta};
 
 pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
-    let mut body = TokenStream::new();
-    let mut attributes = TokenStream::new();
     let meta = ContainerMeta::from_derive(input);
     match &input.data {
-        syn::Data::Struct(ref data) => {
-            match data.fields {
-                syn::Fields::Named(ref fields) => {
-                    fields.named.iter().for_each(|field| {
-                        process_named_field(field, &mut body, &mut attributes, &meta);
-                    });
-                }
-                syn::Fields::Unnamed(_) => todo!(),
-                syn::Fields::Unit => {}
-            };
-        }
+        syn::Data::Struct(ref data) => serialize_struct(input, data, meta),
         _ => todo!(),
+    }
+}
+
+fn serialize_struct(
+    input: &syn::DeriveInput,
+    data: &syn::DataStruct,
+    meta: ContainerMeta,
+) -> proc_macro2::TokenStream {
+    let mut body = TokenStream::new();
+    let mut attributes = TokenStream::new();
+
+    match data.fields {
+        syn::Fields::Named(ref fields) => {
+            fields.named.iter().for_each(|field| {
+                process_named_field(field, &mut body, &mut attributes, &meta);
+            });
+        }
+        syn::Fields::Unnamed(_) => todo!(),
+        syn::Fields::Unit => {}
     };
 
     let default_namespace = match &meta.ns.uri {

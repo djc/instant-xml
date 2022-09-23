@@ -498,8 +498,8 @@ fn meta_items(attrs: &[syn::Attribute]) -> Vec<MetaItem> {
                 items.push(MetaItem::Rename(lit));
                 MetaState::Comma
             }
-            (MetaState::RenameAllValue, TokenTree::Ident(ident)) => {
-                items.push(MetaItem::RenameAll(ident));
+            (MetaState::RenameAllValue, TokenTree::Literal(lit)) => {
+                items.push(MetaItem::RenameAll(lit));
                 MetaState::Comma
             }
             (state, tree) => {
@@ -595,7 +595,7 @@ enum MetaItem {
     Ns(NamespaceMeta),
     Rename(Literal),
     Scalar,
-    RenameAll(Ident),
+    RenameAll(Literal),
 }
 
 enum Namespace {
@@ -765,7 +765,7 @@ mod tests {
     #[rustfmt::skip]
     fn struct_rename_all_permitted() {
         assert_eq!(super::ser::to_xml(&parse_quote! {
-            #[xml(rename_all = UPPERCASE)]
+            #[xml(rename_all = "UPPERCASE")]
             pub struct TestStruct {
 		field_1: String,
 		field_2: u8,
@@ -777,7 +777,7 @@ mod tests {
     #[rustfmt::skip]
     fn scalar_enum_rename_all_permitted() {
         assert_eq!(super::ser::to_xml(&parse_quote! {
-            #[xml(scalar, rename_all = UPPERCASE)]
+            #[xml(scalar, rename_all = "UPPERCASE")]
             pub enum TestEnum {
 		Foo = 1,
 		Bar,
@@ -791,7 +791,7 @@ mod tests {
     fn rename_all_attribute_not_permitted() {
         super::ser::to_xml(&parse_quote! {
             pub struct TestStruct {
-		#[xml(rename_all = UPPERCASE)]
+		#[xml(rename_all = "UPPERCASE")]
 		field_1: String,
 		field_2: u8,
             }
@@ -802,7 +802,7 @@ mod tests {
             pub enum TestEnum {
 		Foo = 1,
 		Bar,
-		#[xml(rename_all = UPPERCASE)]
+		#[xml(rename_all = "UPPERCASE")]
 		Baz
             }
         }).to_string().find("compile_error ! { \"attribute 'rename_all' invalid in field xml attribute\" }").unwrap();
@@ -810,10 +810,10 @@ mod tests {
 
     #[test]
     #[rustfmt::skip]
-    #[should_panic(expected = "unknown rename rule `rename_all = \"forgetaboutit\"`, expected one of \"lowercase\", \"UPPERCASE\", \"PascalCase\", \"camelCase\", \"snake_case\", \"SCREAMING_SNAKE_CASE\", \"kebab-case\", \"SCREAMING-KEBAB-CASE\"")]
+    #[should_panic(expected = "unknown rename rule `rename_all = \"\\\"forgetaboutit\\\"\"`, expected one of \"\\\"lowercase\\\"\", \"\\\"UPPERCASE\\\"\", \"\\\"PascalCase\\\"\", \"\\\"camelCase\\\"\", \"\\\"snake_case\\\"\", \"\\\"SCREAMING_SNAKE_CASE\\\"\", \"\\\"kebab-case\\\"\", \"\\\"SCREAMING-KEBAB-CASE\\\"\"")]
     fn bogus_rename_all_not_permitted() {
         super::ser::to_xml(&parse_quote! {
-	    #[xml(rename_all = forgetaboutit)]
+	    #[xml(rename_all = "forgetaboutit")]
             pub struct TestStruct {
 		field_1: String,
 		field_2: u8,

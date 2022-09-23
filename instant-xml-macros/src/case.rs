@@ -11,7 +11,7 @@ use std::fmt::{self, Debug, Display};
 use self::RenameRule::*;
 
 /// The different possible ways to change case of fields in a struct, or variants in an enum.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum RenameRule {
     /// Don't apply a default rename rule.
     None,

@@ -17,7 +17,7 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
             syn::Error::new(input.span(), "non-scalar enums are currently unsupported!")
                 .to_compile_error()
         }
-        syn::Data::Enum(ref data) => serialize_enum(input, data),
+        syn::Data::Enum(ref data) => serialize_enum(input, data, meta),
         _ => todo!(),
     }
 }
@@ -26,13 +26,14 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
 fn serialize_enum(
     input: &syn::DeriveInput,
     data: &syn::DataEnum,
+    meta: ContainerMeta
 ) -> TokenStream {
     let ident = &input.ident;
     let mut variants = TokenStream::new();
 
     for variant in data.variants.iter() {
 	let v_ident = &variant.ident;
-        let meta = match VariantMeta::from_variant(variant) {
+        let meta = match VariantMeta::from_variant(variant, &meta) {
 	    Ok(meta) => meta,
 	    Err(err) => return err.to_compile_error()
 	};
@@ -138,10 +139,20 @@ fn process_named_field(
     meta: &ContainerMeta,
 ) {
     let field_name = field.ident.as_ref().unwrap();
-    let field_meta = FieldMeta::from_field(field);
+    let field_meta = match FieldMeta::from_field(field) {
+        Ok(meta) => meta,
+        Err(err) => {
+            body.extend(err.into_compile_error());
+            return;
+        }
+    };
+
     let tag = match &field_meta.rename {
         Some(rename) => quote!(#rename),
-        None => field_name.to_string().into_token_stream(),
+        None => meta
+            .rename_all
+            .apply_to_field(&field_name.to_string())
+            .into_token_stream(),
     };
 
     let default_ns = &meta.ns.uri;

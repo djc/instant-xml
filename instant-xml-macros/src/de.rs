@@ -17,19 +17,19 @@ pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
             syn::Error::new(input.span(), "non-scalar enums are currently unsupported!")
                 .to_compile_error()
         }
-        syn::Data::Enum(ref data) => deserialize_enum(input, data),
+        syn::Data::Enum(ref data) => deserialize_enum(input, data, meta),
         _ => todo!(),
     }
 }
 
 #[rustfmt::skip]
-fn deserialize_enum(input: &syn::DeriveInput, data: &syn::DataEnum) -> TokenStream {
+fn deserialize_enum(input: &syn::DeriveInput, data: &syn::DataEnum, meta: ContainerMeta) -> TokenStream {
     let ident = &input.ident;
     let mut variants = TokenStream::new();
 
     for variant in data.variants.iter() {
 	let v_ident = &variant.ident;
-        let meta = match VariantMeta::from_variant(variant) {
+        let meta = match VariantMeta::from_variant(variant, &meta) {
 	    Ok(meta) => meta,
 	    Err(err) => return err.to_compile_error()
 	};
@@ -90,7 +90,14 @@ fn deserialize_struct(
     match data.fields {
         syn::Fields::Named(ref fields) => {
             fields.named.iter().enumerate().for_each(|(index, field)| {
-                let field_meta = FieldMeta::from_field(field);
+                let field_meta = match FieldMeta::from_field(field) {
+                    Ok(meta) => meta,
+                    Err(err) => {
+                        return_val.extend(err.into_compile_error());
+                        return;
+                    }
+                };
+
                 let tokens = match field_meta.attribute {
                     true => &mut attributes_tokens,
                     false => &mut elements_tokens,
@@ -212,9 +219,13 @@ fn process_field(
     container_meta: &ContainerMeta,
 ) {
     let field_name = field.ident.as_ref().unwrap();
-    let field_tag = match field_meta.rename {
-        Some(name) => quote!(#name),
-        None => field_name.to_string().into_token_stream(),
+
+    let field_tag = match &field_meta.rename {
+        Some(rename) => quote!(#rename),
+        None => container_meta
+            .rename_all
+            .apply_to_field(&field_name.to_string())
+            .into_token_stream(),
     };
 
     let const_field_var_str = Ident::new(&field_name.to_string().to_uppercase(), Span::call_site());

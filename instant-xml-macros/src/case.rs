@@ -11,7 +11,7 @@ use std::fmt::{self, Debug, Display};
 use self::RenameRule::*;
 
 /// The different possible ways to change case of fields in a struct, or variants in an enum.
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum RenameRule {
     /// Don't apply a default rename rule.
     None,
@@ -34,6 +34,12 @@ pub enum RenameRule {
     KebabCase,
     /// Rename direct children to "SCREAMING-KEBAB-CASE" style.
     ScreamingKebabCase,
+}
+
+impl Default for RenameRule {
+    fn default() -> Self {
+        None
+    }
 }
 
 static RENAME_RULES: &[(&str, RenameRule)] = &[

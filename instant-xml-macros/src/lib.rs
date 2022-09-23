@@ -1,5 +1,6 @@
 extern crate proc_macro;
 
+mod case;
 mod de;
 mod ser;
 
@@ -12,6 +13,8 @@ use syn::parse_macro_input;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token::Colon2;
+
+use case::RenameRule;
 
 #[proc_macro_derive(ToXml, attributes(xml))]
 pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -29,6 +32,7 @@ pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 struct ContainerMeta {
     ns: NamespaceMeta,
     rename: Option<Literal>,
+    rename_all: RenameRule,
     scalar: bool,
 }
 
@@ -40,6 +44,12 @@ impl ContainerMeta {
                 MetaItem::Attribute => panic!("attribute key invalid in container xml attribute"),
                 MetaItem::Ns(ns) => meta.ns = ns,
                 MetaItem::Rename(lit) => meta.rename = Some(lit),
+                MetaItem::RenameAll(lit) => {
+                    meta.rename_all = match RenameRule::from_str(&lit.to_string()) {
+                        Ok(rule) => rule,
+                        Err(err) => panic!("{err}"),
+                    };
+                }
                 MetaItem::Scalar => meta.scalar = true,
             }
         }
@@ -55,17 +65,29 @@ struct FieldMeta {
 }
 
 impl FieldMeta {
-    fn from_field(input: &syn::Field) -> FieldMeta {
+    fn from_field(input: &syn::Field) -> Result<FieldMeta, syn::Error> {
         let mut meta = FieldMeta::default();
         for item in meta_items(&input.attrs) {
             match item {
                 MetaItem::Attribute => meta.attribute = true,
                 MetaItem::Ns(ns) => meta.ns = ns,
                 MetaItem::Rename(lit) => meta.rename = Some(lit),
-                MetaItem::Scalar => panic!("attribute 'scalar' invalid in field xml attribute"),
+                MetaItem::RenameAll(_) => {
+                    return Err(syn::Error::new(
+                        input.span(),
+                        "attribute 'rename_all' invalid in field xml attribute",
+                    ))
+                }
+                MetaItem::Scalar => {
+                    return Err(syn::Error::new(
+                        input.span(),
+                        "attribute 'scalar' is invalid for struct fields",
+                    ))
+                }
             }
         }
-        meta
+
+        Ok(meta)
     }
 }
 
@@ -75,7 +97,10 @@ struct VariantMeta {
 }
 
 impl VariantMeta {
-    fn from_variant(input: &syn::Variant) -> Result<VariantMeta, syn::Error> {
+    fn from_variant(
+        input: &syn::Variant,
+        container: &ContainerMeta,
+    ) -> Result<VariantMeta, syn::Error> {
         if !input.fields.is_empty() {
             return Err(syn::Error::new(
                 input.fields.span(),
@@ -86,6 +111,8 @@ impl VariantMeta {
         let mut rename = None;
         for item in meta_items(&input.attrs) {
             match item {
+                MetaItem::Rename(lit) => rename = Some(lit.to_token_stream()),
+
                 MetaItem::Attribute => {
                     return Err(syn::Error::new(
                         input.span(),
@@ -98,7 +125,12 @@ impl VariantMeta {
                         "attribute 'ns' is invalid for enum variants",
                     ))
                 }
-                MetaItem::Rename(lit) => rename = Some(lit.to_token_stream()),
+                MetaItem::RenameAll(_) => {
+                    return Err(syn::Error::new(
+                        input.span(),
+                        "attribute 'rename_all' invalid in field xml attribute",
+                    ))
+                }
                 MetaItem::Scalar => {
                     return Err(syn::Error::new(
                         input.span(),
@@ -141,7 +173,10 @@ impl VariantMeta {
 
         let serialize_as = match rename.or(discriminant) {
             Some(lit) => lit.into_token_stream(),
-            None => input.ident.to_string().to_token_stream(),
+            None => container
+                .rename_all
+                .apply_to_variant(&input.ident.to_string())
+                .to_token_stream(),
         };
 
         Ok(VariantMeta { serialize_as })
@@ -435,6 +470,8 @@ fn meta_items(attrs: &[syn::Attribute]) -> Vec<MetaItem> {
                     MetaState::Ns
                 } else if id == "rename" {
                     MetaState::Rename
+                } else if id == "rename_all" {
+                    MetaState::RenameAll
                 } else if id == "scalar" {
                     items.push(MetaItem::Scalar);
                     MetaState::Comma
@@ -454,8 +491,15 @@ fn meta_items(attrs: &[syn::Attribute]) -> Vec<MetaItem> {
             (MetaState::Rename, TokenTree::Punct(punct)) if punct.as_char() == '=' => {
                 MetaState::RenameValue
             }
+            (MetaState::RenameAll, TokenTree::Punct(punct)) if punct.as_char() == '=' => {
+                MetaState::RenameAllValue
+            }
             (MetaState::RenameValue, TokenTree::Literal(lit)) => {
                 items.push(MetaItem::Rename(lit));
+                MetaState::Comma
+            }
+            (MetaState::RenameAllValue, TokenTree::Ident(ident)) => {
+                items.push(MetaItem::RenameAll(ident));
                 MetaState::Comma
             }
             (state, tree) => {
@@ -477,6 +521,8 @@ enum MetaState {
     Ns,
     Rename,
     RenameValue,
+    RenameAll,
+    RenameAllValue,
 }
 
 impl MetaState {
@@ -487,6 +533,8 @@ impl MetaState {
             MetaState::Ns => "Ns",
             MetaState::Rename => "Rename",
             MetaState::RenameValue => "RenameValue",
+            MetaState::RenameAll => "RenameAll",
+            MetaState::RenameAllValue => "RenameAllValue",
         }
     }
 }
@@ -547,6 +595,7 @@ enum MetaItem {
     Ns(NamespaceMeta),
     Rename(Literal),
     Scalar,
+    RenameAll(Ident),
 }
 
 enum Namespace {
@@ -652,20 +701,6 @@ mod tests {
 
     #[test]
     #[rustfmt::skip]
-    fn enum_variant_rename_and_discriminant_conflict() {
-        super::ser::to_xml(&parse_quote! {
-            #[xml(scalar)]
-            pub enum TestEnum {
-		Foo,
-		Bar,
-		#[xml(rename = 2)]
-		Baz = 1,
-            }
-        }).to_string().find("compile_error ! { \"conflicting `rename` attribute and variant discriminant!\" }").unwrap();
-    }
-
-    #[test]
-    #[rustfmt::skip]
     fn non_unit_enum_variant_unsupported() {
         super::ser::to_xml(&parse_quote! {
             #[xml(scalar)]
@@ -724,5 +759,65 @@ mod tests {
 		Baz
             }
         }).to_string().find("compile_error ! { \"invalid field discriminant value!\" }").unwrap();
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn struct_rename_all_permitted() {
+        assert_eq!(super::ser::to_xml(&parse_quote! {
+            #[xml(rename_all = UPPERCASE)]
+            pub struct TestStruct {
+		field_1: String,
+		field_2: u8,
+            }
+        }).to_string(), "impl ToXml for TestStruct { fn serialize < W : :: core :: fmt :: Write + ? :: core :: marker :: Sized > (& self , serializer : & mut instant_xml :: Serializer < W > ,) -> Result < () , instant_xml :: Error > { let prefix = serializer . write_start (\"TestStruct\" , \"\" , false) ? ; debug_assert_eq ! (prefix , None) ; let mut new = :: instant_xml :: ser :: Context :: < 0usize > :: default () ; new . default_ns = \"\" ; let old = serializer . push (new) ? ; serializer . end_start () ? ; match < String as ToXml > :: KIND { :: instant_xml :: Kind :: Element (_) => { self . field_1 . serialize (serializer) ? ; } :: instant_xml :: Kind :: Scalar => { let prefix = serializer . write_start (\"FIELD_1\" , \"\" , true) ? ; serializer . end_start () ? ; self . field_1 . serialize (serializer) ? ; serializer . write_close (prefix , \"FIELD_1\") ? ; } } match < u8 as ToXml > :: KIND { :: instant_xml :: Kind :: Element (_) => { self . field_2 . serialize (serializer) ? ; } :: instant_xml :: Kind :: Scalar => { let prefix = serializer . write_start (\"FIELD_2\" , \"\" , true) ? ; serializer . end_start () ? ; self . field_2 . serialize (serializer) ? ; serializer . write_close (prefix , \"FIELD_2\") ? ; } } serializer . write_close (prefix , \"TestStruct\") ? ; serializer . pop (old) ; Ok (()) } const KIND : :: instant_xml :: Kind = :: instant_xml :: Kind :: Element (:: instant_xml :: Id { ns : \"\" , name : \"TestStruct\" , }) ; } ;");
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn scalar_enum_rename_all_permitted() {
+        assert_eq!(super::ser::to_xml(&parse_quote! {
+            #[xml(scalar, rename_all = UPPERCASE)]
+            pub enum TestEnum {
+		Foo = 1,
+		Bar,
+		Baz
+            }
+        }).to_string(), "impl ToXml for TestEnum { fn serialize < W : :: core :: fmt :: Write + ? :: core :: marker :: Sized > (& self , serializer : & mut instant_xml :: Serializer < W > ,) -> Result < () , instant_xml :: Error > { serializer . write_str (match self { TestEnum :: Foo => \"1\" , TestEnum :: Bar => \"BAR\" , TestEnum :: Baz => \"BAZ\" , }) } }");
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn rename_all_attribute_not_permitted() {
+        super::ser::to_xml(&parse_quote! {
+            pub struct TestStruct {
+		#[xml(rename_all = UPPERCASE)]
+		field_1: String,
+		field_2: u8,
+            }
+        }).to_string().find("compile_error ! { \"attribute 'rename_all' invalid in field xml attribute\" }").unwrap();
+
+        super::ser::to_xml(&parse_quote! {
+            #[xml(scalar)]
+            pub enum TestEnum {
+		Foo = 1,
+		Bar,
+		#[xml(rename_all = UPPERCASE)]
+		Baz
+            }
+        }).to_string().find("compile_error ! { \"attribute 'rename_all' invalid in field xml attribute\" }").unwrap();
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    #[should_panic(expected = "unknown rename rule `rename_all = \"forgetaboutit\"`, expected one of \"lowercase\", \"UPPERCASE\", \"PascalCase\", \"camelCase\", \"snake_case\", \"SCREAMING_SNAKE_CASE\", \"kebab-case\", \"SCREAMING-KEBAB-CASE\"")]
+    fn bogus_rename_all_not_permitted() {
+        super::ser::to_xml(&parse_quote! {
+	    #[xml(rename_all = forgetaboutit)]
+            pub struct TestStruct {
+		field_1: String,
+		field_2: u8,
+            }
+        }).to_string().find("compile_error ! { \"attribute 'rename_all' invalid in field xml attribute\" }").unwrap();
     }
 }

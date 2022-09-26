@@ -6,7 +6,10 @@ use super::{discard_lifetimes, ContainerMeta, FieldMeta, Namespace, VariantMeta}
 
 pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
     let ident = &input.ident;
-    let meta = ContainerMeta::from_derive(input);
+    let meta = match ContainerMeta::from_derive(input) {
+        Ok(meta) => meta,
+        Err(e) => return e.to_compile_error(),
+    };
 
     match &input.data {
         syn::Data::Struct(_) if meta.scalar => {
@@ -224,7 +227,7 @@ fn process_field(
         Some(rename) => quote!(#rename),
         None => container_meta
             .rename_all
-            .apply_to_field(&field_name.to_string())
+            .apply_to_field(field_name)
             .into_token_stream(),
     };
 

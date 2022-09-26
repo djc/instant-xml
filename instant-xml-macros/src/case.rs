@@ -8,6 +8,10 @@ use std::ascii::AsciiExt;
 
 use std::fmt::{self, Debug, Display};
 
+use proc_macro2::Ident;
+#[cfg(test)]
+use proc_macro2::Span;
+
 use self::RenameRule::*;
 
 /// The different possible ways to change case of fields in a struct, or variants in an enum.
@@ -42,7 +46,7 @@ impl Default for RenameRule {
     }
 }
 
-static RENAME_RULES: &[(&str, RenameRule)] = &[
+const RENAME_RULES: &[(&str, RenameRule)] = &[
     ("\"lowercase\"", LowerCase),
     ("\"UPPERCASE\"", UpperCase),
     ("\"PascalCase\"", PascalCase),
@@ -66,9 +70,10 @@ impl RenameRule {
     }
 
     /// Apply a renaming rule to an enum variant, returning the version expected in the source.
-    pub fn apply_to_variant(&self, variant: &str) -> String {
+    pub fn apply_to_variant(&self, ident: &Ident) -> String {
+        let variant = ident.to_string();
         match *self {
-            None | PascalCase => variant.to_owned(),
+            None | PascalCase => variant,
             LowerCase => variant.to_ascii_lowercase(),
             UpperCase => variant.to_ascii_uppercase(),
             CamelCase => variant[..1].to_ascii_lowercase() + &variant[1..],
@@ -82,18 +87,17 @@ impl RenameRule {
                 }
                 snake
             }
-            ScreamingSnakeCase => SnakeCase.apply_to_variant(variant).to_ascii_uppercase(),
-            KebabCase => SnakeCase.apply_to_variant(variant).replace('_', "-"),
-            ScreamingKebabCase => ScreamingSnakeCase
-                .apply_to_variant(variant)
-                .replace('_', "-"),
+            ScreamingSnakeCase => SnakeCase.apply_to_variant(ident).to_ascii_uppercase(),
+            KebabCase => SnakeCase.apply_to_variant(ident).replace('_', "-"),
+            ScreamingKebabCase => ScreamingSnakeCase.apply_to_variant(ident).replace('_', "-"),
         }
     }
 
     /// Apply a renaming rule to a struct field, returning the version expected in the source.
-    pub fn apply_to_field(&self, field: &str) -> String {
+    pub fn apply_to_field(&self, ident: &Ident) -> String {
+        let field = ident.to_string();
         match *self {
-            None | LowerCase | SnakeCase => field.to_owned(),
+            None | LowerCase | SnakeCase => field,
             UpperCase => field.to_ascii_uppercase(),
             PascalCase => {
                 let mut pascal = String::new();
@@ -111,12 +115,12 @@ impl RenameRule {
                 pascal
             }
             CamelCase => {
-                let pascal = PascalCase.apply_to_field(field);
+                let pascal = PascalCase.apply_to_field(ident);
                 pascal[..1].to_ascii_lowercase() + &pascal[1..]
             }
             ScreamingSnakeCase => field.to_ascii_uppercase(),
             KebabCase => field.replace('_', "-"),
-            ScreamingKebabCase => ScreamingSnakeCase.apply_to_field(field).replace('_', "-"),
+            ScreamingKebabCase => ScreamingSnakeCase.apply_to_field(ident).replace('_', "-"),
         }
     }
 }
@@ -142,7 +146,7 @@ impl<'a> Display for ParseError<'a> {
 
 #[test]
 fn rename_variants() {
-    for &(original, lower, upper, camel, snake, screaming, kebab, screaming_kebab) in &[
+    for &(name, lower, upper, camel, snake, screaming, kebab, screaming_kebab) in &[
         (
             "Outcome", "outcome", "OUTCOME", "outcome", "outcome", "OUTCOME", "outcome", "OUTCOME",
         ),
@@ -159,10 +163,12 @@ fn rename_variants() {
         ("A", "a", "A", "a", "a", "A", "a", "A"),
         ("Z42", "z42", "Z42", "z42", "z42", "Z42", "z42", "Z42"),
     ] {
-        assert_eq!(None.apply_to_variant(original), original);
+        let original = &Ident::new(name, Span::call_site());
+
+        assert_eq!(None.apply_to_variant(original), name);
         assert_eq!(LowerCase.apply_to_variant(original), lower);
         assert_eq!(UpperCase.apply_to_variant(original), upper);
-        assert_eq!(PascalCase.apply_to_variant(original), original);
+        assert_eq!(PascalCase.apply_to_variant(original), name);
         assert_eq!(CamelCase.apply_to_variant(original), camel);
         assert_eq!(SnakeCase.apply_to_variant(original), snake);
         assert_eq!(ScreamingSnakeCase.apply_to_variant(original), screaming);
@@ -176,7 +182,7 @@ fn rename_variants() {
 
 #[test]
 fn rename_fields() {
-    for &(original, upper, pascal, camel, screaming, kebab, screaming_kebab) in &[
+    for &(name, upper, pascal, camel, screaming, kebab, screaming_kebab) in &[
         (
             "outcome", "OUTCOME", "Outcome", "outcome", "OUTCOME", "outcome", "OUTCOME",
         ),
@@ -192,11 +198,13 @@ fn rename_fields() {
         ("a", "A", "A", "a", "A", "a", "A"),
         ("z42", "Z42", "Z42", "z42", "Z42", "z42", "Z42"),
     ] {
-        assert_eq!(None.apply_to_field(original), original);
+        let original = &Ident::new(name, Span::call_site());
+
+        assert_eq!(None.apply_to_field(original), name);
         assert_eq!(UpperCase.apply_to_field(original), upper);
         assert_eq!(PascalCase.apply_to_field(original), pascal);
         assert_eq!(CamelCase.apply_to_field(original), camel);
-        assert_eq!(SnakeCase.apply_to_field(original), original);
+        assert_eq!(SnakeCase.apply_to_field(original), name);
         assert_eq!(ScreamingSnakeCase.apply_to_field(original), screaming);
         assert_eq!(KebabCase.apply_to_field(original), kebab);
         assert_eq!(ScreamingKebabCase.apply_to_field(original), screaming_kebab);

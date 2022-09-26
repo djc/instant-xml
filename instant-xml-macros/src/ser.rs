@@ -7,7 +7,11 @@ use crate::Namespace;
 use super::{discard_lifetimes, ContainerMeta, FieldMeta, VariantMeta};
 
 pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
-    let meta = ContainerMeta::from_derive(input);
+    let meta = match ContainerMeta::from_derive(input) {
+        Ok(meta) => meta,
+        Err(e) => return e.to_compile_error(),
+    };
+
     match &input.data {
         syn::Data::Struct(_) if meta.scalar => {
             syn::Error::new(input.span(), "scalar structs are unsupported!").to_compile_error()
@@ -151,7 +155,7 @@ fn process_named_field(
         Some(rename) => quote!(#rename),
         None => meta
             .rename_all
-            .apply_to_field(&field_name.to_string())
+            .apply_to_field(field_name)
             .into_token_stream(),
     };
 

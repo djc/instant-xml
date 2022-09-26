@@ -39,11 +39,11 @@ struct ContainerMeta {
 impl ContainerMeta {
     fn from_derive(input: &syn::DeriveInput) -> Result<ContainerMeta, syn::Error> {
         let mut meta = ContainerMeta::default();
-        for item in meta_items(&input.attrs) {
+        for (item, span) in meta_items(&input.attrs) {
             match item {
                 MetaItem::Attribute => {
                     return Err(syn::Error::new(
-                        input.span(),
+                        span,
                         "attribute key invalid in container xml attribute",
                     ))
                 }
@@ -52,7 +52,7 @@ impl ContainerMeta {
                 MetaItem::RenameAll(lit) => {
                     meta.rename_all = match RenameRule::from_str(&lit.to_string()) {
                         Ok(rule) => rule,
-                        Err(err) => return Err(syn::Error::new(input.span(), err)),
+                        Err(err) => return Err(syn::Error::new(span, err)),
                     };
                 }
                 MetaItem::Scalar => meta.scalar = true,
@@ -72,20 +72,20 @@ struct FieldMeta {
 impl FieldMeta {
     fn from_field(input: &syn::Field) -> Result<FieldMeta, syn::Error> {
         let mut meta = FieldMeta::default();
-        for item in meta_items(&input.attrs) {
+        for (item, span) in meta_items(&input.attrs) {
             match item {
                 MetaItem::Attribute => meta.attribute = true,
                 MetaItem::Ns(ns) => meta.ns = ns,
                 MetaItem::Rename(lit) => meta.rename = Some(lit),
                 MetaItem::RenameAll(_) => {
                     return Err(syn::Error::new(
-                        input.span(),
+                        span,
                         "attribute 'rename_all' invalid in field xml attribute",
                     ))
                 }
                 MetaItem::Scalar => {
                     return Err(syn::Error::new(
-                        input.span(),
+                        span,
                         "attribute 'scalar' is invalid for struct fields",
                     ))
                 }
@@ -114,31 +114,31 @@ impl VariantMeta {
         }
 
         let mut rename = None;
-        for item in meta_items(&input.attrs) {
+        for (item, span) in meta_items(&input.attrs) {
             match item {
                 MetaItem::Rename(lit) => rename = Some(lit.to_token_stream()),
 
                 MetaItem::Attribute => {
                     return Err(syn::Error::new(
-                        input.span(),
+                        span,
                         "attribute 'attribute' is invalid for enum variants",
                     ))
                 }
                 MetaItem::Ns(_ns) => {
                     return Err(syn::Error::new(
-                        input.span(),
+                        span,
                         "attribute 'ns' is invalid for enum variants",
                     ))
                 }
                 MetaItem::RenameAll(_) => {
                     return Err(syn::Error::new(
-                        input.span(),
+                        span,
                         "attribute 'rename_all' invalid in field xml attribute",
                     ))
                 }
                 MetaItem::Scalar => {
                     return Err(syn::Error::new(
-                        input.span(),
+                        span,
                         "attribute 'scalar' is invalid for enum variants",
                     ))
                 }
@@ -445,7 +445,7 @@ impl NamespaceMeta {
     }
 }
 
-fn meta_items(attrs: &[syn::Attribute]) -> Vec<MetaItem> {
+fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
     let mut items = Vec::new();
     let attr = match attrs.iter().find(|attr| attr.path.is_ident("xml")) {
         Some(attr) => attr,
@@ -466,10 +466,11 @@ fn meta_items(attrs: &[syn::Attribute]) -> Vec<MetaItem> {
 
     let mut state = MetaState::Start;
     for tree in first {
+        let span = tree.span();
         state = match (state, tree) {
             (MetaState::Start, TokenTree::Ident(id)) => {
                 if id == "attribute" {
-                    items.push(MetaItem::Attribute);
+                    items.push((MetaItem::Attribute, span));
                     MetaState::Comma
                 } else if id == "ns" {
                     MetaState::Ns
@@ -478,7 +479,7 @@ fn meta_items(attrs: &[syn::Attribute]) -> Vec<MetaItem> {
                 } else if id == "rename_all" {
                     MetaState::RenameAll
                 } else if id == "scalar" {
-                    items.push(MetaItem::Scalar);
+                    items.push((MetaItem::Scalar, span));
                     MetaState::Comma
                 } else {
                     panic!("unexpected key in xml attribute");
@@ -490,21 +491,21 @@ fn meta_items(attrs: &[syn::Attribute]) -> Vec<MetaItem> {
             (MetaState::Ns, TokenTree::Group(group))
                 if group.delimiter() == Delimiter::Parenthesis =>
             {
-                items.push(MetaItem::Ns(NamespaceMeta::from_tokens(group)));
+                items.push((MetaItem::Ns(NamespaceMeta::from_tokens(group)), span));
                 MetaState::Comma
             }
             (MetaState::Rename, TokenTree::Punct(punct)) if punct.as_char() == '=' => {
                 MetaState::RenameValue
             }
             (MetaState::RenameValue, TokenTree::Literal(lit)) => {
-                items.push(MetaItem::Rename(lit));
+                items.push((MetaItem::Rename(lit), span));
                 MetaState::Comma
             }
             (MetaState::RenameAll, TokenTree::Punct(punct)) if punct.as_char() == '=' => {
                 MetaState::RenameAllValue
             }
             (MetaState::RenameAllValue, TokenTree::Literal(lit)) => {
-                items.push(MetaItem::RenameAll(lit));
+                items.push((MetaItem::RenameAll(lit), span));
                 MetaState::Comma
             }
             (state, tree) => {

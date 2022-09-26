@@ -37,23 +37,28 @@ struct ContainerMeta {
 }
 
 impl ContainerMeta {
-    fn from_derive(input: &syn::DeriveInput) -> ContainerMeta {
+    fn from_derive(input: &syn::DeriveInput) -> Result<ContainerMeta, syn::Error> {
         let mut meta = ContainerMeta::default();
         for item in meta_items(&input.attrs) {
             match item {
-                MetaItem::Attribute => panic!("attribute key invalid in container xml attribute"),
+                MetaItem::Attribute => {
+                    return Err(syn::Error::new(
+                        input.span(),
+                        "attribute key invalid in container xml attribute",
+                    ))
+                }
                 MetaItem::Ns(ns) => meta.ns = ns,
                 MetaItem::Rename(lit) => meta.rename = Some(lit),
                 MetaItem::RenameAll(lit) => {
                     meta.rename_all = match RenameRule::from_str(&lit.to_string()) {
                         Ok(rule) => rule,
-                        Err(err) => panic!("{err}"),
+                        Err(err) => return Err(syn::Error::new(input.span(), err)),
                     };
                 }
                 MetaItem::Scalar => meta.scalar = true,
             }
         }
-        meta
+        Ok(meta)
     }
 }
 
@@ -175,7 +180,7 @@ impl VariantMeta {
             Some(lit) => lit.into_token_stream(),
             None => container
                 .rename_all
-                .apply_to_variant(&input.ident.to_string())
+                .apply_to_variant(&input.ident)
                 .to_token_stream(),
         };
 
@@ -491,12 +496,12 @@ fn meta_items(attrs: &[syn::Attribute]) -> Vec<MetaItem> {
             (MetaState::Rename, TokenTree::Punct(punct)) if punct.as_char() == '=' => {
                 MetaState::RenameValue
             }
-            (MetaState::RenameAll, TokenTree::Punct(punct)) if punct.as_char() == '=' => {
-                MetaState::RenameAllValue
-            }
             (MetaState::RenameValue, TokenTree::Literal(lit)) => {
                 items.push(MetaItem::Rename(lit));
                 MetaState::Comma
+            }
+            (MetaState::RenameAll, TokenTree::Punct(punct)) if punct.as_char() == '=' => {
+                MetaState::RenameAllValue
             }
             (MetaState::RenameAllValue, TokenTree::Literal(lit)) => {
                 items.push(MetaItem::RenameAll(lit));
@@ -810,7 +815,6 @@ mod tests {
 
     #[test]
     #[rustfmt::skip]
-    #[should_panic(expected = "unknown rename rule `rename_all = \"\\\"forgetaboutit\\\"\"`, expected one of \"\\\"lowercase\\\"\", \"\\\"UPPERCASE\\\"\", \"\\\"PascalCase\\\"\", \"\\\"camelCase\\\"\", \"\\\"snake_case\\\"\", \"\\\"SCREAMING_SNAKE_CASE\\\"\", \"\\\"kebab-case\\\"\", \"\\\"SCREAMING-KEBAB-CASE\\\"\"")]
     fn bogus_rename_all_not_permitted() {
         super::ser::to_xml(&parse_quote! {
 	    #[xml(rename_all = "forgetaboutit")]
@@ -818,6 +822,6 @@ mod tests {
 		field_1: String,
 		field_2: u8,
             }
-        }).to_string().find("compile_error ! { \"attribute 'rename_all' invalid in field xml attribute\" }").unwrap();
+        }).to_string().find("compile_error ! {").unwrap();
     }
 }

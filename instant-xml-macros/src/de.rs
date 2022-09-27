@@ -31,11 +31,8 @@ fn deserialize_enum(
     meta: ContainerMeta,
 ) -> TokenStream {
     let ident = &input.ident;
-    let generics = meta.lifetimed_generics();
-    let (impl_generics, _, _) = generics.split_for_impl();
-    let (_, ty_generics, where_clause) = input.generics.split_for_impl();
-
     let mut variants = TokenStream::new();
+
     for variant in data.variants.iter() {
 	let v_ident = &variant.ident;
         let meta = match VariantMeta::from_variant(variant, &meta) {
@@ -46,6 +43,10 @@ fn deserialize_enum(
         let serialize_as = meta.serialize_as;
         variants.extend(quote!(Ok(#serialize_as) => Ok(#ident::#v_ident),));
     }
+
+    let generics = meta.xml_generics();
+    let (impl_generics, _, _) = generics.split_for_impl();
+    let (_, ty_generics, where_clause) = input.generics.split_for_impl();
 
     quote!(
 	impl #impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
@@ -66,14 +67,6 @@ fn deserialize_struct(
     data: &syn::DataStruct,
     container_meta: ContainerMeta,
 ) -> TokenStream {
-    let ident = &input.ident;
-    let name = container_meta.tag();
-    let default_namespace = container_meta.default_namespace();
-    let generics = container_meta.lifetimed_generics();
-
-    let (xml_impl_generics, _, _) = generics.split_for_impl();
-    let (_, ty_generics, where_clause) = input.generics.split_for_impl();
-
     let mut namespaces_map = quote!(let mut namespaces_map = std::collections::HashMap::new(););
     for (k, v) in container_meta.ns.prefixes.iter() {
         namespaces_map.extend(quote!(
@@ -131,6 +124,14 @@ fn deserialize_struct(
     let attributes_consts = attributes_tokens.consts;
     let attributes_names = attributes_tokens.names;
     let attr_type_match = attributes_tokens.r#match;
+
+    let ident = &input.ident;
+    let name = container_meta.tag();
+    let default_namespace = container_meta.default_namespace();
+    let generics = container_meta.xml_generics();
+
+    let (xml_impl_generics, _, _) = generics.split_for_impl();
+    let (_, ty_generics, where_clause) = input.generics.split_for_impl();
 
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {

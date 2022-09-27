@@ -73,7 +73,7 @@ impl<'input> ContainerMeta<'input> {
         })
     }
 
-    fn lifetimed_generics(&self) -> Generics {
+    fn xml_generics(&self) -> Generics {
         let mut xml_generics = self.input.generics.clone();
         let mut xml = syn::LifetimeDef::new(syn::Lifetime::new("'xml", Span::call_site()));
         xml.bounds

@@ -67,6 +67,10 @@ fn serialize_struct(
     data: &syn::DataStruct,
     meta: ContainerMeta,
 ) -> proc_macro2::TokenStream {
+    let ident = &input.ident;
+    let tag = meta.tag();
+    let default_namespace = &meta.default_namespace();
+
     let mut body = TokenStream::new();
     let mut attributes = TokenStream::new();
 
@@ -80,28 +84,19 @@ fn serialize_struct(
         syn::Fields::Unit => {}
     };
 
-    let default_namespace = match &meta.ns.uri {
-        Some(ns) => quote!(#ns),
-        None => quote!(""),
-    };
-
     let cx_len = meta.ns.prefixes.len();
     let mut context = quote!(
         let mut new = ::instant_xml::ser::Context::<#cx_len>::default();
         new.default_ns = #default_namespace;
     );
+
     for (i, (prefix, ns)) in meta.ns.prefixes.iter().enumerate() {
         context.extend(quote!(
             new.prefixes[#i] = ::instant_xml::ser::Prefix { ns: #ns, prefix: #prefix };
         ));
     }
 
-    let ident = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let tag = match &meta.rename {
-        Some(rename) => quote!(#rename),
-        None => ident.to_string().into_token_stream(),
-    };
 
     quote!(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {

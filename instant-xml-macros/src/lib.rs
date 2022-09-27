@@ -8,11 +8,11 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use proc_macro2::{Delimiter, Group, Ident, Literal, Punct, Span, TokenStream, TokenTree};
-use quote::ToTokens;
-use syn::parse_macro_input;
+use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token::Colon2;
+use syn::{parse_macro_input, DeriveInput, Generics};
 
 use case::RenameRule;
 
@@ -28,17 +28,22 @@ pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     proc_macro::TokenStream::from(de::from_xml(&ast))
 }
 
-#[derive(Debug, Default)]
-struct ContainerMeta {
+struct ContainerMeta<'input> {
+    input: &'input DeriveInput,
+
     ns: NamespaceMeta,
     rename: Option<Literal>,
     rename_all: RenameRule,
     scalar: bool,
 }
 
-impl ContainerMeta {
-    fn from_derive(input: &syn::DeriveInput) -> Result<ContainerMeta, syn::Error> {
-        let mut meta = ContainerMeta::default();
+impl<'input> ContainerMeta<'input> {
+    fn from_derive(input: &'input syn::DeriveInput) -> Result<Self, syn::Error> {
+        let mut ns = NamespaceMeta::default();
+        let mut rename = Default::default();
+        let mut rename_all = Default::default();
+        let mut scalar = Default::default();
+
         for (item, span) in meta_items(&input.attrs) {
             match item {
                 MetaItem::Attribute => {
@@ -47,18 +52,49 @@ impl ContainerMeta {
                         "attribute key invalid in container xml attribute",
                     ))
                 }
-                MetaItem::Ns(ns) => meta.ns = ns,
-                MetaItem::Rename(lit) => meta.rename = Some(lit),
+                MetaItem::Ns(namespace) => ns = namespace,
+                MetaItem::Rename(lit) => rename = Some(lit),
                 MetaItem::RenameAll(lit) => {
-                    meta.rename_all = match RenameRule::from_str(&lit.to_string()) {
+                    rename_all = match RenameRule::from_str(&lit.to_string()) {
                         Ok(rule) => rule,
                         Err(err) => return Err(syn::Error::new(span, err)),
                     };
                 }
-                MetaItem::Scalar => meta.scalar = true,
+                MetaItem::Scalar => scalar = true,
             }
         }
-        Ok(meta)
+
+        Ok(Self {
+            input,
+            ns,
+            rename,
+            rename_all,
+            scalar,
+        })
+    }
+
+    fn lifetimed_generics(&self) -> Generics {
+        let mut xml_generics = self.input.generics.clone();
+        let mut xml = syn::LifetimeDef::new(syn::Lifetime::new("'xml", Span::call_site()));
+        xml.bounds
+            .extend(xml_generics.lifetimes().map(|lt| lt.lifetime.clone()));
+        xml_generics.params.push(xml.into());
+
+        xml_generics
+    }
+
+    fn tag(&self) -> TokenStream {
+        match &self.rename {
+            Some(name) => quote!(#name),
+            None => self.input.ident.to_string().into_token_stream(),
+        }
+    }
+
+    fn default_namespace(&self) -> TokenStream {
+        match &self.ns.uri {
+            Some(ns) => quote!(#ns),
+            None => quote!(""),
+        }
     }
 }
 

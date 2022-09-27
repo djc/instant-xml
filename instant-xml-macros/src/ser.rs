@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::spanned::Spanned;
 
 use crate::Namespace;
@@ -80,28 +80,22 @@ fn serialize_struct(
         syn::Fields::Unit => {}
     };
 
-    let default_namespace = match &meta.ns.uri {
-        Some(ns) => quote!(#ns),
-        None => quote!(""),
-    };
-
+    let default_namespace = meta.default_namespace();
     let cx_len = meta.ns.prefixes.len();
     let mut context = quote!(
         let mut new = ::instant_xml::ser::Context::<#cx_len>::default();
         new.default_ns = #default_namespace;
     );
+
     for (i, (prefix, ns)) in meta.ns.prefixes.iter().enumerate() {
         context.extend(quote!(
             new.prefixes[#i] = ::instant_xml::ser::Prefix { ns: #ns, prefix: #prefix };
         ));
     }
 
-    let ident = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let tag = match &meta.rename {
-        Some(rename) => quote!(#rename),
-        None => ident.to_string().into_token_stream(),
-    };
+    let tag = meta.tag();
+    let ident = &input.ident;
 
     quote!(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {
@@ -145,7 +139,7 @@ fn process_named_field(
     meta: &ContainerMeta,
 ) {
     let field_name = field.ident.as_ref().unwrap();
-    let field_meta = match FieldMeta::from_field(field) {
+    let field_meta = match FieldMeta::from_field(field, meta) {
         Ok(meta) => meta,
         Err(err) => {
             body.extend(err.into_compile_error());
@@ -153,15 +147,12 @@ fn process_named_field(
         }
     };
 
-    let tag = match &field_meta.rename {
-        Some(rename) => quote!(#rename),
-        None => meta
-            .rename_all
-            .apply_to_field(field_name)
-            .into_token_stream(),
+    let tag = field_meta.tag;
+    let default_ns = match &meta.ns.uri {
+        Some(ns) => quote!(#ns),
+        None => quote!(""),
     };
 
-    let default_ns = &meta.ns.uri;
     if field_meta.attribute {
         let (ns, error) = match &field_meta.ns.uri {
             Some(Namespace::Path(path)) => match path.get_ident() {
@@ -193,10 +184,7 @@ fn process_named_field(
                 )
                 .into_compile_error(),
             ),
-            None => (match default_ns {
-                Some(ns) => quote!(#ns),
-                None => quote!(""),
-            }, quote!()),
+            None => (default_ns, quote!()),
         };
 
         attributes.extend(quote!(
@@ -207,11 +195,8 @@ fn process_named_field(
     }
 
     let ns = match field_meta.ns.uri {
-        Some(ns) => quote!(#ns),
-        None => match &meta.ns.uri {
-            Some(ns) => quote!(#ns),
-            None => quote!(""),
-        },
+        Some(ref ns) => quote!(#ns),
+        None => default_ns,
     };
 
     let mut no_lifetime_type = field.ty.clone();

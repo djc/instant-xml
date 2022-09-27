@@ -56,6 +56,8 @@ fn serialize_enum(
             ) -> Result<(), instant_xml::Error> {
 		serializer.write_str(match self { #variants })
             }
+
+            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Scalar;
 	}
     )
 }

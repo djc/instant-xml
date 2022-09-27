@@ -684,7 +684,7 @@ mod tests {
         };
 
         assert_eq!(super::ser::to_xml(&input).to_string(),
-"impl ToXml for TestEnum { fn serialize < W : :: core :: fmt :: Write + ? :: core :: marker :: Sized > (& self , serializer : & mut instant_xml :: Serializer < W > ,) -> Result < () , instant_xml :: Error > { serializer . write_str (match self { TestEnum :: Foo => \"Foo\" , TestEnum :: Bar => \"Bar\" , TestEnum :: Baz => \"1\" , }) } }"
+"impl ToXml for TestEnum { fn serialize < W : :: core :: fmt :: Write + ? :: core :: marker :: Sized > (& self , serializer : & mut instant_xml :: Serializer < W > ,) -> Result < () , instant_xml :: Error > { serializer . write_str (match self { TestEnum :: Foo => \"Foo\" , TestEnum :: Bar => \"Bar\" , TestEnum :: Baz => \"1\" , }) } const KIND : :: instant_xml :: Kind = :: instant_xml :: Kind :: Scalar ; }"
 	)
     }
 
@@ -701,7 +701,7 @@ mod tests {
         };
 
         assert_eq!(super::de::from_xml(&input).to_string(),
-"impl FromXml < 'xml > for TestEnum { fn deserialize < 'cx > (deserializer : & 'cx mut :: instant_xml :: Deserializer < 'cx , 'xml >) -> Result < Self , :: instant_xml :: Error > { match deserializer . take_str () { Ok (\"Foo\") => TestEnum :: Foo , Ok (\"Bar\") => TestEnum :: Bar , Ok (\"1\") => TestEnum :: Baz , _ => Err (:: instant_xml :: Error :: UnexpectedValue) } } }"
+"impl < 'xml > FromXml < 'xml > for TestEnum { fn deserialize < 'cx > (deserializer : & 'cx mut :: instant_xml :: Deserializer < 'cx , 'xml >) -> Result < Self , :: instant_xml :: Error > { match deserializer . take_str () { Ok (\"Foo\") => Ok (TestEnum :: Foo) , Ok (\"Bar\") => Ok (TestEnum :: Bar) , Ok (\"1\") => Ok (TestEnum :: Baz) , _ => Err (:: instant_xml :: Error :: UnexpectedValue) } } const KIND : :: instant_xml :: Kind = :: instant_xml :: Kind :: Scalar ; }"
 	)
     }
 
@@ -789,7 +789,7 @@ mod tests {
 		Bar,
 		Baz
             }
-        }).to_string(), "impl ToXml for TestEnum { fn serialize < W : :: core :: fmt :: Write + ? :: core :: marker :: Sized > (& self , serializer : & mut instant_xml :: Serializer < W > ,) -> Result < () , instant_xml :: Error > { serializer . write_str (match self { TestEnum :: Foo => \"1\" , TestEnum :: Bar => \"BAR\" , TestEnum :: Baz => \"BAZ\" , }) } }");
+        }).to_string(), "impl ToXml for TestEnum { fn serialize < W : :: core :: fmt :: Write + ? :: core :: marker :: Sized > (& self , serializer : & mut instant_xml :: Serializer < W > ,) -> Result < () , instant_xml :: Error > { serializer . write_str (match self { TestEnum :: Foo => \"1\" , TestEnum :: Bar => \"BAR\" , TestEnum :: Baz => \"BAZ\" , }) } const KIND : :: instant_xml :: Kind = :: instant_xml :: Kind :: Scalar ; }");
     }
 
     #[test]

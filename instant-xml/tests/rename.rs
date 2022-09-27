@@ -41,3 +41,31 @@ fn rename_all_struct() {
     assert_eq!(to_string(&instance).unwrap(), serialized);
     assert_eq!(from_str::<TestStruct>(serialized), Ok(instance));
 }
+
+#[test]
+fn rename_all_enum_variant() {
+    #[derive(Debug, PartialEq, Eq, ToXml, FromXml)]
+    #[xml(scalar, rename_all = "snake_case")]
+    pub enum TestEnum {
+        SnakeCased,
+        ThisToo,
+    }
+
+    #[derive(Debug, PartialEq, Eq, ToXml, FromXml)]
+    #[xml(rename_all = "UPPERCASE")]
+    pub struct TestStruct {
+        field_1: TestEnum,
+        #[xml(attribute)]
+        field_2: TestEnum,
+    }
+
+    let serialized =
+        r#"<TestStruct FIELD_2="this_too"><FIELD_1>snake_cased</FIELD_1></TestStruct>"#;
+    let instance = TestStruct {
+        field_1: TestEnum::SnakeCased,
+        field_2: TestEnum::ThisToo,
+    };
+
+    assert_eq!(to_string(&instance).unwrap(), serialized);
+    assert_eq!(from_str::<TestStruct>(serialized), Ok(instance));
+}

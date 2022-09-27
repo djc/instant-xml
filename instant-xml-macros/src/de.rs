@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::spanned::Spanned;
 
 use super::{discard_lifetimes, ContainerMeta, FieldMeta, Namespace, VariantMeta};
@@ -92,7 +92,7 @@ fn deserialize_struct(
     match data.fields {
         syn::Fields::Named(ref fields) => {
             fields.named.iter().enumerate().for_each(|(index, field)| {
-                let field_meta = match FieldMeta::from_field(field) {
+                let field_meta = match FieldMeta::from_field(field, &container_meta) {
                     Ok(meta) => meta,
                     Err(err) => {
                         return_val.extend(err.into_compile_error());
@@ -216,22 +216,7 @@ fn process_field(
     container_meta: &ContainerMeta,
 ) {
     let field_name = field.ident.as_ref().unwrap();
-
-    let field_tag = match &field_meta.rename {
-        Some(rename) => quote!(#rename),
-        None => container_meta
-            .rename_all
-            .apply_to_field(field_name)
-            .into_token_stream(),
-    };
-
-    let const_field_var_str = Ident::new(&field_name.to_string().to_uppercase(), Span::call_site());
-    let mut no_lifetime_type = field.ty.clone();
-    discard_lifetimes(&mut no_lifetime_type);
-
-    let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
-    tokens.r#enum.extend(quote!(#enum_name,));
-
+    let field_tag = field_meta.tag;
     let default_ns = match &field_meta.ns.uri {
         None => &container_meta.ns.uri,
         _ => &field_meta.ns.uri,
@@ -242,6 +227,13 @@ fn process_field(
         Some(Namespace::Literal(ns)) => quote!(#ns),
         None => quote!(""),
     };
+
+    let const_field_var_str = Ident::new(&field_name.to_string().to_uppercase(), Span::call_site());
+    let mut no_lifetime_type = field.ty.clone();
+    discard_lifetimes(&mut no_lifetime_type);
+
+    let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
+    tokens.r#enum.extend(quote!(#enum_name,));
 
     tokens.consts.extend(quote!(
         const #const_field_var_str: Id<'static> = <#no_lifetime_type as FromXml<'_>>::KIND.name(

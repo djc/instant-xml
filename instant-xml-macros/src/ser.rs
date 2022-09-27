@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::spanned::Spanned;
 
 use crate::Namespace;
@@ -140,7 +140,7 @@ fn process_named_field(
     meta: &ContainerMeta,
 ) {
     let field_name = field.ident.as_ref().unwrap();
-    let field_meta = match FieldMeta::from_field(field) {
+    let field_meta = match FieldMeta::from_field(field, meta) {
         Ok(meta) => meta,
         Err(err) => {
             body.extend(err.into_compile_error());
@@ -148,15 +148,12 @@ fn process_named_field(
         }
     };
 
-    let tag = match &field_meta.rename {
-        Some(rename) => quote!(#rename),
-        None => meta
-            .rename_all
-            .apply_to_field(field_name)
-            .into_token_stream(),
+    let tag = field_meta.tag;
+    let default_ns = match &meta.ns.uri {
+        Some(ns) => quote!(#ns),
+        None => quote!(""),
     };
 
-    let default_ns = &meta.ns.uri;
     if field_meta.attribute {
         let (ns, error) = match &field_meta.ns.uri {
             Some(Namespace::Path(path)) => match path.get_ident() {
@@ -188,10 +185,7 @@ fn process_named_field(
                 )
                 .into_compile_error(),
             ),
-            None => (match default_ns {
-                Some(ns) => quote!(#ns),
-                None => quote!(""),
-            }, quote!()),
+            None => (default_ns, quote!()),
         };
 
         attributes.extend(quote!(
@@ -202,11 +196,8 @@ fn process_named_field(
     }
 
     let ns = match field_meta.ns.uri {
-        Some(ns) => quote!(#ns),
-        None => match &meta.ns.uri {
-            Some(ns) => quote!(#ns),
-            None => quote!(""),
-        },
+        Some(ref ns) => quote!(#ns),
+        None => default_ns,
     };
 
     let mut no_lifetime_type = field.ty.clone();

@@ -102,17 +102,25 @@ impl<'input> ContainerMeta<'input> {
 struct FieldMeta {
     attribute: bool,
     ns: NamespaceMeta,
-    rename: Option<Literal>,
+    tag: TokenStream,
 }
 
 impl FieldMeta {
-    fn from_field(input: &syn::Field) -> Result<FieldMeta, syn::Error> {
-        let mut meta = FieldMeta::default();
+    fn from_field(input: &syn::Field, container: &ContainerMeta) -> Result<FieldMeta, syn::Error> {
+        let field_name = input.ident.as_ref().unwrap();
+        let mut meta = FieldMeta {
+            tag: container
+                .rename_all
+                .apply_to_field(field_name)
+                .into_token_stream(),
+            ..Default::default()
+        };
+
         for (item, span) in meta_items(&input.attrs) {
             match item {
                 MetaItem::Attribute => meta.attribute = true,
                 MetaItem::Ns(ns) => meta.ns = ns,
-                MetaItem::Rename(lit) => meta.rename = Some(lit),
+                MetaItem::Rename(lit) => meta.tag = quote!(#lit),
                 MetaItem::RenameAll(_) => {
                     return Err(syn::Error::new(
                         span,

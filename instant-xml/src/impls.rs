@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
-use crate::{Deserializer, Error, FromXml, Kind, Serializer, ToXml};
+use crate::{de::Node, Deserializer, Error, FromXml, Id, Kind, Serializer, ToXml};
 
 // Deserializer
 struct FromXmlStr<T: FromStr>(Option<T>);
@@ -315,4 +315,69 @@ fn decode(input: &str) -> Cow<'_, str> {
     }
 
     Cow::Owned(result)
+}
+
+const VEC_TAG: &str = "list";
+const VEC_ELEMENT_TAG: &str = "element";
+
+impl<'xml, T> FromXml<'xml> for Vec<T>
+where
+    T: FromXml<'xml>,
+{
+    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
+        let mut result = Self::new();
+
+        while let Some(Ok(node)) = deserializer.next() {
+            match node {
+                Node::Open(data) => {
+                    let id = deserializer.element_id(&data)?;
+
+                    match id.name {
+                        VEC_ELEMENT_TAG => {
+                            let mut nested = deserializer.nested(data);
+                            result.push(<T as FromXml<'xml>>::deserialize(&mut nested)?)
+                        }
+                        _ => return Err(Error::UnexpectedState),
+                    }
+                }
+                _ => return Err(Error::UnexpectedState),
+            }
+        }
+
+        Ok(result)
+    }
+
+    const KIND: Kind = Kind::Element(Id {
+        ns: "",
+        name: VEC_TAG,
+    });
+}
+
+impl<T> ToXml for Vec<T>
+where
+    T: ToXml,
+{
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        let prefix = serializer.write_start(VEC_TAG, "", false)?;
+        serializer.end_start()?;
+
+        for i in self {
+            let prefix = serializer.write_start(VEC_ELEMENT_TAG, "", false)?;
+            serializer.end_start()?;
+            i.serialize(serializer)?;
+            serializer.write_close(prefix, VEC_ELEMENT_TAG)?;
+        }
+
+        serializer.write_close(prefix, VEC_TAG)?;
+
+        Ok(())
+    }
+
+    const KIND: Kind = Kind::Element(Id {
+        ns: "",
+        name: VEC_TAG,
+    });
 }

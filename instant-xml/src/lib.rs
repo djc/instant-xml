@@ -39,6 +39,7 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     let id = context.element_id(&root)?;
     let expected = match T::KIND {
         Kind::Scalar => return Err(Error::UnexpectedState),
+        Kind::Vec => return Err(Error::UnexpectedState),
         Kind::Element(expected) => expected,
     };
 
@@ -99,6 +100,7 @@ pub enum Error {
 pub enum Kind {
     Scalar,
     Element(Id<'static>),
+    Vec,
 }
 
 impl Kind {
@@ -106,6 +108,7 @@ impl Kind {
         match self {
             Kind::Scalar => field,
             Kind::Element(name) => *name,
+            Kind::Vec => field,
         }
     }
 }

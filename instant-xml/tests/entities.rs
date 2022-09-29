@@ -17,7 +17,7 @@ struct StructSpecialEntities<'a> {
 fn escape_back() {
     assert_eq!(
         from_str(
-            "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str</str><cow>str&amp;</cow><list xmlns=\"\"><element xmlns=\"\">one</element><element xmlns=\"\">two</element><element xmlns=\"\">three</element></list></StructSpecialEntities>"
+            "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str</str><cow>str&amp;</cow><vec><element xmlns=\"\">one</element><element xmlns=\"\">two</element><element xmlns=\"\">three</element></vec></StructSpecialEntities>"
         ),
         Ok(StructSpecialEntities {
             string: String::from("<>&\"'adsad\""),
@@ -30,14 +30,14 @@ fn escape_back() {
     // Wrong str char
     assert_eq!(
         from_str(
-            "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str&amp;</str><list xmlns=\"\"><element xmlns=\"\">one</element><element xmlns=\"\">two</element><element xmlns=\"\">three</element></list></StructSpecialEntities>"
+            "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str&amp;</str><vec><element xmlns=\"\">one</element><element xmlns=\"\">two</element><element xmlns=\"\">three</element></vec></StructSpecialEntities>"
         ),
         Err::<StructSpecialEntities, _>(Error::UnexpectedValue)
     );
 
     // Borrowed
     let escape_back = from_str::<StructSpecialEntities>(
-        "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str</str><cow>str</cow><list xmlns=\"\"><element xmlns=\"\">one</element><element xmlns=\"\">two</element><element xmlns=\"\">three</element></list></StructSpecialEntities>"
+        "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str</str><cow>str</cow><vec><element xmlns=\"\">one</element><element xmlns=\"\">two</element><element xmlns=\"\">three</element></vec></StructSpecialEntities>"
     )
     .unwrap();
 
@@ -47,7 +47,7 @@ fn escape_back() {
 
     // Owned
     let escape_back = from_str::<StructSpecialEntities>(
-            "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str</str><cow>str&amp;</cow><list xmlns=\"\"><element xmlns=\"\">one</element><element xmlns=\"\">two</element><element xmlns=\"\">three</element></list></StructSpecialEntities>"
+            "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str</str><cow>str&amp;</cow><vec><element xmlns=\"\">one</element><element xmlns=\"\">two</element><element xmlns=\"\">three</element></vec></StructSpecialEntities>"
         )
         .unwrap();
 
@@ -65,6 +65,6 @@ fn special_entities() {
             cow: Cow::from("&\"<>\'cc"),
         vec: vec!["one".into(), "two".into(), "three".into()]
         }).unwrap(),
-        "<StructSpecialEntities xmlns=\"URI\"><string>&amp;&quot;&lt;&gt;&apos;aa</string><str>&amp;&quot;&lt;&gt;&apos;bb</str><cow>&amp;&quot;&lt;&gt;&apos;cc</cow><list xmlns=\"\"><element xmlns=\"\">one</element><element xmlns=\"\">two</element><element xmlns=\"\">three</element></list></StructSpecialEntities>",
+        "<StructSpecialEntities xmlns=\"URI\"><string>&amp;&quot;&lt;&gt;&apos;aa</string><str>&amp;&quot;&lt;&gt;&apos;bb</str><cow>&amp;&quot;&lt;&gt;&apos;cc</cow><vec><element xmlns=\"\">one</element><element xmlns=\"\">two</element><element xmlns=\"\">three</element></vec></StructSpecialEntities>",
     );
 }

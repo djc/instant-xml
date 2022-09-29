@@ -206,7 +206,7 @@ fn process_named_field(
             ::instant_xml::Kind::Element(_) => {
                 self.#field_name.serialize(serializer)?;
             }
-            ::instant_xml::Kind::Scalar => {
+            ::instant_xml::Kind::Scalar | ::instant_xml::Kind::Vec => {
                 let prefix = serializer.write_start(#tag, #ns, true)?;
                 serializer.end_start()?;
                 self.#field_name.serialize(serializer)?;

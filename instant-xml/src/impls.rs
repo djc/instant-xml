@@ -317,6 +317,7 @@ fn decode(input: &str) -> Cow<'_, str> {
     Cow::Owned(result)
 }
 
+const VEC_LIST_TAG: &str = "list";
 const VEC_ELEMENT_TAG: &str = "element";
 
 impl<'xml, T> FromXml<'xml> for Vec<T>
@@ -325,10 +326,11 @@ where
 {
     fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
         let mut result = Self::new();
+        let kind = <T as FromXml<'xml>>::KIND;
 
         while let Some(Ok(node)) = deserializer.next() {
-            match node {
-                Node::Open(data) => {
+            match (&kind, node) {
+                (Kind::Scalar, Node::Open(data)) => {
                     let id = deserializer.element_id(&data)?;
 
                     match id.name {
@@ -338,6 +340,10 @@ where
                         }
                         _ => return Err(Error::UnexpectedState),
                     }
+                }
+                (Kind::Vec | Kind::Element(_), Node::Open(data)) => {
+                    let mut nested = deserializer.nested(data);
+                    result.push(<T as FromXml<'xml>>::deserialize(&mut nested)?)
                 }
                 _ => return Err(Error::UnexpectedState),
             }
@@ -357,11 +363,29 @@ where
         &self,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        for i in self {
-            let prefix = serializer.write_start(VEC_ELEMENT_TAG, "", false)?;
-            serializer.end_start()?;
-            i.serialize(serializer)?;
-            serializer.write_close(prefix, VEC_ELEMENT_TAG)?;
+        match <T as ToXml>::KIND {
+            Kind::Element(_) => {
+                for i in self {
+                    i.serialize(serializer)?;
+                }
+            }
+            Kind::Scalar => {
+                for i in self {
+                    let prefix = serializer.write_start(VEC_ELEMENT_TAG, "", false)?;
+                    serializer.end_start()?;
+                    i.serialize(serializer)?;
+                    serializer.write_close(prefix, VEC_ELEMENT_TAG)?;
+                }
+            }
+            // this would be a Vec<Vec<T>>, where the internal field is unnamed
+            Kind::Vec => {
+                for i in self {
+                    let prefix = serializer.write_start(VEC_LIST_TAG, "", false)?;
+                    serializer.end_start()?;
+                    i.serialize(serializer)?;
+                    serializer.write_close(prefix, VEC_LIST_TAG)?;
+                }
+            }
         }
 
         Ok(())

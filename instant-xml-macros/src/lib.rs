@@ -30,7 +30,6 @@ pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 struct ContainerMeta<'input> {
     input: &'input DeriveInput,
-
     ns: NamespaceMeta,
     rename: Option<Literal>,
     rename_all: RenameRule,
@@ -161,7 +160,6 @@ impl VariantMeta {
         for (item, span) in meta_items(&input.attrs) {
             match item {
                 MetaItem::Rename(lit) => rename = Some(lit.to_token_stream()),
-
                 MetaItem::Attribute => {
                     return Err(syn::Error::new(
                         span,

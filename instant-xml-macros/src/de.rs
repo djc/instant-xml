@@ -115,15 +115,21 @@ fn deserialize_struct(
 
     // Elements
     let elements_enum = elements_tokens.r#enum;
-    let elements_consts = elements_tokens.consts;
-    let elements_names = elements_tokens.names;
+    let mut elements_branches = elements_tokens.branches;
     let elem_type_match = elements_tokens.r#match;
+    elements_branches.extend(match elements_branches.is_empty() {
+        true => quote!(__Elements::__Ignore),
+        false => quote!(else { __Elements::__Ignore }),
+    });
 
     // Attributes
     let attributes_enum = attributes_tokens.r#enum;
-    let attributes_consts = attributes_tokens.consts;
-    let attributes_names = attributes_tokens.names;
+    let mut attributes_branches = attributes_tokens.branches;
     let attr_type_match = attributes_tokens.r#match;
+    attributes_branches.extend(match attributes_branches.is_empty() {
+        true => quote!(__Attributes::__Ignore),
+        false => quote!(else { __Attributes::__Ignore }),
+    });
 
     let ident = &input.ident;
     let name = container_meta.tag();
@@ -160,13 +166,7 @@ fn deserialize_struct(
                     match node {
                         Node::Attribute(attr) => {
                             let id = deserializer.attribute_id(&attr)?;
-                            let field = {
-                                #attributes_consts
-                                match id {
-                                    #attributes_names
-                                    _ => __Attributes::__Ignore
-                                }
-                            };
+                            let field = #attributes_branches;
 
                             match field {
                                 #attr_type_match
@@ -175,13 +175,7 @@ fn deserialize_struct(
                         }
                         Node::Open(data) => {
                             let id = deserializer.element_id(&data)?;
-                            let element = {
-                                #elements_consts
-                                match id {
-                                    #elements_names
-                                    _ => __Elements::__Ignore
-                                }
-                            };
+                            let element = #elements_branches;
 
                             match element {
                                 #elem_type_match
@@ -229,28 +223,25 @@ fn process_field(
         None => quote!(""),
     };
 
-    let const_field_var_str = Ident::new(&field_name.to_string().to_uppercase(), Span::call_site());
     let mut no_lifetime_type = field.ty.clone();
     discard_lifetimes(&mut no_lifetime_type);
 
     let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
     tokens.r#enum.extend(quote!(#enum_name,));
 
-    tokens.consts.extend(quote!(
-        const #const_field_var_str: Id<'static> = <#no_lifetime_type as FromXml<'_>>::KIND.name(
+    if !tokens.branches.is_empty() {
+        tokens.branches.extend(quote!(else));
+    }
+    tokens.branches.extend(quote!(
+        if id == <#no_lifetime_type as FromXml>::KIND.name(
             Id { ns: #ns, name: #field_tag }
-        );
+        )
     ));
 
-    if !field_meta.attribute {
-        tokens.names.extend(quote!(
-            #const_field_var_str => __Elements::#enum_name,
-        ));
-    } else {
-        tokens.names.extend(quote!(
-            #const_field_var_str => __Attributes::#enum_name,
-        ));
-    }
+    tokens.branches.extend(match field_meta.attribute {
+        true => quote!({ __Attributes::#enum_name }),
+        false => quote!({ __Elements::#enum_name }),
+    });
 
     declare_values.extend(quote!(
         let mut #enum_name: Option<#no_lifetime_type> = None;
@@ -288,20 +279,9 @@ fn process_field(
     ));
 }
 
+#[derive(Default)]
 struct Tokens {
     r#enum: TokenStream,
-    consts: TokenStream,
-    names: TokenStream,
+    branches: TokenStream,
     r#match: TokenStream,
-}
-
-impl Default for Tokens {
-    fn default() -> Self {
-        Self {
-            r#enum: TokenStream::new(),
-            consts: TokenStream::new(),
-            names: TokenStream::new(),
-            r#match: TokenStream::new(),
-        }
-    }
 }

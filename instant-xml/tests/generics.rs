@@ -10,7 +10,7 @@ struct Bar {
     bar: String,
 }
 
-#[allow(clippy::disallowed_names)]
+#[allow(clippy::disallowed_names)] // `foo` is not allowed
 #[test]
 fn serialize_generics() {
     let foo = Foo {

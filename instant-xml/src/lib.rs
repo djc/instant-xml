@@ -22,6 +22,17 @@ pub trait ToXml {
     const KIND: Kind;
 }
 
+impl<'a, T: ToXml + ?Sized> ToXml for &'a T {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        (*self).serialize(serializer)
+    }
+
+    const KIND: Kind = T::KIND;
+}
+
 pub trait FromXml<'xml>: Sized {
     fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error>;
 

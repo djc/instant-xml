@@ -65,6 +65,8 @@ pub fn to_writer(
 
 pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}
 
+impl<T> FromXmlOwned for T where T: for<'xml> FromXml<'xml> {}
+
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum Error {
     #[error("format: {0}")]

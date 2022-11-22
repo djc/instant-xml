@@ -91,7 +91,14 @@ fn serialize_struct(
         ));
     }
 
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let mut generics = input.generics.clone();
+    for param in generics.type_params_mut() {
+        param
+            .bounds
+            .push(syn::parse_str("::instant_xml::ToXml").unwrap());
+    }
+
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let tag = meta.tag();
     let ident = &input.ident;
 

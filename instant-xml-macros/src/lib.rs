@@ -79,6 +79,12 @@ impl<'input> ContainerMeta<'input> {
             .extend(xml_generics.lifetimes().map(|lt| lt.lifetime.clone()));
         xml_generics.params.push(xml.into());
 
+        for param in xml_generics.type_params_mut() {
+            param
+                .bounds
+                .push(syn::parse_str("::instant_xml::FromXml<'xml>").unwrap());
+        }
+
         xml_generics
     }
 

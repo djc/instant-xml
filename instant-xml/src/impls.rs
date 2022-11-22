@@ -2,6 +2,9 @@ use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
+#[cfg(feature = "chrono")]
+use chrono::{DateTime, Utc};
+
 use crate::{de::Node, Deserializer, Error, FromXml, Kind, Serializer, ToXml};
 
 // Deserializer
@@ -392,4 +395,29 @@ where
     }
 
     const KIND: Kind = Kind::Vec;
+}
+
+#[cfg(feature = "chrono")]
+impl ToXml for DateTime<Utc> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        serializer.write_str(&self.to_rfc3339())
+    }
+
+    const KIND: Kind = Kind::Scalar;
+}
+
+#[cfg(feature = "chrono")]
+impl<'xml> FromXml<'xml> for DateTime<Utc> {
+    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
+        let data = deserializer.take_str()?;
+        match DateTime::parse_from_rfc3339(data) {
+            Ok(dt) if dt.timezone().utc_minus_local() == 0 => Ok(dt.with_timezone(&Utc)),
+            _ => Err(Error::Other("invalid date/time".into())),
+        }
+    }
+
+    const KIND: Kind = Kind::Scalar;
 }

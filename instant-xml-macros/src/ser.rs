@@ -13,12 +13,12 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
     };
 
     match &input.data {
-        syn::Data::Struct(_) if meta.scalar => {
-            syn::Error::new(input.span(), "scalar structs are unsupported!").to_compile_error()
+        syn::Data::Struct(_) if meta.mode.is_some() => {
+            syn::Error::new(input.span(), "enum mode not allowed on struct type").to_compile_error()
         }
         syn::Data::Struct(ref data) => serialize_struct(input, data, meta),
-        syn::Data::Enum(_) if !meta.scalar => {
-            syn::Error::new(input.span(), "non-scalar enums are currently unsupported!")
+        syn::Data::Enum(_) if meta.mode.is_none() => {
+            syn::Error::new(input.span(), "missing enum mode")
                 .to_compile_error()
         }
         syn::Data::Enum(ref data) => serialize_enum(input, data, meta),

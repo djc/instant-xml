@@ -33,7 +33,7 @@ struct ContainerMeta<'input> {
     ns: NamespaceMeta,
     rename: Option<Literal>,
     rename_all: RenameRule,
-    scalar: bool,
+    mode: Option<Mode>,
 }
 
 impl<'input> ContainerMeta<'input> {
@@ -41,7 +41,7 @@ impl<'input> ContainerMeta<'input> {
         let mut ns = NamespaceMeta::default();
         let mut rename = Default::default();
         let mut rename_all = Default::default();
-        let mut scalar = Default::default();
+        let mut mode = None;
 
         for (item, span) in meta_items(&input.attrs) {
             match item {
@@ -59,7 +59,10 @@ impl<'input> ContainerMeta<'input> {
                         Err(err) => return Err(syn::Error::new(span, err)),
                     };
                 }
-                MetaItem::Scalar => scalar = true,
+                MetaItem::Scalar => match mode {
+                    None => mode = Some(Mode::Scalar),
+                    Some(_) => return Err(syn::Error::new(span, "cannot have two enum modes")),
+                },
             }
         }
 
@@ -68,7 +71,7 @@ impl<'input> ContainerMeta<'input> {
             ns,
             rename,
             rename_all,
-            scalar,
+            mode,
         })
     }
 
@@ -133,10 +136,7 @@ impl FieldMeta {
                     ))
                 }
                 MetaItem::Scalar => {
-                    return Err(syn::Error::new(
-                        span,
-                        "attribute 'scalar' is invalid for struct fields",
-                    ))
+                    return Err(syn::Error::new(span, "invalid attribute for struct field"));
                 }
             }
         }
@@ -166,28 +166,10 @@ impl VariantMeta {
         for (item, span) in meta_items(&input.attrs) {
             match item {
                 MetaItem::Rename(lit) => rename = Some(lit.to_token_stream()),
-                MetaItem::Attribute => {
+                _ => {
                     return Err(syn::Error::new(
                         span,
-                        "attribute 'attribute' is invalid for enum variants",
-                    ))
-                }
-                MetaItem::Ns(_ns) => {
-                    return Err(syn::Error::new(
-                        span,
-                        "attribute 'ns' is invalid for enum variants",
-                    ))
-                }
-                MetaItem::RenameAll(_) => {
-                    return Err(syn::Error::new(
-                        span,
-                        "attribute 'rename_all' invalid in field xml attribute",
-                    ))
-                }
-                MetaItem::Scalar => {
-                    return Err(syn::Error::new(
-                        span,
-                        "attribute 'scalar' is invalid for enum variants",
+                        "only 'rename' attribute is permitted on enum variants",
                     ))
                 }
             }
@@ -713,6 +695,10 @@ fn discard_path_lifetimes(path: &mut syn::TypePath) {
             }
         }
     }
+}
+
+enum Mode {
+    Scalar,
 }
 
 #[cfg(test)]

@@ -11,13 +11,12 @@ pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
     };
 
     match &input.data {
-        syn::Data::Struct(_) if meta.scalar => {
-            syn::Error::new(input.span(), "scalar structs are unsupported!").to_compile_error()
+        syn::Data::Struct(_) if meta.mode.is_some() => {
+            syn::Error::new(input.span(), "no enum mode allowed on struct type").to_compile_error()
         }
         syn::Data::Struct(ref data) => deserialize_struct(input, data, meta),
-        syn::Data::Enum(_) if !meta.scalar => {
-            syn::Error::new(input.span(), "non-scalar enums are currently unsupported!")
-                .to_compile_error()
+        syn::Data::Enum(_) if meta.mode.is_none() => {
+            syn::Error::new(input.span(), "missing enum mode").to_compile_error()
         }
         syn::Data::Enum(ref data) => deserialize_enum(input, data, meta),
         _ => todo!(),

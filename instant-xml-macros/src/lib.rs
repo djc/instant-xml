@@ -711,157 +711,118 @@ mod tests {
     use syn::parse_quote;
 
     #[test]
-    #[rustfmt::skip]
-    fn unit_enum_scalar_ser() {
-        let input = parse_quote! {
-        #[xml(scalar)]
-        pub enum TestEnum {
-            Foo,
-            Bar,
-            Baz = 1,
-        }
-        };
-
-        assert_eq!(super::ser::to_xml(&input).to_string(),
-"impl ToXml for TestEnum { fn serialize < W : :: core :: fmt :: Write + ? :: core :: marker :: Sized > (& self , serializer : & mut instant_xml :: Serializer < W > ,) -> Result < () , instant_xml :: Error > { serializer . write_str (match self { TestEnum :: Foo => \"Foo\" , TestEnum :: Bar => \"Bar\" , TestEnum :: Baz => \"1\" , }) } const KIND : :: instant_xml :: Kind = :: instant_xml :: Kind :: Scalar ; }"
-	)
-    }
-
-    #[test]
-    #[rustfmt::skip]
-    fn unit_enum_scalar_de() {
-        let input = parse_quote! {
-        #[xml(scalar)]
-        pub enum TestEnum {
-            Foo,
-            Bar,
-            Baz = 1,
-        }
-        };
-
-        assert_eq!(super::de::from_xml(&input).to_string(),
-"impl < 'xml > FromXml < 'xml > for TestEnum { fn deserialize < 'cx > (deserializer : & 'cx mut :: instant_xml :: Deserializer < 'cx , 'xml >) -> Result < Self , :: instant_xml :: Error > { match deserializer . take_str () { Ok (\"Foo\") => Ok (TestEnum :: Foo) , Ok (\"Bar\") => Ok (TestEnum :: Bar) , Ok (\"1\") => Ok (TestEnum :: Baz) , _ => Err (:: instant_xml :: Error :: UnexpectedValue) } } const KIND : :: instant_xml :: Kind = :: instant_xml :: Kind :: Scalar ; }"
-	)
-    }
-
-    #[test]
-    #[rustfmt::skip]
     fn non_unit_enum_variant_unsupported() {
-        super::ser::to_xml(&parse_quote! {
+        dbg!(super::ser::to_xml(&parse_quote! {
             #[xml(scalar)]
             pub enum TestEnum {
-		Foo(String),
-		Bar,
-		Baz
+                Foo(String),
+                Bar,
+                Baz
             }
-        }).to_string().find("compile_error ! { \"only unit enum variants are permitted!\" }").unwrap();
+        })
+        .to_string())
+        .find("compile_error ! { \"only unit enum variants are permitted!\" }")
+        .unwrap();
     }
 
     #[test]
-    #[rustfmt::skip]
     fn non_scalar_enums_unsupported() {
-        super::ser::to_xml(&parse_quote! {
+        dbg!(super::ser::to_xml(&parse_quote! {
             #[xml()]
             pub enum TestEnum {
-		Foo,
-		Bar,
-		Baz
+                Foo,
+                Bar,
+                Baz
             }
-        }).to_string().find("compile_error ! { \"non-scalar enums are currently unsupported!\" }").unwrap();
+        })
+        .to_string())
+        .find("compile_error ! { \"missing enum mode\" }")
+        .unwrap();
     }
 
     #[test]
-    #[rustfmt::skip]
     fn scalar_variant_attribute_not_permitted() {
-        super::ser::to_xml(&parse_quote! {
+        dbg!(super::ser::to_xml(&parse_quote! {
             #[xml(scalar)]
             pub enum TestEnum {
-		Foo,
-		Bar,
-		#[xml(scalar)]
-		Baz
+                Foo,
+                Bar,
+                #[xml(scalar)]
+                Baz
             }
-        }).to_string().find("compile_error ! { \"attribute 'scalar' is invalid for enum variants\" }").unwrap();
+        })
+        .to_string())
+        .find("compile_error ! { \"only 'rename' attribute is permitted on enum variants\" }")
+        .unwrap();
     }
 
     #[test]
-    #[rustfmt::skip]
     fn scalar_discrimintant_must_be_literal() {
-        assert_eq!(None, super::ser::to_xml(&parse_quote! {
+        assert_eq!(
+            None,
+            dbg!(super::ser::to_xml(&parse_quote! {
+                #[xml(scalar)]
+                pub enum TestEnum {
+                    Foo = 1,
+                    Bar,
+                    Baz
+                }
+            })
+            .to_string())
+            .find("compile_error ! { \"invalid field discriminant value!\" }")
+        );
+
+        dbg!(super::ser::to_xml(&parse_quote! {
             #[xml(scalar)]
             pub enum TestEnum {
-		Foo = 1,
-		Bar,
-		Baz
+                Foo = 1+1,
+                Bar,
+                Baz
             }
-        }).to_string().find("compile_error ! { \"invalid field discriminant value!\" }"));
-
-        super::ser::to_xml(&parse_quote! {
-            #[xml(scalar)]
-            pub enum TestEnum {
-		Foo = 1+1,
-		Bar,
-		Baz
-            }
-        }).to_string().find("compile_error ! { \"invalid field discriminant value!\" }").unwrap();
+        })
+        .to_string())
+        .find("compile_error ! { \"invalid field discriminant value!\" }")
+        .unwrap();
     }
 
     #[test]
-    #[rustfmt::skip]
-    fn struct_rename_all_permitted() {
-        assert_eq!(super::ser::to_xml(&parse_quote! {
-            #[xml(rename_all = "UPPERCASE")]
-            pub struct TestStruct {
-		field_1: String,
-		field_2: u8,
-            }
-        }).to_string(), "impl ToXml for TestStruct { fn serialize < W : :: core :: fmt :: Write + ? :: core :: marker :: Sized > (& self , serializer : & mut instant_xml :: Serializer < W > ,) -> Result < () , instant_xml :: Error > { let prefix = serializer . write_start (\"TestStruct\" , \"\" , false) ? ; debug_assert_eq ! (prefix , None) ; let mut new = :: instant_xml :: ser :: Context :: < 0usize > :: default () ; new . default_ns = \"\" ; let old = serializer . push (new) ? ; serializer . end_start () ? ; match < String as ToXml > :: KIND { :: instant_xml :: Kind :: Element (_) => { self . field_1 . serialize (serializer) ? ; } :: instant_xml :: Kind :: Scalar | :: instant_xml :: Kind :: Vec => { let prefix = serializer . write_start (\"FIELD_1\" , \"\" , true) ? ; serializer . end_start () ? ; self . field_1 . serialize (serializer) ? ; serializer . write_close (prefix , \"FIELD_1\") ? ; } } match < u8 as ToXml > :: KIND { :: instant_xml :: Kind :: Element (_) => { self . field_2 . serialize (serializer) ? ; } :: instant_xml :: Kind :: Scalar | :: instant_xml :: Kind :: Vec => { let prefix = serializer . write_start (\"FIELD_2\" , \"\" , true) ? ; serializer . end_start () ? ; self . field_2 . serialize (serializer) ? ; serializer . write_close (prefix , \"FIELD_2\") ? ; } } serializer . write_close (prefix , \"TestStruct\") ? ; serializer . pop (old) ; Ok (()) } const KIND : :: instant_xml :: Kind = :: instant_xml :: Kind :: Element (:: instant_xml :: Id { ns : \"\" , name : \"TestStruct\" , }) ; } ;");
-    }
-
-    #[test]
-    #[rustfmt::skip]
-    fn scalar_enum_rename_all_permitted() {
-        assert_eq!(super::ser::to_xml(&parse_quote! {
-            #[xml(scalar, rename_all = "UPPERCASE")]
-            pub enum TestEnum {
-		Foo = 1,
-		Bar,
-		Baz
-            }
-        }).to_string(), "impl ToXml for TestEnum { fn serialize < W : :: core :: fmt :: Write + ? :: core :: marker :: Sized > (& self , serializer : & mut instant_xml :: Serializer < W > ,) -> Result < () , instant_xml :: Error > { serializer . write_str (match self { TestEnum :: Foo => \"1\" , TestEnum :: Bar => \"BAR\" , TestEnum :: Baz => \"BAZ\" , }) } const KIND : :: instant_xml :: Kind = :: instant_xml :: Kind :: Scalar ; }");
-    }
-
-    #[test]
-    #[rustfmt::skip]
     fn rename_all_attribute_not_permitted() {
-        super::ser::to_xml(&parse_quote! {
+        dbg!(super::ser::to_xml(&parse_quote! {
             pub struct TestStruct {
-		#[xml(rename_all = "UPPERCASE")]
-		field_1: String,
-		field_2: u8,
+                #[xml(rename_all = "UPPERCASE")]
+                field_1: String,
+                field_2: u8,
             }
-        }).to_string().find("compile_error ! { \"attribute 'rename_all' invalid in field xml attribute\" }").unwrap();
+        })
+        .to_string())
+        .find("compile_error ! { \"attribute 'rename_all' invalid in field xml attribute\" }")
+        .unwrap();
 
-        super::ser::to_xml(&parse_quote! {
+        dbg!(super::ser::to_xml(&parse_quote! {
             #[xml(scalar)]
             pub enum TestEnum {
-		Foo = 1,
-		Bar,
-		#[xml(rename_all = "UPPERCASE")]
-		Baz
+                Foo = 1,
+                Bar,
+                #[xml(rename_all = "UPPERCASE")]
+                Baz
             }
-        }).to_string().find("compile_error ! { \"attribute 'rename_all' invalid in field xml attribute\" }").unwrap();
+        })
+        .to_string())
+        .find("compile_error ! { \"only 'rename' attribute is permitted on enum variants\" }")
+        .unwrap();
     }
 
     #[test]
-    #[rustfmt::skip]
     fn bogus_rename_all_not_permitted() {
-        super::ser::to_xml(&parse_quote! {
-	    #[xml(rename_all = "forgetaboutit")]
+        dbg!(super::ser::to_xml(&parse_quote! {
+            #[xml(rename_all = "forgetaboutit")]
             pub struct TestStruct {
-		field_1: String,
-		field_2: u8,
+                field_1: String,
+                field_2: u8,
             }
-        }).to_string().find("compile_error ! {").unwrap();
+        })
+        .to_string())
+        .find("compile_error ! {")
+        .unwrap();
     }
 }

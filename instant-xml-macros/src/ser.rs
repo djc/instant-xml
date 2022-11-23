@@ -55,7 +55,7 @@ fn serialize_enum(
                 serializer.write_str(match self { #variants })
             }
 
-            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Scalar;
+            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Scalar;
         }
     )
 }
@@ -129,7 +129,7 @@ fn serialize_struct(
                 Ok(())
             }
 
-            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element(::instant_xml::Id {
+            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Element(::instant_xml::Id {
                 ns: #default_namespace,
                 name: #tag,
             });

@@ -19,7 +19,7 @@ impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
         }
     }
 
-    const KIND: Kind = Kind::Scalar;
+    const KIND: Kind<'static> = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for bool {
@@ -29,7 +29,7 @@ impl<'xml> FromXml<'xml> for bool {
             .ok_or(Error::MissingValue)
     }
 
-    const KIND: Kind = Kind::Scalar;
+    const KIND: Kind<'static> = Kind::Scalar;
 }
 
 // Serializer
@@ -46,7 +46,7 @@ where
         serializer.write_str(self.0)
     }
 
-    const KIND: Kind = Kind::Scalar;
+    const KIND: Kind<'static> = Kind::Scalar;
 }
 
 macro_rules! to_xml_for_number {
@@ -59,7 +59,7 @@ macro_rules! to_xml_for_number {
                 DisplayToXml(self).serialize(serializer)
             }
 
-            const KIND: Kind = DisplayToXml::<Self>::KIND;
+            const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
         }
     };
 }
@@ -75,7 +75,7 @@ macro_rules! from_xml_for_number {
                     .ok_or(Error::MissingValue)
             }
 
-            const KIND: Kind = Kind::Scalar;
+            const KIND: Kind<'static> = Kind::Scalar;
         }
     };
 }
@@ -100,7 +100,7 @@ impl<'xml> FromXml<'xml> for char {
             .ok_or(Error::MissingValue)
     }
 
-    const KIND: Kind = Kind::Scalar;
+    const KIND: Kind<'static> = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for String {
@@ -108,7 +108,7 @@ impl<'xml> FromXml<'xml> for String {
         Ok(<Cow<'xml, str> as FromXml<'xml>>::deserialize(deserializer)?.into_owned())
     }
 
-    const KIND: Kind = Kind::Scalar;
+    const KIND: Kind<'static> = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for &'xml str {
@@ -121,7 +121,7 @@ impl<'xml> FromXml<'xml> for &'xml str {
         )
     }
 
-    const KIND: Kind = Kind::Scalar;
+    const KIND: Kind<'static> = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for Cow<'xml, str> {
@@ -130,7 +130,7 @@ impl<'xml> FromXml<'xml> for Cow<'xml, str> {
         Ok(decode(value))
     }
 
-    const KIND: Kind = Kind::Scalar;
+    const KIND: Kind<'static> = Kind::Scalar;
 }
 
 impl<'xml, T> FromXml<'xml> for Option<T>
@@ -148,7 +148,7 @@ where
         Ok(None)
     }
 
-    const KIND: Kind = <T>::KIND;
+    const KIND: Kind<'static> = <T>::KIND;
 }
 
 to_xml_for_number!(i8);
@@ -177,7 +177,7 @@ impl ToXml for bool {
         DisplayToXml(&value).serialize(serializer)
     }
 
-    const KIND: Kind = DisplayToXml::<Self>::KIND;
+    const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
 }
 
 impl ToXml for String {
@@ -188,7 +188,7 @@ impl ToXml for String {
         DisplayToXml(&encode(self)?).serialize(serializer)
     }
 
-    const KIND: Kind = DisplayToXml::<Self>::KIND;
+    const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
 }
 
 impl ToXml for char {
@@ -200,7 +200,7 @@ impl ToXml for char {
         DisplayToXml(&encode(&*self.encode_utf8(&mut tmp))?).serialize(serializer)
     }
 
-    const KIND: Kind = DisplayToXml::<Self>::KIND;
+    const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
 }
 
 impl ToXml for &str {
@@ -211,7 +211,7 @@ impl ToXml for &str {
         DisplayToXml(&encode(self)?).serialize(serializer)
     }
 
-    const KIND: Kind = DisplayToXml::<Self>::KIND;
+    const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
 }
 
 impl ToXml for Cow<'_, str> {
@@ -222,7 +222,7 @@ impl ToXml for Cow<'_, str> {
         DisplayToXml(&encode(self)?).serialize(serializer)
     }
 
-    const KIND: Kind = DisplayToXml::<Self>::KIND;
+    const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
 }
 
 impl<T: ToXml> ToXml for Option<T> {
@@ -236,7 +236,7 @@ impl<T: ToXml> ToXml for Option<T> {
         }
     }
 
-    const KIND: Kind = T::KIND;
+    const KIND: Kind<'static> = T::KIND;
 }
 
 fn encode(input: &str) -> Result<Cow<'_, str>, Error> {
@@ -355,7 +355,7 @@ where
         Ok(result)
     }
 
-    const KIND: Kind = Kind::Vec;
+    const KIND: Kind<'static> = Kind::Vec;
 }
 
 impl<T> ToXml for Vec<T>
@@ -394,7 +394,7 @@ where
         Ok(())
     }
 
-    const KIND: Kind = Kind::Vec;
+    const KIND: Kind<'static> = Kind::Vec;
 }
 
 #[cfg(feature = "chrono")]
@@ -406,7 +406,7 @@ impl ToXml for DateTime<Utc> {
         serializer.write_str(&self.to_rfc3339())
     }
 
-    const KIND: Kind = Kind::Scalar;
+    const KIND: Kind<'static> = Kind::Scalar;
 }
 
 #[cfg(feature = "chrono")]
@@ -419,5 +419,5 @@ impl<'xml> FromXml<'xml> for DateTime<Utc> {
         }
     }
 
-    const KIND: Kind = Kind::Scalar;
+    const KIND: Kind<'static> = Kind::Scalar;
 }

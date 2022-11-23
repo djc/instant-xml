@@ -19,7 +19,7 @@ pub trait ToXml {
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error>;
 
-    const KIND: Kind;
+    const KIND: Kind<'static>;
 }
 
 impl<'a, T: ToXml + ?Sized> ToXml for &'a T {
@@ -30,7 +30,7 @@ impl<'a, T: ToXml + ?Sized> ToXml for &'a T {
         (*self).serialize(serializer)
     }
 
-    const KIND: Kind = T::KIND;
+    const KIND: Kind<'static> = T::KIND;
 }
 
 pub trait FromXml<'xml>: Sized {
@@ -42,7 +42,7 @@ pub trait FromXml<'xml>: Sized {
         Err(Error::MissingValue)
     }
 
-    const KIND: Kind;
+    const KIND: Kind<'static>;
 }
 
 pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
@@ -110,14 +110,14 @@ pub enum Error {
     DuplicateValue,
 }
 
-pub enum Kind {
+pub enum Kind<'a> {
     Scalar,
-    Element(Id<'static>),
+    Element(Id<'a>),
     Vec,
 }
 
-impl Kind {
-    pub const fn name(&self, field: Id<'static>) -> Id<'static> {
+impl<'a> Kind<'a> {
+    pub const fn name(&self, field: Id<'a>) -> Id<'a> {
         match self {
             Kind::Scalar => field,
             Kind::Element(name) => *name,

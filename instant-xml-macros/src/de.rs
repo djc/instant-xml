@@ -58,7 +58,7 @@ fn deserialize_enum(
                 }
             }
 
-            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Scalar;
+            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Scalar;
         }
     )
 }
@@ -193,7 +193,7 @@ fn deserialize_struct(
                 Ok(Self { #return_val })
             }
 
-            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element(::instant_xml::Id {
+            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Element(::instant_xml::Id {
                 ns: #default_namespace,
                 name: #name,
             });

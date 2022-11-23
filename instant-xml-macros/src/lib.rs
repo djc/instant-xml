@@ -59,8 +59,8 @@ impl<'input> ContainerMeta<'input> {
                         Err(err) => return Err(syn::Error::new(span, err)),
                     };
                 }
-                MetaItem::Scalar => match mode {
-                    None => mode = Some(Mode::Scalar),
+                MetaItem::Mode(new) => match mode {
+                    None => mode = Some(new),
                     Some(_) => return Err(syn::Error::new(span, "cannot have two enum modes")),
                 },
             }
@@ -135,7 +135,7 @@ impl FieldMeta {
                         "attribute 'rename_all' invalid in field xml attribute",
                     ))
                 }
-                MetaItem::Scalar => {
+                MetaItem::Mode(_) => {
                     return Err(syn::Error::new(span, "invalid attribute for struct field"));
                 }
             }
@@ -509,7 +509,10 @@ fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
                 } else if id == "rename_all" {
                     MetaState::RenameAll
                 } else if id == "scalar" {
-                    items.push((MetaItem::Scalar, span));
+                    items.push((MetaItem::Mode(Mode::Scalar), span));
+                    MetaState::Comma
+                } else if id == "wrapped" {
+                    items.push((MetaItem::Mode(Mode::Wrapped), span));
                     MetaState::Comma
                 } else {
                     panic!("unexpected key in xml attribute");
@@ -630,7 +633,7 @@ enum MetaItem {
     Attribute,
     Ns(NamespaceMeta),
     Rename(Literal),
-    Scalar,
+    Mode(Mode),
     RenameAll(Literal),
 }
 
@@ -697,8 +700,10 @@ fn discard_path_lifetimes(path: &mut syn::TypePath) {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Mode {
     Scalar,
+    Wrapped,
 }
 
 #[cfg(test)]

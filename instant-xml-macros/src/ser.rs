@@ -2,9 +2,8 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::spanned::Spanned;
 
-use crate::Namespace;
-
-use super::{discard_lifetimes, ContainerMeta, FieldMeta, VariantMeta};
+use super::{discard_lifetimes, meta_items, ContainerMeta, FieldMeta, Mode, VariantMeta};
+use crate::{case::RenameRule, Namespace};
 
 pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
     let meta = match ContainerMeta::from_derive(input) {
@@ -12,21 +11,21 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
         Err(e) => return e.to_compile_error(),
     };
 
-    match &input.data {
-        syn::Data::Struct(_) if meta.mode.is_some() => {
+    match (&input.data, meta.mode) {
+        (syn::Data::Struct(data), None) => serialize_struct(input, data, meta),
+        (syn::Data::Enum(data), Some(Mode::Scalar)) => serialize_scalar_enum(input, data, meta),
+        (syn::Data::Enum(data), Some(Mode::Wrapped)) => serialize_wrapped_enum(input, data, meta),
+        (syn::Data::Struct(_), _) => {
             syn::Error::new(input.span(), "enum mode not allowed on struct type").to_compile_error()
         }
-        syn::Data::Struct(ref data) => serialize_struct(input, data, meta),
-        syn::Data::Enum(_) if meta.mode.is_none() => {
-            syn::Error::new(input.span(), "missing enum mode")
-                .to_compile_error()
+        (syn::Data::Enum(_), _) => {
+            syn::Error::new(input.span(), "missing enum mode").to_compile_error()
         }
-        syn::Data::Enum(ref data) => serialize_enum(input, data, meta),
         _ => todo!(),
     }
 }
 
-fn serialize_enum(
+fn serialize_scalar_enum(
     input: &syn::DeriveInput,
     data: &syn::DataEnum,
     meta: ContainerMeta,
@@ -35,12 +34,12 @@ fn serialize_enum(
     let mut variants = TokenStream::new();
 
     for variant in data.variants.iter() {
-        let v_ident = &variant.ident;
         let meta = match VariantMeta::from_variant(variant, &meta) {
             Ok(meta) => meta,
             Err(err) => return err.to_compile_error(),
         };
 
+        let v_ident = &variant.ident;
         let serialize_as = meta.serialize_as;
         variants.extend(quote!(#ident::#v_ident => #serialize_as,));
     }
@@ -57,6 +56,103 @@ fn serialize_enum(
 
             const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Scalar;
         }
+    )
+}
+
+fn serialize_wrapped_enum(
+    input: &syn::DeriveInput,
+    data: &syn::DataEnum,
+    meta: ContainerMeta,
+) -> TokenStream {
+    if meta.rename_all != RenameRule::None {
+        return syn::Error::new(
+            input.span(),
+            "rename_all is not allowed on wrapped enum type",
+        )
+        .to_compile_error();
+    }
+
+    let ident = &input.ident;
+    let mut variants = TokenStream::new();
+    for variant in data.variants.iter() {
+        match &variant.fields {
+            syn::Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {}
+            _ => {
+                return syn::Error::new(
+                    input.span(),
+                    "wrapped enum variants must have 1 unnamed field",
+                )
+                .to_compile_error()
+            }
+        }
+
+        if !meta_items(&variant.attrs).is_empty() {
+            return syn::Error::new(
+                input.span(),
+                "attributes not allowed on wrapped enum variants",
+            )
+            .to_compile_error();
+        }
+
+        let v_ident = &variant.ident;
+        variants.extend(quote!(#ident::#v_ident(inner) => inner.serialize(serializer)?,));
+    }
+
+    let default_namespace = meta.default_namespace();
+    let cx_len = meta.ns.prefixes.len();
+    let mut context = quote!(
+        let mut new = ::instant_xml::ser::Context::<#cx_len>::default();
+        new.default_ns = #default_namespace;
+    );
+
+    for (i, (prefix, ns)) in meta.ns.prefixes.iter().enumerate() {
+        context.extend(quote!(
+            new.prefixes[#i] = ::instant_xml::ser::Prefix { ns: #ns, prefix: #prefix };
+        ));
+    }
+
+    let mut generics = input.generics.clone();
+    for param in generics.type_params_mut() {
+        param
+            .bounds
+            .push(syn::parse_str("::instant_xml::ToXml").unwrap());
+    }
+
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let tag = meta.tag();
+    quote!(
+        impl #impl_generics ToXml for #ident #ty_generics #where_clause {
+            fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
+                &self,
+                serializer: &mut instant_xml::Serializer<W>,
+            ) -> Result<(), instant_xml::Error> {
+                // Start tag
+                let prefix = serializer.write_start(#tag, #default_namespace, false)?;
+                debug_assert_eq!(prefix, None);
+
+                // Set up element context, this will also emit namespace declarations
+                #context
+                let old = serializer.push(new)?;
+
+                // Finalize start element
+                serializer.end_start()?;
+
+                match self {
+                    #variants
+                }
+
+                // Close tag
+                serializer.write_close(prefix, #tag)?;
+                serializer.pop(old);
+
+                Ok(())
+            }
+
+            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Element(::instant_xml::Id {
+                ns: #default_namespace,
+                name: #tag,
+            });
+        };
     )
 }
 

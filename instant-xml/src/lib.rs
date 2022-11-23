@@ -110,6 +110,7 @@ pub enum Error {
     DuplicateValue,
 }
 
+#[derive(Eq, PartialEq)]
 pub enum Kind<'a> {
     Scalar,
     Element(Id<'a>),

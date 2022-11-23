@@ -166,9 +166,11 @@ fn serialize_struct(
 
     match data.fields {
         syn::Fields::Named(ref fields) => {
-            fields.named.iter().for_each(|field| {
-                process_named_field(field, &mut body, &mut attributes, &meta);
-            });
+            for field in &fields.named {
+                if let Err(err) = process_named_field(field, &mut body, &mut attributes, &meta) {
+                    return err.to_compile_error();
+                }
+            }
         }
         syn::Fields::Unnamed(_) => todo!(),
         syn::Fields::Unit => {}
@@ -238,15 +240,28 @@ fn process_named_field(
     body: &mut TokenStream,
     attributes: &mut TokenStream,
     meta: &ContainerMeta,
-) {
+) -> Result<(), syn::Error> {
     let field_name = field.ident.as_ref().unwrap();
     let field_meta = match FieldMeta::from_field(field, meta) {
         Ok(meta) => meta,
         Err(err) => {
             body.extend(err.into_compile_error());
-            return;
+            return Ok(());
         }
     };
+
+    if let Some(with) = field_meta.serialize_with {
+        let path = with.to_string();
+        let path = syn::parse_str::<syn::Path>(path.trim_matches('"')).map_err(|err| {
+            syn::Error::new(
+                with.span(),
+                format!("failed to parse serialize_with as path: {err}"),
+            )
+        })?;
+
+        body.extend(quote!(#path(&self.#field_name, serializer)?;));
+        return Ok(());
+    }
 
     let tag = field_meta.tag;
     let default_ns = match &meta.ns.uri {
@@ -292,7 +307,7 @@ fn process_named_field(
             #error
             serializer.write_attr(#tag, #ns, &self.#field_name)?;
         ));
-        return;
+        return Ok(());
     }
 
     let ns = match field_meta.ns.uri {
@@ -315,4 +330,6 @@ fn process_named_field(
             }
         }
     ));
+
+    Ok(())
 }

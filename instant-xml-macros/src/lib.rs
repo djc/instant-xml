@@ -45,12 +45,6 @@ impl<'input> ContainerMeta<'input> {
 
         for (item, span) in meta_items(&input.attrs) {
             match item {
-                MetaItem::Attribute => {
-                    return Err(syn::Error::new(
-                        span,
-                        "attribute key invalid in container xml attribute",
-                    ))
-                }
                 MetaItem::Ns(namespace) => ns = namespace,
                 MetaItem::Rename(lit) => rename = Some(lit),
                 MetaItem::RenameAll(lit) => {
@@ -63,6 +57,12 @@ impl<'input> ContainerMeta<'input> {
                     None => mode = Some(new),
                     Some(_) => return Err(syn::Error::new(span, "cannot have two enum modes")),
                 },
+                _ => {
+                    return Err(syn::Error::new(
+                        span,
+                        "invalid field in container xml attribute",
+                    ))
+                }
             }
         }
 
@@ -111,6 +111,7 @@ struct FieldMeta {
     attribute: bool,
     ns: NamespaceMeta,
     tag: TokenStream,
+    serialize_with: Option<Literal>,
 }
 
 impl FieldMeta {
@@ -129,6 +130,7 @@ impl FieldMeta {
                 MetaItem::Attribute => meta.attribute = true,
                 MetaItem::Ns(ns) => meta.ns = ns,
                 MetaItem::Rename(lit) => meta.tag = quote!(#lit),
+                MetaItem::SerializeWith(lit) => meta.serialize_with = Some(lit),
                 MetaItem::RenameAll(_) => {
                     return Err(syn::Error::new(
                         span,
@@ -514,6 +516,8 @@ fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
                 } else if id == "wrapped" {
                     items.push((MetaItem::Mode(Mode::Wrapped), span));
                     MetaState::Comma
+                } else if id == "serialize_with" {
+                    MetaState::SerializeWith
                 } else {
                     panic!("unexpected key in xml attribute");
                 }
@@ -541,6 +545,13 @@ fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
                 items.push((MetaItem::RenameAll(lit), span));
                 MetaState::Comma
             }
+            (MetaState::SerializeWith, TokenTree::Punct(punct)) if punct.as_char() == '=' => {
+                MetaState::SerializeWithValue
+            }
+            (MetaState::SerializeWithValue, TokenTree::Literal(lit)) => {
+                items.push((MetaItem::SerializeWith(lit), span));
+                MetaState::Comma
+            }
             (state, tree) => {
                 panic!(
                     "invalid state transition while parsing xml attribute ({}, {tree})",
@@ -562,6 +573,8 @@ enum MetaState {
     RenameValue,
     RenameAll,
     RenameAllValue,
+    SerializeWith,
+    SerializeWithValue,
 }
 
 impl MetaState {
@@ -574,6 +587,8 @@ impl MetaState {
             MetaState::RenameValue => "RenameValue",
             MetaState::RenameAll => "RenameAll",
             MetaState::RenameAllValue => "RenameAllValue",
+            MetaState::SerializeWith => "SerializeWith",
+            MetaState::SerializeWithValue => "SerializeWithValue",
         }
     }
 }
@@ -635,6 +650,7 @@ enum MetaItem {
     Rename(Literal),
     Mode(Mode),
     RenameAll(Literal),
+    SerializeWith(Literal),
 }
 
 enum Namespace {

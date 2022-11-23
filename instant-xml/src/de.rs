@@ -14,7 +14,9 @@ pub struct Deserializer<'cx, 'xml> {
 impl<'cx, 'xml> Deserializer<'cx, 'xml> {
     pub(crate) fn new(element: Element<'xml>, context: &'cx mut Context<'xml>) -> Self {
         let level = context.stack.len();
-        context.stack.push(element.level);
+        if !element.empty {
+            context.stack.push(element.level);
+        }
 
         Self {
             local: element.local,
@@ -233,6 +235,7 @@ impl<'xml> Iterator for Context<'xml> {
                             prefix: level.prefix,
                             default_ns: level.default_ns,
                             level,
+                            empty: false,
                         };
 
                         return Some(Ok(Node::Open(element)));
@@ -261,7 +264,29 @@ impl<'xml> Iterator for Context<'xml> {
                         }
                     }
                     ElementEnd::Empty => {
-                        todo!();
+                        let level = match current {
+                            Some(level) => level,
+                            None => {
+                                return Some(Err(Error::UnexpectedState(
+                                    "opening element with no parent",
+                                )))
+                            }
+                        };
+
+                        self.records.push_back(Node::Close {
+                            prefix: level.prefix,
+                            local: level.local,
+                        });
+
+                        let element = Element {
+                            local: level.local,
+                            prefix: level.prefix,
+                            default_ns: level.default_ns,
+                            level,
+                            empty: true,
+                        };
+
+                        return Some(Ok(Node::Open(element)));
                     }
                 },
                 Ok(Token::Attribute {
@@ -331,6 +356,7 @@ pub struct Element<'xml> {
     default_ns: Option<&'xml str>,
     prefix: Option<&'xml str>,
     level: Level<'xml>,
+    empty: bool,
 }
 
 #[derive(Debug)]

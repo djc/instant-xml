@@ -20,3 +20,14 @@ fn basic() {
         "<Basic flag=\"true\"></Basic>"
     );
 }
+
+#[derive(Debug, Eq, FromXml, PartialEq)]
+struct Empty;
+
+#[test]
+fn empty() {
+    assert_eq!(
+        from_str::<Empty>("<?xml version=\"1.0\" ?><Empty />"),
+        Ok(Empty)
+    );
+}

@@ -33,11 +33,11 @@ fn deserialize_enum(
     let mut variants = TokenStream::new();
 
     for variant in data.variants.iter() {
-	let v_ident = &variant.ident;
+        let v_ident = &variant.ident;
         let meta = match VariantMeta::from_variant(variant, &meta) {
-	    Ok(meta) => meta,
-	    Err(err) => return err.to_compile_error()
-	};
+            Ok(meta) => meta,
+            Err(err) => return err.to_compile_error()
+        };
 
         let serialize_as = meta.serialize_as;
         variants.extend(quote!(Ok(#serialize_as) => Ok(#ident::#v_ident),));
@@ -48,16 +48,18 @@ fn deserialize_enum(
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
 
     quote!(
-	impl #impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
-            fn deserialize<'cx>(deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>) -> Result<Self, ::instant_xml::Error> {
-		match deserializer.take_str() {
-		    #variants
-		    _ => Err(::instant_xml::Error::UnexpectedValue)
-		}
-	    }
+        impl #impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
+            fn deserialize<'cx>(
+                deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>
+            ) -> Result<Self, ::instant_xml::Error> {
+                match deserializer.take_str() {
+                    #variants
+                    _ => Err(::instant_xml::Error::UnexpectedValue)
+                }
+            }
 
             const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Scalar;
-	}
+        }
     )
 }
 

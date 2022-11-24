@@ -132,7 +132,7 @@ fn deserialize_wrapped_enum(
 
                 let data = match node {
                     Node::Open(data) => data,
-                    _ => return Err(Error::UnexpectedState),
+                    _ => return Err(Error::UnexpectedState("unexpected node type for wrapped enum variant")),
                 };
 
                 let id = deserializer.element_id(&data)?;
@@ -141,7 +141,7 @@ fn deserialize_wrapped_enum(
                 };
 
                 if let Some(_) = deserializer.next() {
-                    return Err(Error::UnexpectedState);
+                    return Err(Error::UnexpectedState("unexpected node after wrapped enum variant"));
                 }
 
                 Ok(value)
@@ -278,7 +278,7 @@ fn deserialize_struct(
                                 }
                             }
                         }
-                        _ => return Err(Error::UnexpectedState),
+                        node => return Err(Error::UnexpectedNode(format!("{:?}", node))),
                     }
                 }
 

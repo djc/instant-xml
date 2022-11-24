@@ -49,8 +49,8 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     let (mut context, root) = Context::new(input)?;
     let id = context.element_id(&root)?;
     let expected = match T::KIND {
-        Kind::Scalar => return Err(Error::UnexpectedState),
-        Kind::Vec => return Err(Error::UnexpectedState),
+        Kind::Scalar => return Err(Error::UnexpectedState("found scalar as root")),
+        Kind::Vec => return Err(Error::UnexpectedState("found list as root")),
         Kind::Element(expected) => expected,
     };
 
@@ -96,12 +96,14 @@ pub enum Error {
     MissingTag,
     #[error("missing value")]
     MissingValue,
-    #[error("unexpected token")]
-    UnexpectedToken,
+    #[error("unexpected token: {0}")]
+    UnexpectedToken(String),
     #[error("missing prefix")]
     MissingdPrefix,
-    #[error("unexpected state")]
-    UnexpectedState,
+    #[error("unexpected node: {0}")]
+    UnexpectedNode(String),
+    #[error("unexpected state: {0}")]
+    UnexpectedState(&'static str),
     #[error("expected scalar")]
     ExpectedScalar,
     #[error("wrong namespace")]

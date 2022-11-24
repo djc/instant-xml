@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, Error, FromXml};
+use instant_xml::{from_str, Error, FromXml, Kind};
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
 #[xml(ns("URI"))]
@@ -24,12 +24,12 @@ fn direct_namespaces() {
         from_str(
             "<StructDirectNamespace xmlns=\"URI\"><flag xmlns=\"WRONG\">true</flag></StructDirectNamespace>"
         ),
-        Err::<StructDirectNamespace, _>(Error::MissingValue)
+        Err::<StructDirectNamespace, _>(Error::MissingValue(&Kind::Scalar))
     );
 
     // Wrong direct namespace - missing namespace
     assert_eq!(
         from_str("<StructDirectNamespace xmlns=\"URI\"><flag>true</flag></StructDirectNamespace>"),
-        Err::<StructDirectNamespace, _>(Error::MissingValue)
+        Err::<StructDirectNamespace, _>(Error::MissingValue(&Kind::Scalar))
     );
 }

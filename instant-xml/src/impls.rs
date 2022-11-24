@@ -26,7 +26,7 @@ impl<'xml> FromXml<'xml> for bool {
     fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
         FromXmlStr::<Self>::deserialize(deserializer)?
             .0
-            .ok_or(Error::MissingValue)
+            .ok_or(Error::MissingValue(&Kind::Scalar))
     }
 
     const KIND: Kind<'static> = Kind::Scalar;
@@ -72,7 +72,7 @@ macro_rules! from_xml_for_number {
             ) -> Result<Self, Error> {
                 FromXmlStr::<Self>::deserialize(deserializer)?
                     .0
-                    .ok_or(Error::MissingValue)
+                    .ok_or(Error::MissingValue(&Kind::Scalar))
             }
 
             const KIND: Kind<'static> = Kind::Scalar;
@@ -97,7 +97,7 @@ impl<'xml> FromXml<'xml> for char {
     fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
         FromXmlStr::<Self>::deserialize(deserializer)?
             .0
-            .ok_or(Error::MissingValue)
+            .ok_or(Error::MissingValue(&Kind::Scalar))
     }
 
     const KIND: Kind<'static> = Kind::Scalar;

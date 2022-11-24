@@ -127,7 +127,7 @@ fn deserialize_wrapped_enum(
 
                 let node = match deserializer.next() {
                     Some(result) => result?,
-                    None => return Err(Error::MissingValue),
+                    None => return Err(Error::MissingValue(&<Self as FromXml>::KIND)),
                 };
 
                 let data = match node {

@@ -39,7 +39,7 @@ pub trait FromXml<'xml>: Sized {
     // If the missing field is of type `Option<T>` then treat is as `None`,
     // otherwise it is an error.
     fn missing_value() -> Result<Self, Error> {
-        Err(Error::MissingValue)
+        Err(Error::MissingValue(&Self::KIND))
     }
 
     const KIND: Kind<'static>;
@@ -95,7 +95,7 @@ pub enum Error {
     #[error("missing tag")]
     MissingTag,
     #[error("missing value")]
-    MissingValue,
+    MissingValue(&'static Kind<'static>),
     #[error("unexpected token: {0}")]
     UnexpectedToken(String),
     #[error("missing prefix")]
@@ -112,7 +112,7 @@ pub enum Error {
     DuplicateValue,
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Kind<'a> {
     Scalar,
     Element(Id<'a>),

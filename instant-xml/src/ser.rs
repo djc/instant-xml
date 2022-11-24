@@ -35,7 +35,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         scalar: bool,
     ) -> Result<Option<&'static str>, Error> {
         if self.state != State::Element {
-            return Err(Error::UnexpectedState);
+            return Err(Error::UnexpectedState("invalid state for element start"));
         }
 
         let prefix = match ns == self.default_ns {
@@ -70,13 +70,16 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         value: &V,
     ) -> Result<(), Error> {
         if self.state != State::Attribute {
-            return Err(Error::UnexpectedState);
+            return Err(Error::UnexpectedState("invalid state for attribute"));
         }
 
         match ns == self.default_ns {
             true => self.output.write_fmt(format_args!(" {name}=\""))?,
             false => {
-                let prefix = self.prefixes.get(ns).ok_or(dbg!(Error::UnexpectedState))?;
+                let prefix = self
+                    .prefixes
+                    .get(ns)
+                    .ok_or(Error::UnexpectedState("unknown prefix"))?;
                 self.output.write_fmt(format_args!(" {prefix}:{name}=\""))?;
             }
         }
@@ -90,7 +93,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
 
     pub fn write_str<V: fmt::Display + ?Sized>(&mut self, value: &V) -> Result<(), Error> {
         if !matches!(self.state, State::Element | State::Scalar) {
-            return Err(Error::UnexpectedState);
+            return Err(Error::UnexpectedState("invalid state for scalar"));
         }
 
         self.output.write_fmt(format_args!("{}", value))?;
@@ -100,7 +103,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
 
     pub fn end_start(&mut self) -> Result<(), Error> {
         if self.state != State::Attribute {
-            return Err(Error::UnexpectedState);
+            return Err(Error::UnexpectedState("invalid state for element end"));
         }
 
         self.output.write_char('>')?;
@@ -110,7 +113,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
 
     pub fn write_close(&mut self, prefix: Option<&str>, name: &str) -> Result<(), Error> {
         if self.state != State::Element {
-            return Err(Error::UnexpectedState);
+            return Err(Error::UnexpectedState("invalid state for close element"));
         }
 
         match prefix {
@@ -123,7 +126,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
 
     pub fn push<const N: usize>(&mut self, new: Context<N>) -> Result<Context<N>, Error> {
         if self.state != State::Attribute {
-            return Err(Error::UnexpectedState);
+            return Err(Error::UnexpectedState("invalid state for attribute"));
         }
 
         let mut old = Context::default();

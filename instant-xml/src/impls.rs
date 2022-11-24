@@ -341,14 +341,14 @@ where
                             let mut nested = deserializer.nested(data);
                             result.push(<T as FromXml<'xml>>::deserialize(&mut nested)?)
                         }
-                        _ => return Err(Error::UnexpectedState),
+                        _ => return Err(Error::UnexpectedState("unexpected list element name")),
                     }
                 }
                 (Kind::Vec | Kind::Element(_), Node::Open(data)) => {
                     let mut nested = deserializer.nested(data);
                     result.push(<T as FromXml<'xml>>::deserialize(&mut nested)?)
                 }
-                _ => return Err(Error::UnexpectedState),
+                _ => return Err(Error::UnexpectedState("unexpected node for list")),
             }
         }
 

@@ -36,7 +36,11 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
 
         if element {
             match self.next() {
-                Some(Ok(_)) => return Err(Error::UnexpectedState),
+                Some(Ok(_)) => {
+                    return Err(Error::UnexpectedState(
+                        "found element while expecting scalar",
+                    ))
+                }
                 Some(Err(e)) => return Err(e),
                 _ => {}
             }
@@ -112,7 +116,7 @@ impl<'xml> Iterator for Deserializer<'_, 'xml> {
             return None;
         }
 
-        Some(Err(Error::UnexpectedState))
+        Some(Err(Error::UnexpectedState("close element mismatch")))
     }
 }
 
@@ -133,7 +137,7 @@ impl<'xml> Context<'xml> {
         let root = match new.next() {
             Some(result) => match result? {
                 Node::Open(element) => element,
-                _ => return Err(Error::UnexpectedState),
+                _ => return Err(Error::UnexpectedState("first node does not open element")),
             },
             None => return Err(Error::UnexpectedEndOfStream),
         };
@@ -217,7 +221,11 @@ impl<'xml> Iterator for Context<'xml> {
                     ElementEnd::Open => {
                         let level = match current {
                             Some(level) => level,
-                            None => return Some(Err(Error::UnexpectedState)),
+                            None => {
+                                return Some(Err(Error::UnexpectedState(
+                                    "opening element with no parent",
+                                )))
+                            }
                         };
 
                         let element = Element {
@@ -232,7 +240,11 @@ impl<'xml> Iterator for Context<'xml> {
                     ElementEnd::Close(prefix, v) => {
                         let level = match self.stack.pop() {
                             Some(level) => level,
-                            None => return Some(Err(Error::UnexpectedState)),
+                            None => {
+                                return Some(Err(Error::UnexpectedState(
+                                    "closing element without parent",
+                                )))
+                            }
                         };
 
                         let prefix = (!prefix.is_empty()).then_some(prefix.as_str());
@@ -243,7 +255,9 @@ impl<'xml> Iterator for Context<'xml> {
                                     local: level.local,
                                 }))
                             }
-                            false => return Some(Err(Error::UnexpectedState)),
+                            false => {
+                                return Some(Err(Error::UnexpectedState("close element mismatch")))
+                            }
                         }
                     }
                     ElementEnd::Empty => {
@@ -259,14 +273,22 @@ impl<'xml> Iterator for Context<'xml> {
                     if prefix.is_empty() && local.as_str() == "xmlns" {
                         match &mut current {
                             Some(level) => level.default_ns = Some(value.as_str()),
-                            None => return Some(Err(Error::UnexpectedState)),
+                            None => {
+                                return Some(Err(Error::UnexpectedState(
+                                    "attribute without element context",
+                                )))
+                            }
                         }
                     } else if prefix.as_str() == "xmlns" {
                         match &mut current {
                             Some(level) => {
                                 level.prefixes.insert(local.as_str(), value.as_str());
                             }
-                            None => return Some(Err(Error::UnexpectedState)),
+                            None => {
+                                return Some(Err(Error::UnexpectedState(
+                                    "attribute without element context",
+                                )))
+                            }
                         }
                     } else {
                         let prefix = (!prefix.is_empty()).then_some(prefix.as_str());
@@ -280,7 +302,7 @@ impl<'xml> Iterator for Context<'xml> {
                 Ok(Token::Text { text }) => {
                     return Some(Ok(Node::Text(text.as_str())));
                 }
-                Ok(_) => return Some(Err(Error::UnexpectedToken)),
+                Ok(token) => return Some(Err(Error::UnexpectedToken(format!("{:?}", token)))),
                 Err(e) => return Some(Err(Error::Parse(e))),
             }
         }

@@ -148,32 +148,22 @@ impl<'xml> Context<'xml> {
     }
 
     pub(crate) fn element_id(&self, element: &Element<'xml>) -> Result<Id<'xml>, Error> {
-        let ns = match (element.default_ns, element.prefix) {
-            (_, Some(prefix)) => match self.lookup(prefix) {
-                Some(ns) => ns,
-                None => return Err(Error::WrongNamespace),
-            },
-            (Some(ns), None) => ns,
-            (None, None) => self.default_ns(),
-        };
-
         Ok(Id {
-            ns,
+            ns: match (element.default_ns, element.prefix) {
+                (_, Some(prefix)) => self.lookup(prefix).ok_or(Error::WrongNamespace)?,
+                (Some(ns), None) => ns,
+                (None, None) => self.default_ns(),
+            },
             name: element.local,
         })
     }
 
     fn attribute_id(&self, attr: &Attribute<'xml>) -> Result<Id<'xml>, Error> {
-        let ns = match attr.prefix {
-            Some(ns) => match self.lookup(ns) {
-                Some(ns) => ns,
-                None => return Err(Error::WrongNamespace),
-            },
-            None => self.default_ns(),
-        };
-
         Ok(Id {
-            ns,
+            ns: match attr.prefix {
+                Some(ns) => self.lookup(ns).ok_or(Error::WrongNamespace)?,
+                None => self.default_ns(),
+            },
             name: attr.local,
         })
     }

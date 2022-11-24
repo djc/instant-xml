@@ -323,10 +323,7 @@ fn decode(input: &str) -> Cow<'_, str> {
 const VEC_LIST_TAG: &str = "list";
 const VEC_ELEMENT_TAG: &str = "element";
 
-impl<'xml, T> FromXml<'xml> for Vec<T>
-where
-    T: FromXml<'xml>,
-{
+impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Vec<T> {
     fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
         let mut result = Self::new();
         let kind = <T as FromXml<'xml>>::KIND;
@@ -358,10 +355,7 @@ where
     const KIND: Kind<'static> = Kind::Vec;
 }
 
-impl<T> ToXml for Vec<T>
-where
-    T: ToXml,
-{
+impl<T: ToXml> ToXml for Vec<T> {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         serializer: &mut Serializer<W>,

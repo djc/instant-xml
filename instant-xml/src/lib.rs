@@ -127,6 +127,15 @@ impl<'a> Kind<'a> {
             Kind::Vec => field,
         }
     }
+
+    #[inline]
+    pub fn matches(&self, id: Id<'_>, field: Id<'_>) -> bool {
+        match self {
+            Kind::Scalar => id == field,
+            Kind::Element(name) => id == *name,
+            Kind::Vec => id == field,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

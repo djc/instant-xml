@@ -5,16 +5,26 @@ use std::str::FromStr;
 #[cfg(feature = "chrono")]
 use chrono::{DateTime, Utc};
 
-use crate::{de::Node, Deserializer, Error, FromXml, Kind, Serializer, ToXml};
+use crate::{Deserializer, Error, FromXml, Kind, Serializer, ToXml};
 
 // Deserializer
-struct FromXmlStr<T: FromStr>(Option<T>);
+struct FromXmlStr<T: FromStr>(T);
 
 impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
-    fn deserialize(deserializer: &mut Deserializer<'_, 'xml>) -> Result<Self, Error> {
+    fn deserialize(
+        deserializer: &mut Deserializer<'_, 'xml>,
+        into: &mut Option<Self>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue);
+        }
+
         let value = deserializer.take_str()?;
         match T::from_str(value) {
-            Ok(value) => Ok(Self(Some(value))),
+            Ok(value) => {
+                *into = Some(FromXmlStr(value));
+                Ok(())
+            }
             Err(_) => Err(Error::UnexpectedValue),
         }
     }
@@ -23,10 +33,23 @@ impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
 }
 
 impl<'xml> FromXml<'xml> for bool {
-    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
-        FromXmlStr::<Self>::deserialize(deserializer)?
-            .0
-            .ok_or(Error::MissingValue(&Kind::Scalar))
+    fn deserialize<'cx>(
+        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        into: &mut Option<Self>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue);
+        }
+
+        let mut value = None;
+        FromXmlStr::<Self>::deserialize(deserializer, &mut value)?;
+        match value {
+            Some(value) => {
+                *into = Some(value.0);
+                Ok(())
+            }
+            None => Err(Error::MissingValue(&Kind::Scalar)),
+        }
     }
 
     const KIND: Kind<'static> = Kind::Scalar;
@@ -69,10 +92,21 @@ macro_rules! from_xml_for_number {
         impl<'xml> FromXml<'xml> for $typ {
             fn deserialize<'cx>(
                 deserializer: &'cx mut Deserializer<'cx, 'xml>,
-            ) -> Result<Self, Error> {
-                FromXmlStr::<Self>::deserialize(deserializer)?
-                    .0
-                    .ok_or(Error::MissingValue(&Kind::Scalar))
+                into: &mut Option<Self>,
+            ) -> Result<(), Error> {
+                if into.is_some() {
+                    return Err(Error::DuplicateValue);
+                }
+
+                let mut value = None;
+                FromXmlStr::<Self>::deserialize(deserializer, &mut value)?;
+                match value {
+                    Some(value) => {
+                        *into = Some(value.0);
+                        Ok(())
+                    }
+                    None => Err(Error::MissingValue(&Kind::Scalar)),
+                }
             }
 
             const KIND: Kind<'static> = Kind::Scalar;
@@ -94,53 +128,109 @@ from_xml_for_number!(f32);
 from_xml_for_number!(f64);
 
 impl<'xml> FromXml<'xml> for char {
-    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
-        FromXmlStr::<Self>::deserialize(deserializer)?
-            .0
-            .ok_or(Error::MissingValue(&Kind::Scalar))
+    fn deserialize<'cx>(
+        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        into: &mut Option<Self>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue);
+        }
+
+        let mut value = None;
+        FromXmlStr::<Self>::deserialize(deserializer, &mut value)?;
+        match value {
+            Some(value) => {
+                *into = Some(value.0);
+                Ok(())
+            }
+            None => Err(Error::MissingValue(&Kind::Scalar)),
+        }
     }
 
     const KIND: Kind<'static> = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for String {
-    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
-        Ok(<Cow<'xml, str> as FromXml<'xml>>::deserialize(deserializer)?.into_owned())
+    fn deserialize<'cx>(
+        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        into: &mut Option<Self>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue);
+        }
+
+        let mut value = None;
+        <Cow<'xml, str> as FromXml<'xml>>::deserialize(deserializer, &mut value)?;
+        match value {
+            Some(value) => {
+                *into = Some(value.into_owned());
+                Ok(())
+            }
+            None => Err(Error::MissingValue(&Kind::Scalar)),
+        }
     }
 
     const KIND: Kind<'static> = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for &'xml str {
-    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
-        Ok(
-            match <Cow<'xml, str> as FromXml<'xml>>::deserialize(deserializer)? {
-                Cow::Borrowed(s) => s,
-                Cow::Owned(_) => return Err(Error::UnexpectedValue),
-            },
-        )
+    fn deserialize<'cx>(
+        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        into: &mut Option<Self>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue);
+        }
+
+        let mut value = None;
+        <Cow<'xml, str> as FromXml<'xml>>::deserialize(deserializer, &mut value)?;
+        match value {
+            Some(Cow::Borrowed(s)) => {
+                *into = Some(s);
+                Ok(())
+            }
+            Some(Cow::Owned(_)) => Err(Error::UnexpectedValue),
+            None => Err(Error::MissingValue(&Kind::Scalar)),
+        }
     }
 
     const KIND: Kind<'static> = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for Cow<'xml, str> {
-    fn deserialize(deserializer: &mut Deserializer<'_, 'xml>) -> Result<Self, Error> {
+    fn deserialize(
+        deserializer: &mut Deserializer<'_, 'xml>,
+        into: &mut Option<Self>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue);
+        }
+
         let value = deserializer.take_str()?;
-        Ok(decode(value))
+        *into = Some(decode(value));
+        Ok(())
     }
 
     const KIND: Kind<'static> = Kind::Scalar;
 }
 
-impl<'xml, T> FromXml<'xml> for Option<T>
-where
-    T: FromXml<'xml>,
-{
-    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
-        match <T>::deserialize(deserializer) {
-            Ok(v) => Ok(Some(v)),
-            Err(e) => Err(e),
+impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
+    fn deserialize<'cx>(
+        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        into: &mut Option<Self>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue);
+        }
+
+        let mut value = None;
+        <T>::deserialize(deserializer, &mut value)?;
+        match value {
+            Some(v) => {
+                *into = Some(Some(v));
+                Ok(())
+            }
+            None => Err(Error::MissingValue(&Kind::Scalar)),
         }
     }
 
@@ -320,39 +410,26 @@ fn decode(input: &str) -> Cow<'_, str> {
     Cow::Owned(result)
 }
 
-const VEC_LIST_TAG: &str = "list";
-const VEC_ELEMENT_TAG: &str = "element";
-
 impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Vec<T> {
-    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
-        let mut result = Self::new();
-        let kind = <T as FromXml<'xml>>::KIND;
-
-        while let Some(Ok(node)) = deserializer.next() {
-            match (&kind, node) {
-                (Kind::Scalar, Node::Open(data)) => {
-                    let id = deserializer.element_id(&data)?;
-
-                    match id.name {
-                        VEC_ELEMENT_TAG => {
-                            let mut nested = deserializer.nested(data);
-                            result.push(<T as FromXml<'xml>>::deserialize(&mut nested)?)
-                        }
-                        _ => return Err(Error::UnexpectedState("unexpected list element name")),
-                    }
-                }
-                (Kind::Vec | Kind::Element(_), Node::Open(data)) => {
-                    let mut nested = deserializer.nested(data);
-                    result.push(<T as FromXml<'xml>>::deserialize(&mut nested)?)
-                }
-                _ => return Err(Error::UnexpectedState("unexpected node for list")),
-            }
+    fn deserialize<'cx>(
+        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        into: &mut Option<Self>,
+    ) -> Result<(), Error> {
+        let mut value = None;
+        T::deserialize(deserializer, &mut value)?;
+        let dst = into.get_or_insert(Vec::new());
+        if let Some(value) = value {
+            dst.push(value);
         }
 
-        Ok(result)
+        Ok(())
     }
 
-    const KIND: Kind<'static> = Kind::Vec;
+    fn missing_value() -> Result<Self, Error> {
+        Ok(Vec::new())
+    }
+
+    const KIND: Kind<'static> = Kind::Vec(T::KIND.element());
 }
 
 impl<T: ToXml> ToXml for Vec<T> {
@@ -360,35 +437,19 @@ impl<T: ToXml> ToXml for Vec<T> {
         &self,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        match <T as ToXml>::KIND {
-            Kind::Element(_) => {
-                for i in self {
-                    i.serialize(serializer)?;
-                }
-            }
-            Kind::Scalar => {
-                for i in self {
-                    let prefix = serializer.write_start(VEC_ELEMENT_TAG, "", false)?;
-                    serializer.end_start()?;
-                    i.serialize(serializer)?;
-                    serializer.write_close(prefix, VEC_ELEMENT_TAG)?;
-                }
-            }
-            // this would be a Vec<Vec<T>>, where the internal field is unnamed
-            Kind::Vec => {
-                for i in self {
-                    let prefix = serializer.write_start(VEC_LIST_TAG, "", false)?;
-                    serializer.end_start()?;
-                    i.serialize(serializer)?;
-                    serializer.write_close(prefix, VEC_LIST_TAG)?;
-                }
-            }
+        match T::KIND {
+            Kind::Element(_) => {}
+            _ => return Err(Error::UnexpectedState("only elements allowed in `Vec`")),
+        }
+
+        for i in self {
+            i.serialize(serializer)?;
         }
 
         Ok(())
     }
 
-    const KIND: Kind<'static> = Kind::Vec;
+    const KIND: Kind<'static> = Kind::Vec(T::KIND.element());
 }
 
 #[cfg(feature = "chrono")]
@@ -405,10 +466,20 @@ impl ToXml for DateTime<Utc> {
 
 #[cfg(feature = "chrono")]
 impl<'xml> FromXml<'xml> for DateTime<Utc> {
-    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error> {
+    fn deserialize<'cx>(
+        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        into: &mut Option<Self>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue);
+        }
+
         let data = deserializer.take_str()?;
         match DateTime::parse_from_rfc3339(data) {
-            Ok(dt) if dt.timezone().utc_minus_local() == 0 => Ok(dt.with_timezone(&Utc)),
+            Ok(dt) if dt.timezone().utc_minus_local() == 0 => {
+                *into = Some(dt.with_timezone(&Utc));
+                Ok(())
+            }
             _ => Err(Error::Other("invalid date/time".into())),
         }
     }

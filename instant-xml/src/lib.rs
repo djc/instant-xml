@@ -34,7 +34,10 @@ impl<'a, T: ToXml + ?Sized> ToXml for &'a T {
 }
 
 pub trait FromXml<'xml>: Sized {
-    fn deserialize<'cx>(deserializer: &'cx mut Deserializer<'cx, 'xml>) -> Result<Self, Error>;
+    fn deserialize<'cx>(
+        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        into: &mut Option<Self>,
+    ) -> Result<(), Error>;
 
     // If the missing field is of type `Option<T>` then treat is as `None`,
     // otherwise it is an error.
@@ -50,7 +53,7 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     let id = context.element_id(&root)?;
     let expected = match T::KIND {
         Kind::Scalar => return Err(Error::UnexpectedState("found scalar as root")),
-        Kind::Vec => return Err(Error::UnexpectedState("found list as root")),
+        Kind::Vec(_) => return Err(Error::UnexpectedState("found list as root")),
         Kind::Element(expected) => expected,
     };
 
@@ -58,7 +61,12 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
         return Err(Error::UnexpectedValue);
     }
 
-    T::deserialize(&mut Deserializer::new(root, &mut context))
+    let mut value = None;
+    T::deserialize(&mut Deserializer::new(root, &mut context), &mut value)?;
+    match value {
+        Some(value) => Ok(value),
+        None => T::missing_value(),
+    }
 }
 
 pub fn to_string(value: &(impl ToXml + ?Sized)) -> Result<String, Error> {
@@ -116,15 +124,22 @@ pub enum Error {
 pub enum Kind<'a> {
     Scalar,
     Element(Id<'a>),
-    Vec,
+    Vec(Id<'a>),
 }
 
 impl<'a> Kind<'a> {
+    pub const fn element(&self) -> Id<'a> {
+        match self {
+            Kind::Element(id) => *id,
+            _ => panic!("expected element kind"),
+        }
+    }
+
     pub const fn name(&self, field: Id<'a>) -> Id<'a> {
         match self {
             Kind::Scalar => field,
             Kind::Element(name) => *name,
-            Kind::Vec => field,
+            Kind::Vec(inner) => *inner,
         }
     }
 
@@ -133,7 +148,7 @@ impl<'a> Kind<'a> {
         match self {
             Kind::Scalar => id == field,
             Kind::Element(name) => id == *name,
-            Kind::Vec => id == field,
+            Kind::Vec(inner) => id == *inner,
         }
     }
 }

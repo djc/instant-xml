@@ -107,7 +107,9 @@ fn deserialize_wrapped_enum(
 
         let v_ident = &variant.ident;
         variants.extend(
-            quote!(if ::instant_xml::Kind::Element(id) == <#no_lifetime_type as FromXml>::KIND {
+            quote!(if <#no_lifetime_type as FromXml>::KIND.matches(
+                id, ::instant_xml::Id { ns: "", name: "" }
+            ) {
                 let mut nested = deserializer.nested(data);
                 #ident::#v_ident(#no_lifetime_type::deserialize(&mut nested)?)
             }),
@@ -326,9 +328,7 @@ fn process_field(
         tokens.branches.extend(quote!(else));
     }
     tokens.branches.extend(quote!(
-        if id == <#no_lifetime_type as FromXml>::KIND.name(
-            Id { ns: #ns, name: #field_tag }
-        )
+        if <#no_lifetime_type as FromXml>::KIND.matches(id, Id { ns: #ns, name: #field_tag })
     ));
 
     tokens.branches.extend(match field_meta.attribute {

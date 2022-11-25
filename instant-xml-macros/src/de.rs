@@ -42,7 +42,7 @@ fn deserialize_scalar_enum(
         };
 
         let serialize_as = meta.serialize_as;
-        variants.extend(quote!(Ok(#serialize_as) => Ok(#ident::#v_ident),));
+        variants.extend(quote!(Ok(#serialize_as) => #ident::#v_ident,));
     }
 
     let generics = meta.xml_generics();
@@ -52,12 +52,22 @@ fn deserialize_scalar_enum(
     quote!(
         impl #impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
             fn deserialize<'cx>(
-                deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>
-            ) -> Result<Self, ::instant_xml::Error> {
-                match deserializer.take_str() {
-                    #variants
-                    _ => Err(::instant_xml::Error::UnexpectedValue)
+                deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>,
+                into: &mut Option<Self>,
+            ) -> Result<(), ::instant_xml::Error> {
+                use ::instant_xml::Error;
+
+                if into.is_some() {
+                    return Err(Error::DuplicateValue);
                 }
+
+                let value = match deserializer.take_str() {
+                    #variants
+                    _ => return Err(Error::UnexpectedValue),
+                };
+
+                *into = Some(value);
+                Ok(())
             }
 
             const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Scalar;
@@ -106,14 +116,14 @@ fn deserialize_wrapped_enum(
         }
 
         let v_ident = &variant.ident;
-        variants.extend(
-            quote!(if <#no_lifetime_type as FromXml>::KIND.matches(
-                id, ::instant_xml::Id { ns: "", name: "" }
-            ) {
-                let mut nested = deserializer.nested(data);
-                #ident::#v_ident(#no_lifetime_type::deserialize(&mut nested)?)
-            }),
-        );
+        variants.extend(quote!(if <#no_lifetime_type as FromXml>::KIND.matches(
+            id, ::instant_xml::Id { ns: "", name: "" }
+        ) {
+            let mut nested = deserializer.nested(data);
+            let mut value = None;
+            #no_lifetime_type::deserialize(&mut nested, &mut value)?;
+            *into = value.map(#ident::#v_ident);
+        }));
     }
 
     let name = meta.tag();
@@ -123,7 +133,10 @@ fn deserialize_wrapped_enum(
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
-            fn deserialize<'cx>(deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>) -> Result<Self, ::instant_xml::Error> {
+            fn deserialize<'cx>(
+                deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>,
+                into: &mut Option<Self>,
+            ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
                 use ::instant_xml::Error;
 
@@ -138,7 +151,7 @@ fn deserialize_wrapped_enum(
                 };
 
                 let id = deserializer.element_id(&data)?;
-                let value = #variants else {
+                #variants else {
                     return Err(Error::UnexpectedTag);
                 };
 
@@ -146,7 +159,7 @@ fn deserialize_wrapped_enum(
                     return Err(Error::UnexpectedState("unexpected node after wrapped enum variant"));
                 }
 
-                Ok(value)
+                Ok(())
             }
 
             const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Element(::instant_xml::Id {
@@ -236,10 +249,12 @@ fn deserialize_struct(
 
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
-            fn deserialize<'cx>(deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>) -> Result<Self, ::instant_xml::Error> {
+            fn deserialize<'cx>(
+                deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>,
+                into: &mut Option<Self>,
+            ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
                 use ::instant_xml::{Error, Id};
-                use ::core::marker::PhantomData;
 
                 enum __Elements {
                     #elements_enum
@@ -284,7 +299,8 @@ fn deserialize_struct(
                     }
                 }
 
-                Ok(Self { #return_val })
+                *into = Some(Self { #return_val });
+                Ok(())
             }
 
             const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Element(::instant_xml::Id {
@@ -343,23 +359,15 @@ fn process_field(
     if !field_meta.attribute {
         tokens.r#match.extend(quote!(
             __Elements::#enum_name => {
-                if #enum_name.is_some() {
-                    return Err(Error::DuplicateValue);
-                }
-
                 let mut nested = deserializer.nested(data);
-                #enum_name = Some(<#no_lifetime_type>::deserialize(&mut nested)?);
+                <#no_lifetime_type>::deserialize(&mut nested, &mut #enum_name)?;
             },
         ));
     } else {
         tokens.r#match.extend(quote!(
             __Attributes::#enum_name => {
-                if #enum_name.is_some() {
-                    return Err(Error::DuplicateValue);
-                }
-
                 let mut nested = deserializer.for_attr(attr);
-                #enum_name = Some(<#no_lifetime_type>::deserialize(&mut nested)?);
+                let new = <#no_lifetime_type>::deserialize(&mut nested, &mut #enum_name)?;
             },
         ));
     }

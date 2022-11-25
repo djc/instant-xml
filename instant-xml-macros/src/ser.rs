@@ -319,10 +319,10 @@ fn process_named_field(
     discard_lifetimes(&mut no_lifetime_type);
     body.extend(quote!(
         match <#no_lifetime_type as ToXml>::KIND {
-            ::instant_xml::Kind::Element(_) => {
+            ::instant_xml::Kind::Element(_) | ::instant_xml::Kind::Vec(_) => {
                 self.#field_name.serialize(serializer)?;
             }
-            ::instant_xml::Kind::Scalar | ::instant_xml::Kind::Vec => {
+            ::instant_xml::Kind::Scalar => {
                 let prefix = serializer.write_start(#tag, #ns, true)?;
                 serializer.end_start()?;
                 self.#field_name.serialize(serializer)?;

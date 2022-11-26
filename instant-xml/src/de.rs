@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, VecDeque};
 
-use super::{Error, Id};
 use xmlparser::{ElementEnd, Token, Tokenizer};
+
+use crate::{Kind, Error, Id};
 
 pub struct Deserializer<'cx, 'xml> {
     pub(crate) local: &'xml str,
@@ -33,7 +34,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
             Some(Ok(Node::Text(s))) => (s, true),
             Some(Ok(_)) => return Err(Error::ExpectedScalar),
             Some(Err(e)) => return Err(e),
-            None => return Ok(""),
+            None => return Err(Error::MissingValue(&Kind::Scalar)),
         };
 
         if element {

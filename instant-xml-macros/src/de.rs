@@ -56,7 +56,7 @@ fn deserialize_scalar_enum(
     quote!(
         impl #impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
             fn deserialize<'cx>(
-                deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>,
+                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Option<Self>,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::Error;
@@ -138,7 +138,7 @@ fn deserialize_wrapped_enum(
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
             fn deserialize<'cx>(
-                deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>,
+                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Option<Self>,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
@@ -245,7 +245,7 @@ fn deserialize_struct(
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
             fn deserialize<'cx>(
-                deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>,
+                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Option<Self>,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
@@ -414,7 +414,7 @@ fn deserialize_tuple_struct(
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
             fn deserialize<'cx>(
-                deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>,
+                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Option<Self>,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
@@ -488,7 +488,7 @@ fn deserialize_unit_struct(input: &syn::DeriveInput, meta: &ContainerMeta) -> To
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
             fn deserialize<'cx>(
-                deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>,
+                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Option<Self>,
             ) -> Result<(), ::instant_xml::Error> {
                 deserializer.ignore()?;

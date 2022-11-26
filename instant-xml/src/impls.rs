@@ -34,7 +34,7 @@ impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
 
 impl<'xml> FromXml<'xml> for bool {
     fn deserialize<'cx>(
-        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
     ) -> Result<(), Error> {
         if into.is_some() {
@@ -107,7 +107,7 @@ macro_rules! from_xml_for_number {
     ($typ:ty) => {
         impl<'xml> FromXml<'xml> for $typ {
             fn deserialize<'cx>(
-                deserializer: &'cx mut Deserializer<'cx, 'xml>,
+                deserializer: &mut Deserializer<'cx, 'xml>,
                 into: &mut Option<Self>,
             ) -> Result<(), Error> {
                 if into.is_some() {
@@ -145,7 +145,7 @@ from_xml_for_number!(f64);
 
 impl<'xml> FromXml<'xml> for char {
     fn deserialize<'cx>(
-        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
     ) -> Result<(), Error> {
         if into.is_some() {
@@ -168,7 +168,7 @@ impl<'xml> FromXml<'xml> for char {
 
 impl<'xml> FromXml<'xml> for String {
     fn deserialize<'cx>(
-        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
     ) -> Result<(), Error> {
         if into.is_some() {
@@ -191,7 +191,7 @@ impl<'xml> FromXml<'xml> for String {
 
 impl<'xml> FromXml<'xml> for &'xml str {
     fn deserialize<'cx>(
-        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
     ) -> Result<(), Error> {
         if into.is_some() {
@@ -234,7 +234,7 @@ impl<'xml> FromXml<'xml> for Cow<'xml, str> {
 
 impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
     fn deserialize<'cx>(
-        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
     ) -> Result<(), Error> {
         if into.is_some() {
@@ -436,7 +436,7 @@ fn decode(input: &str) -> Cow<'_, str> {
 
 impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Vec<T> {
     fn deserialize<'cx>(
-        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
     ) -> Result<(), Error> {
         let mut value = None;
@@ -503,7 +503,7 @@ impl ToXml for DateTime<Utc> {
 #[cfg(feature = "chrono")]
 impl<'xml> FromXml<'xml> for DateTime<Utc> {
     fn deserialize<'cx>(
-        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
     ) -> Result<(), Error> {
         if into.is_some() {

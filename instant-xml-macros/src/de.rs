@@ -361,7 +361,7 @@ fn named_field(
     } else {
         tokens.r#match.extend(quote!(
             __Attributes::#enum_name => {
-                let mut nested = deserializer.for_attr(attr);
+                let mut nested = deserializer.for_node(Node::AttributeValue(attr.value));
                 let new = <#no_lifetime_type>::deserialize(&mut nested, &mut #enum_name)?;
             },
         ));
@@ -453,14 +453,15 @@ fn unnamed_field(
 
         let #name = match node {
             Node::Open(data) => {
+                let mut nested = deserializer.nested(data);
                 let mut value: Option<#no_lifetime_type> = None;
-                <#no_lifetime_type>::deserialize(deserializer, &mut value)?;
+                <#no_lifetime_type>::deserialize(&mut nested, &mut value)?;
                 value
             }
             Node::Text(data) => {
-                deserializer.push_front(Node::Text(data));
+                let mut nested = deserializer.for_node(Node::Text(data));
                 let mut value: Option<#no_lifetime_type> = None;
-                <#no_lifetime_type>::deserialize(deserializer, &mut value)?;
+                <#no_lifetime_type>::deserialize(&mut nested, &mut value)?;
                 value
             }
             node => return Err(Error::UnexpectedNode(format!("{:?}", node))),

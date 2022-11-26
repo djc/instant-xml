@@ -135,14 +135,6 @@ impl<'a> Kind<'a> {
         }
     }
 
-    pub const fn name(&self, field: Id<'a>) -> Id<'a> {
-        match self {
-            Kind::Scalar => field,
-            Kind::Element(name) => *name,
-            Kind::Vec(inner) => *inner,
-        }
-    }
-
     #[inline]
     pub fn matches(&self, id: Id<'_>, field: Id<'_>) -> bool {
         match self {

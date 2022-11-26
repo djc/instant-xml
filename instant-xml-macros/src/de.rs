@@ -63,7 +63,7 @@ fn deserialize_scalar_enum(
 
                 let value = match deserializer.take_str() {
                     #variants
-                    _ => return Err(Error::UnexpectedValue),
+                    _ => return Err(Error::UnexpectedValue("enum variant not found")),
                 };
 
                 *into = Some(value);

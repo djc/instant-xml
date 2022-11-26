@@ -39,7 +39,7 @@ fn default_namespaces() {
         from_str(
             "<NestedDe xmlns=\"WRONG\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe>"
         ),
-        Err::<NestedDe, _>(Error::UnexpectedValue)
+        Err::<NestedDe, _>(Error::UnexpectedValue("unexpected root"))
     );
 
     // Correct child namespace

@@ -59,23 +59,6 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         Deserializer::new(element, self.context)
     }
 
-    pub fn for_attr<'a>(&'a mut self, attr: Attribute<'xml>) -> Deserializer<'a, 'xml>
-    where
-        'cx: 'a,
-    {
-        self.context
-            .records
-            .push_front(Node::AttributeValue(attr.value));
-
-        Deserializer {
-            local: self.local,
-            prefix: self.prefix,
-            level: self.level,
-            done: self.done,
-            context: self.context,
-        }
-    }
-
     pub fn ignore(&mut self) -> Result<(), Error> {
         loop {
             match self.next() {
@@ -90,8 +73,18 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
-    pub fn push_front(&mut self, node: Node<'xml>) {
+    pub fn for_node<'a>(&'a mut self, node: Node<'xml>) -> Deserializer<'a, 'xml>
+    where
+        'cx: 'a,
+    {
         self.context.records.push_front(node);
+        Deserializer {
+            local: self.local,
+            prefix: self.prefix,
+            level: self.level,
+            done: self.done,
+            context: self.context,
+        }
     }
 
     #[inline]

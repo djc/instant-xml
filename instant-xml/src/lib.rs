@@ -37,7 +37,7 @@ impl<'a, T: ToXml + ?Sized> ToXml for &'a T {
 
 pub trait FromXml<'xml>: Sized {
     fn deserialize<'cx>(
-        deserializer: &'cx mut Deserializer<'cx, 'xml>,
+        deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
     ) -> Result<(), Error>;
 

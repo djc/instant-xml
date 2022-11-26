@@ -466,9 +466,8 @@ fn unnamed_field(
                 None => return Err(Error::MissingValue(&<#no_lifetime_type as FromXml>::KIND)),
             }
             Kind::Scalar => {
-                let mut nested = deserializer.for_scalar();
                 let mut value: Option<#no_lifetime_type> = None;
-                <#no_lifetime_type>::deserialize(&mut nested, &mut value)?;
+                <#no_lifetime_type>::deserialize(deserializer, &mut value)?;
                 value
             }
         };

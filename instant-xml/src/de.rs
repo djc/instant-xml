@@ -59,19 +59,6 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
-    pub fn for_scalar<'a>(&'a mut self) -> Deserializer<'a, 'xml>
-    where
-        'cx: 'a,
-    {
-        Deserializer {
-            local: self.local,
-            prefix: self.prefix,
-            level: self.level,
-            done: self.done,
-            context: self.context,
-        }
-    }
-
     pub fn for_node<'a>(&'a mut self, node: Node<'xml>) -> Deserializer<'a, 'xml>
     where
         'cx: 'a,

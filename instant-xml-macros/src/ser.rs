@@ -49,9 +49,24 @@ fn serialize_scalar_enum(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {
             fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
                 &self,
+                field: Option<::instant_xml::Id<'_>>,
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> Result<(), instant_xml::Error> {
-                serializer.write_str(match self { #variants })
+                let prefix = match field {
+                    Some(id) => {
+                        let prefix = serializer.write_start(id.name, id.ns, true)?;
+                        serializer.end_start()?;
+                        Some((prefix, id.name))
+                    }
+                    None => None,
+                };
+
+                serializer.write_str(match self { #variants })?;
+                if let Some((prefix, name)) = prefix {
+                    serializer.write_close(prefix, name)?;
+                }
+
+                Ok(())
             }
 
             const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Scalar;
@@ -95,7 +110,7 @@ fn serialize_wrapped_enum(
         }
 
         let v_ident = &variant.ident;
-        variants.extend(quote!(#ident::#v_ident(inner) => inner.serialize(serializer)?,));
+        variants.extend(quote!(#ident::#v_ident(inner) => inner.serialize(None, serializer)?,));
     }
 
     let default_namespace = meta.default_namespace();
@@ -124,6 +139,7 @@ fn serialize_wrapped_enum(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {
             fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
                 &self,
+                field: Option<::instant_xml::Id<'_>>,
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> Result<(), instant_xml::Error> {
                 // Start tag
@@ -204,6 +220,7 @@ fn serialize_struct(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {
             fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
                 &self,
+                field: Option<::instant_xml::Id<'_>>,
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> Result<(), instant_xml::Error> {
                 // Start tag
@@ -318,17 +335,7 @@ fn process_named_field(
     let mut no_lifetime_type = field.ty.clone();
     discard_lifetimes(&mut no_lifetime_type);
     body.extend(quote!(
-        match <#no_lifetime_type as ToXml>::KIND {
-            ::instant_xml::Kind::Element(_) | ::instant_xml::Kind::Vec(_) => {
-                self.#field_name.serialize(serializer)?;
-            }
-            ::instant_xml::Kind::Scalar => {
-                let prefix = serializer.write_start(#tag, #ns, true)?;
-                serializer.end_start()?;
-                self.#field_name.serialize(serializer)?;
-                serializer.write_close(prefix, #tag)?;
-            }
-        }
+        self.#field_name.serialize(Some(::instant_xml::Id { ns: #ns, name: #tag }), serializer)?;
     ));
 
     Ok(())

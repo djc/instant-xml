@@ -16,6 +16,7 @@ pub use ser::Serializer;
 pub trait ToXml {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
+        field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error>;
 
@@ -25,9 +26,10 @@ pub trait ToXml {
 impl<'a, T: ToXml + ?Sized> ToXml for &'a T {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
+        field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        (*self).serialize(serializer)
+        (*self).serialize(field, serializer)
     }
 
     const KIND: Kind<'static> = T::KIND;
@@ -46,6 +48,7 @@ pub trait FromXml<'xml>: Sized {
     }
 
     const KIND: Kind<'static>;
+    const WRAPPED: bool = false;
 }
 
 pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
@@ -53,7 +56,6 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     let id = context.element_id(&root)?;
     let expected = match T::KIND {
         Kind::Scalar => return Err(Error::UnexpectedState("found scalar as root")),
-        Kind::Vec(_) => return Err(Error::UnexpectedState("found list as root")),
         Kind::Element(expected) => expected,
     };
 
@@ -79,7 +81,7 @@ pub fn to_writer(
     value: &(impl ToXml + ?Sized),
     output: &mut (impl fmt::Write + ?Sized),
 ) -> Result<(), Error> {
-    value.serialize(&mut Serializer::new(output))
+    value.serialize(None, &mut Serializer::new(output))
 }
 
 pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}
@@ -124,7 +126,6 @@ pub enum Error {
 pub enum Kind<'a> {
     Scalar,
     Element(Id<'a>),
-    Vec(Id<'a>),
 }
 
 impl<'a> Kind<'a> {
@@ -140,7 +141,6 @@ impl<'a> Kind<'a> {
         match self {
             Kind::Scalar => id == field,
             Kind::Element(name) => id == *name,
-            Kind::Vec(inner) => id == *inner,
         }
     }
 }

@@ -5,7 +5,7 @@ use std::str::FromStr;
 #[cfg(feature = "chrono")]
 use chrono::{DateTime, Utc};
 
-use crate::{Deserializer, Error, FromXml, Kind, Serializer, ToXml};
+use crate::{Deserializer, Error, FromXml, Id, Kind, Serializer, ToXml};
 
 // Deserializer
 struct FromXmlStr<T: FromStr>(T);
@@ -64,9 +64,24 @@ where
 {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
+        field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        serializer.write_str(self.0)
+        let prefix = match field {
+            Some(id) => {
+                let prefix = serializer.write_start(id.name, id.ns, true)?;
+                serializer.end_start()?;
+                Some((prefix, id.name))
+            }
+            None => None,
+        };
+
+        serializer.write_str(self.0)?;
+        if let Some((prefix, name)) = prefix {
+            serializer.write_close(prefix, name)?;
+        }
+
+        Ok(())
     }
 
     const KIND: Kind<'static> = Kind::Scalar;
@@ -77,9 +92,10 @@ macro_rules! to_xml_for_number {
         impl ToXml for $typ {
             fn serialize<W: fmt::Write + ?Sized>(
                 &self,
+                field: Option<Id<'_>>,
                 serializer: &mut Serializer<W>,
             ) -> Result<(), Error> {
-                DisplayToXml(self).serialize(serializer)
+                DisplayToXml(self).serialize(field, serializer)
             }
 
             const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
@@ -257,6 +273,7 @@ to_xml_for_number!(f64);
 impl ToXml for bool {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
+        field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
         let value = match self {
@@ -264,7 +281,7 @@ impl ToXml for bool {
             false => "false",
         };
 
-        DisplayToXml(&value).serialize(serializer)
+        DisplayToXml(&value).serialize(field, serializer)
     }
 
     const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
@@ -273,9 +290,10 @@ impl ToXml for bool {
 impl ToXml for String {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
+        field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        DisplayToXml(&encode(self)?).serialize(serializer)
+        DisplayToXml(&encode(self)?).serialize(field, serializer)
     }
 
     const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
@@ -284,10 +302,11 @@ impl ToXml for String {
 impl ToXml for char {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
+        field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
         let mut tmp = [0u8; 4];
-        DisplayToXml(&encode(&*self.encode_utf8(&mut tmp))?).serialize(serializer)
+        DisplayToXml(&encode(&*self.encode_utf8(&mut tmp))?).serialize(field, serializer)
     }
 
     const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
@@ -296,9 +315,10 @@ impl ToXml for char {
 impl ToXml for &str {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
+        field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        DisplayToXml(&encode(self)?).serialize(serializer)
+        DisplayToXml(&encode(self)?).serialize(field, serializer)
     }
 
     const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
@@ -307,9 +327,10 @@ impl ToXml for &str {
 impl ToXml for Cow<'_, str> {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
+        field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        DisplayToXml(&encode(self)?).serialize(serializer)
+        DisplayToXml(&encode(self)?).serialize(field, serializer)
     }
 
     const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
@@ -318,10 +339,11 @@ impl ToXml for Cow<'_, str> {
 impl<T: ToXml> ToXml for Option<T> {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
+        field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
         match self {
-            Some(v) => v.serialize(serializer),
+            Some(v) => v.serialize(field, serializer),
             None => Ok(()),
         }
     }
@@ -429,36 +451,48 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Vec<T> {
         Ok(Vec::new())
     }
 
-    const KIND: Kind<'static> = Kind::Vec(T::KIND.element());
+    const KIND: Kind<'static> = T::KIND;
+    const WRAPPED: bool = true;
 }
 
 impl<T: ToXml> ToXml for Vec<T> {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
+        field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        match T::KIND {
-            Kind::Element(_) => {}
-            _ => return Err(Error::UnexpectedState("only elements allowed in `Vec`")),
-        }
-
         for i in self {
-            i.serialize(serializer)?;
+            i.serialize(field, serializer)?;
         }
 
         Ok(())
     }
 
-    const KIND: Kind<'static> = Kind::Vec(T::KIND.element());
+    const KIND: Kind<'static> = T::KIND;
 }
 
 #[cfg(feature = "chrono")]
 impl ToXml for DateTime<Utc> {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
+        field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        serializer.write_str(&self.to_rfc3339())
+        let prefix = match field {
+            Some(id) => {
+                let prefix = serializer.write_start(id.name, id.ns, true)?;
+                serializer.end_start()?;
+                Some((prefix, id.name))
+            }
+            None => None,
+        };
+
+        serializer.write_str(&self.to_rfc3339())?;
+        if let Some((prefix, name)) = prefix {
+            serializer.write_close(prefix, name)?;
+        }
+
+        Ok(())
     }
 
     const KIND: Kind<'static> = Kind::Scalar;

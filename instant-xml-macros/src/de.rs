@@ -428,6 +428,7 @@ fn deserialize_tuple_struct(
                 use ::instant_xml::{Error, Id, Kind};
 
                 #declare_values
+                deserializer.ignore()?;
 
                 *into = Some(Self(#return_val));
                 Ok(())

@@ -459,6 +459,7 @@ fn unnamed_field(
                     let mut nested = deserializer.nested(data);
                     let mut value: Option<#no_lifetime_type> = None;
                     <#no_lifetime_type>::deserialize(&mut nested, &mut value)?;
+                    nested.ignore()?;
                     value
                 }
                 Some(Ok(node)) => return Err(Error::UnexpectedNode(format!("{:?}", node))),

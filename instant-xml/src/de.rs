@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
-use crate::{Kind, Error, Id};
+use crate::{Error, Id, Kind};
 
 pub struct Deserializer<'cx, 'xml> {
     pub(crate) local: &'xml str,
@@ -88,6 +88,10 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
                 None => return Ok(()),
             }
         }
+    }
+
+    pub fn push_front(&mut self, node: Node<'xml>) {
+        self.context.records.push_front(node);
     }
 
     #[inline]

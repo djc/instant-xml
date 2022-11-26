@@ -188,7 +188,13 @@ fn serialize_struct(
                 }
             }
         }
-        syn::Fields::Unnamed(_) => todo!(),
+        syn::Fields::Unnamed(fields) => {
+            for (index, field) in fields.unnamed.iter().enumerate() {
+                if let Err(err) = unnamed_field(field, index, &mut body) {
+                    return err.to_compile_error();
+                }
+            }
+        }
         syn::Fields::Unit => {}
     };
 
@@ -336,6 +342,28 @@ fn named_field(
     discard_lifetimes(&mut no_lifetime_type);
     body.extend(quote!(
         self.#field_name.serialize(Some(::instant_xml::Id { ns: #ns, name: #tag }), serializer)?;
+    ));
+
+    Ok(())
+}
+
+fn unnamed_field(
+    field: &syn::Field,
+    index: usize,
+    body: &mut TokenStream,
+) -> Result<(), syn::Error> {
+    if !field.attrs.is_empty() {
+        return Err(syn::Error::new(
+            field.span(),
+            "unnamed fields cannot have attributes",
+        ));
+    }
+
+    let mut no_lifetime_type = field.ty.clone();
+    discard_lifetimes(&mut no_lifetime_type);
+    let index = syn::Index::from(index);
+    body.extend(quote!(
+        self.#index.serialize(None, serializer)?;
     ));
 
     Ok(())

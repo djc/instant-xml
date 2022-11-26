@@ -13,7 +13,11 @@ pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
     };
 
     match (&input.data, meta.mode) {
-        (syn::Data::Struct(data), None) => deserialize_struct(input, data, meta),
+        (syn::Data::Struct(data), None) => match &data.fields {
+            syn::Fields::Named(fields) => deserialize_struct(input, fields, meta),
+            syn::Fields::Unnamed(fields) => deserialize_tuple_struct(input, fields, meta),
+            syn::Fields::Unit => deserialize_unit_struct(input, &meta),
+        },
         (syn::Data::Enum(data), Some(Mode::Scalar)) => deserialize_scalar_enum(input, data, meta),
         (syn::Data::Enum(data), Some(Mode::Wrapped)) => deserialize_wrapped_enum(input, data, meta),
         (syn::Data::Struct(_), _) => {
@@ -172,7 +176,7 @@ fn deserialize_wrapped_enum(
 
 fn deserialize_struct(
     input: &syn::DeriveInput,
-    data: &syn::DataStruct,
+    fields: &syn::FieldsNamed,
     container_meta: ContainerMeta,
 ) -> TokenStream {
     let mut namespaces_map = quote!(let mut namespaces_map = std::collections::HashMap::new(););
@@ -190,33 +194,27 @@ fn deserialize_struct(
     let mut declare_values = TokenStream::new();
     let mut return_val = TokenStream::new();
 
-    match &data.fields {
-        syn::Fields::Named(fields) => {
-            for (index, field) in fields.named.iter().enumerate() {
-                let field_meta = match FieldMeta::from_field(field, &container_meta) {
-                    Ok(meta) => meta,
-                    Err(err) => return err.into_compile_error(),
-                };
+    for (index, field) in fields.named.iter().enumerate() {
+        let field_meta = match FieldMeta::from_field(field, &container_meta) {
+            Ok(meta) => meta,
+            Err(err) => return err.into_compile_error(),
+        };
 
-                let tokens = match field_meta.attribute {
-                    true => &mut attributes_tokens,
-                    false => &mut elements_tokens,
-                };
+        let tokens = match field_meta.attribute {
+            true => &mut attributes_tokens,
+            false => &mut elements_tokens,
+        };
 
-                named_field(
-                    field,
-                    index,
-                    &mut declare_values,
-                    &mut return_val,
-                    tokens,
-                    field_meta,
-                    &container_meta,
-                );
-            }
-        }
-        syn::Fields::Unnamed(_) => panic!("unamed"),
-        syn::Fields::Unit => {}
-    };
+        named_field(
+            field,
+            index,
+            &mut declare_values,
+            &mut return_val,
+            tokens,
+            field_meta,
+            &container_meta,
+        );
+    }
 
     // Elements
     let elements_enum = elements_tokens.r#enum;
@@ -375,6 +373,134 @@ fn named_field(
             None => <#no_lifetime_type>::missing_value()?,
         },
     ));
+}
+
+fn deserialize_tuple_struct(
+    input: &syn::DeriveInput,
+    fields: &syn::FieldsUnnamed,
+    container_meta: ContainerMeta,
+) -> TokenStream {
+    let mut namespaces_map = quote!(let mut namespaces_map = std::collections::HashMap::new(););
+    for (k, v) in container_meta.ns.prefixes.iter() {
+        namespaces_map.extend(quote!(
+            namespaces_map.insert(#k, #v);
+        ))
+    }
+
+    // Varying values
+    let mut declare_values = TokenStream::new();
+    let mut return_val = TokenStream::new();
+
+    for (index, field) in fields.unnamed.iter().enumerate() {
+        if !field.attrs.is_empty() {
+            return syn::Error::new(
+                field.span(),
+                "attributes not allowed on tuple struct fields",
+            )
+            .to_compile_error();
+        }
+
+        unnamed_field(field, index, &mut declare_values, &mut return_val);
+    }
+
+    let ident = &input.ident;
+    let name = container_meta.tag();
+    let default_namespace = container_meta.default_namespace();
+    let generics = container_meta.xml_generics();
+
+    let (xml_impl_generics, _, _) = generics.split_for_impl();
+    let (_, ty_generics, where_clause) = input.generics.split_for_impl();
+
+    quote!(
+        impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
+            fn deserialize<'cx>(
+                deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>,
+                into: &mut Option<Self>,
+            ) -> Result<(), ::instant_xml::Error> {
+                use ::instant_xml::de::Node;
+                use ::instant_xml::{Error, Id};
+
+                #declare_values
+
+                *into = Some(Self(#return_val));
+                Ok(())
+            }
+
+            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Element(::instant_xml::Id {
+                ns: #default_namespace,
+                name: #name,
+            });
+        }
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn unnamed_field(
+    field: &syn::Field,
+    index: usize,
+    declare_values: &mut TokenStream,
+    return_val: &mut TokenStream,
+) {
+    let mut no_lifetime_type = field.ty.clone();
+    discard_lifetimes(&mut no_lifetime_type);
+
+    let name = Ident::new(&format!("v{index}"), Span::call_site());
+    declare_values.extend(quote!(
+        let node = match deserializer.next() {
+            Some(result) => result?,
+            None => return Err(Error::MissingValue(&<#no_lifetime_type as FromXml>::KIND)),
+        };
+
+        let #name = match node {
+            Node::Open(data) => {
+                let mut value: Option<#no_lifetime_type> = None;
+                <#no_lifetime_type>::deserialize(deserializer, &mut value)?;
+                value
+            }
+            Node::Text(data) => {
+                deserializer.push_front(Node::Text(data));
+                let mut value: Option<#no_lifetime_type> = None;
+                <#no_lifetime_type>::deserialize(deserializer, &mut value)?;
+                value
+            }
+            node => return Err(Error::UnexpectedNode(format!("{:?}", node))),
+        };
+    ));
+
+    return_val.extend(quote!(
+        match #name {
+            Some(v) => v,
+            None => <#no_lifetime_type>::missing_value()?,
+        },
+    ));
+}
+
+fn deserialize_unit_struct(input: &syn::DeriveInput, meta: &ContainerMeta) -> TokenStream {
+    let ident = &input.ident;
+    let name = meta.tag();
+    let default_namespace = meta.default_namespace();
+    let generics = meta.xml_generics();
+
+    let (xml_impl_generics, _, _) = generics.split_for_impl();
+    let (_, ty_generics, where_clause) = input.generics.split_for_impl();
+
+    quote!(
+        impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
+            fn deserialize<'cx>(
+                deserializer: &'cx mut ::instant_xml::Deserializer<'cx, 'xml>,
+                into: &mut Option<Self>,
+            ) -> Result<(), ::instant_xml::Error> {
+                deserializer.ignore()?;
+                *into = Some(Self);
+                Ok(())
+            }
+
+            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Element(::instant_xml::Id {
+                ns: #default_namespace,
+                name: #name,
+            });
+        }
+    )
 }
 
 #[derive(Default)]

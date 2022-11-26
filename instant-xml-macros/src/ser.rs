@@ -180,10 +180,10 @@ fn serialize_struct(
     let mut body = TokenStream::new();
     let mut attributes = TokenStream::new();
 
-    match data.fields {
-        syn::Fields::Named(ref fields) => {
+    match &data.fields {
+        syn::Fields::Named(fields) => {
             for field in &fields.named {
-                if let Err(err) = process_named_field(field, &mut body, &mut attributes, &meta) {
+                if let Err(err) = named_field(field, &mut body, &mut attributes, &meta) {
                     return err.to_compile_error();
                 }
             }
@@ -252,7 +252,7 @@ fn serialize_struct(
     )
 }
 
-fn process_named_field(
+fn named_field(
     field: &syn::Field,
     body: &mut TokenStream,
     attributes: &mut TokenStream,

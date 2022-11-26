@@ -190,15 +190,12 @@ fn deserialize_struct(
     let mut declare_values = TokenStream::new();
     let mut return_val = TokenStream::new();
 
-    match data.fields {
-        syn::Fields::Named(ref fields) => {
-            fields.named.iter().enumerate().for_each(|(index, field)| {
+    match &data.fields {
+        syn::Fields::Named(fields) => {
+            for (index, field) in fields.named.iter().enumerate() {
                 let field_meta = match FieldMeta::from_field(field, &container_meta) {
                     Ok(meta) => meta,
-                    Err(err) => {
-                        return_val.extend(err.into_compile_error());
-                        return;
-                    }
+                    Err(err) => return err.into_compile_error(),
                 };
 
                 let tokens = match field_meta.attribute {
@@ -206,7 +203,7 @@ fn deserialize_struct(
                     false => &mut elements_tokens,
                 };
 
-                process_field(
+                named_field(
                     field,
                     index,
                     &mut declare_values,
@@ -215,7 +212,7 @@ fn deserialize_struct(
                     field_meta,
                     &container_meta,
                 );
-            });
+            }
         }
         syn::Fields::Unnamed(_) => panic!("unamed"),
         syn::Fields::Unit => {}
@@ -312,7 +309,7 @@ fn deserialize_struct(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn process_field(
+fn named_field(
     field: &syn::Field,
     index: usize,
     declare_values: &mut TokenStream,

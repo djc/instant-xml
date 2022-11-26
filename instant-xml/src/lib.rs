@@ -60,7 +60,7 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     };
 
     if id != expected {
-        return Err(Error::UnexpectedValue);
+        return Err(Error::UnexpectedValue("unexpected root"));
     }
 
     let mut value = None;
@@ -99,7 +99,7 @@ pub enum Error {
     #[error("unexpected end of stream")]
     UnexpectedEndOfStream,
     #[error("unexpected value")]
-    UnexpectedValue,
+    UnexpectedValue(&'static str),
     #[error("unexpected tag")]
     UnexpectedTag,
     #[error("missing tag")]

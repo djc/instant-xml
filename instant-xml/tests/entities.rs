@@ -30,7 +30,7 @@ fn escape_back() {
         from_str(
             "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str&amp;</str></StructSpecialEntities>"
         ),
-        Err::<StructSpecialEntities, _>(Error::UnexpectedValue)
+        Err::<StructSpecialEntities, _>(Error::UnexpectedValue("string with escape characters cannot be deserialized as &str"))
     );
 
     // Borrowed

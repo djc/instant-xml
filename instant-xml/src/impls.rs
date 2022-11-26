@@ -25,7 +25,7 @@ impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
                 *into = Some(FromXmlStr(value));
                 Ok(())
             }
-            Err(_) => Err(Error::UnexpectedValue),
+            Err(_) => Err(Error::UnexpectedValue("unable to parse value")),
         }
     }
 
@@ -205,7 +205,9 @@ impl<'xml> FromXml<'xml> for &'xml str {
                 *into = Some(s);
                 Ok(())
             }
-            Some(Cow::Owned(_)) => Err(Error::UnexpectedValue),
+            Some(Cow::Owned(_)) => Err(Error::UnexpectedValue(
+                "string with escape characters cannot be deserialized as &str",
+            )),
             None => Err(Error::MissingValue(&Kind::Scalar)),
         }
     }

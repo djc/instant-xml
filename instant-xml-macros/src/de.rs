@@ -249,7 +249,7 @@ fn deserialize_struct(
                 into: &mut Option<Self>,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
-                use ::instant_xml::{Error, Id};
+                use ::instant_xml::{Error, Id, Kind};
 
                 enum __Elements {
                     #elements_enum
@@ -353,9 +353,16 @@ fn named_field(
 
     if !field_meta.attribute {
         tokens.r#match.extend(quote!(
-            __Elements::#enum_name => {
-                let mut nested = deserializer.nested(data);
-                <#no_lifetime_type>::deserialize(&mut nested, &mut #enum_name)?;
+            __Elements::#enum_name => match <#no_lifetime_type as FromXml>::KIND {
+                Kind::Element(_) => {
+                    let mut nested = deserializer.nested(data);
+                    FromXml::deserialize(&mut nested, &mut #enum_name)?;
+                }
+                Kind::Scalar => {
+                    let mut nested = deserializer.nested(data);
+                    FromXml::deserialize(&mut nested, &mut #enum_name)?;
+                    nested.ignore()?;
+                }
             },
         ));
     } else {
@@ -418,7 +425,7 @@ fn deserialize_tuple_struct(
                 into: &mut Option<Self>,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
-                use ::instant_xml::{Error, Id};
+                use ::instant_xml::{Error, Id, Kind};
 
                 #declare_values
 
@@ -446,25 +453,24 @@ fn unnamed_field(
 
     let name = Ident::new(&format!("v{index}"), Span::call_site());
     declare_values.extend(quote!(
-        let node = match deserializer.next() {
-            Some(result) => result?,
-            None => return Err(Error::MissingValue(&<#no_lifetime_type as FromXml>::KIND)),
-        };
-
-        let #name = match node {
-            Node::Open(data) => {
-                let mut nested = deserializer.nested(data);
+        let #name = match <#no_lifetime_type as FromXml>::KIND {
+            Kind::Element(_) => match deserializer.next() {
+                Some(Ok(Node::Open(data))) => {
+                    let mut nested = deserializer.nested(data);
+                    let mut value: Option<#no_lifetime_type> = None;
+                    <#no_lifetime_type>::deserialize(&mut nested, &mut value)?;
+                    value
+                }
+                Some(Ok(node)) => return Err(Error::UnexpectedNode(format!("{:?}", node))),
+                Some(Err(e)) => return Err(e),
+                None => return Err(Error::MissingValue(&<#no_lifetime_type as FromXml>::KIND)),
+            }
+            Kind::Scalar => {
+                let mut nested = deserializer.for_scalar();
                 let mut value: Option<#no_lifetime_type> = None;
                 <#no_lifetime_type>::deserialize(&mut nested, &mut value)?;
                 value
             }
-            Node::Text(data) => {
-                let mut nested = deserializer.for_node(Node::Text(data));
-                let mut value: Option<#no_lifetime_type> = None;
-                <#no_lifetime_type>::deserialize(&mut nested, &mut value)?;
-                value
-            }
-            node => return Err(Error::UnexpectedNode(format!("{:?}", node))),
         };
     ));
 

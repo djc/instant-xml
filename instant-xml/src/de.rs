@@ -29,27 +29,13 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
     }
 
     pub fn take_str(&mut self) -> Result<&'xml str, Error> {
-        let (value, element) = match self.next() {
-            Some(Ok(Node::AttributeValue(s))) => (s, false),
-            Some(Ok(Node::Text(s))) => (s, true),
+        match self.next() {
+            Some(Ok(Node::AttributeValue(s))) => Ok(s),
+            Some(Ok(Node::Text(s))) => Ok(s),
             Some(Ok(_)) => return Err(Error::ExpectedScalar),
             Some(Err(e)) => return Err(e),
             None => return Err(Error::MissingValue(&Kind::Scalar)),
-        };
-
-        if element {
-            match self.next() {
-                Some(Ok(_)) => {
-                    return Err(Error::UnexpectedState(
-                        "found element while expecting scalar",
-                    ))
-                }
-                Some(Err(e)) => return Err(e),
-                _ => {}
-            }
         }
-
-        Ok(value)
     }
 
     pub fn nested<'a>(&'a mut self, element: Element<'xml>) -> Deserializer<'a, 'xml>
@@ -70,6 +56,19 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
                 Some(_) => continue,
                 None => return Ok(()),
             }
+        }
+    }
+
+    pub fn for_scalar<'a>(&'a mut self) -> Deserializer<'a, 'xml>
+    where
+        'cx: 'a,
+    {
+        Deserializer {
+            local: self.local,
+            prefix: self.prefix,
+            level: self.level,
+            done: self.done,
+            context: self.context,
         }
     }
 

@@ -85,7 +85,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         }
 
         self.state = State::Scalar;
-        value.serialize(self)?;
+        value.serialize(None, self)?;
         self.state = State::Attribute;
         self.output.write_char('"')?;
         Ok(())

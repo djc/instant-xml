@@ -84,7 +84,7 @@ fn deserialize_scalar_enum(
                 Ok(())
             }
 
-            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Scalar;
+            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Scalar;
         }
     )
 }
@@ -142,7 +142,7 @@ fn deserialize_wrapped_enum(
     }
 
     let name = meta.tag();
-    let default_namespace = meta.default_namespace();
+    let default_ns = meta.default_namespace();
     let generics = meta.xml_generics(borrowed);
     let (xml_impl_generics, _, _) = generics.split_for_impl();
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -150,10 +150,7 @@ fn deserialize_wrapped_enum(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
             #[inline]
             fn matches(id: ::instant_xml::Id<'_>, field: Option<::instant_xml::Id<'_>>) -> bool {
-                match field {
-                    Some(field) => id == field,
-                    None => false,
-                }
+                id == ::instant_xml::Id { name: #name, ns: #default_ns }
             }
 
             fn deserialize<'cx>(
@@ -165,7 +162,7 @@ fn deserialize_wrapped_enum(
 
                 let node = match deserializer.next() {
                     Some(result) => result?,
-                    None => return Err(Error::MissingValue(&<Self as FromXml>::KIND)),
+                    None => return Err(Error::MissingValue(Self::KIND)),
                 };
 
                 let data = match node {
@@ -185,10 +182,7 @@ fn deserialize_wrapped_enum(
                 Ok(())
             }
 
-            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Element(::instant_xml::Id {
-                ns: #default_namespace,
-                name: #name,
-            });
+            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element;
         }
     )
 }
@@ -336,10 +330,7 @@ fn deserialize_struct(
                 Ok(())
             }
 
-            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Element(::instant_xml::Id {
-                ns: #default_namespace,
-                name: #name,
-            });
+            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element;
         }
     )
 }
@@ -441,8 +432,8 @@ fn named_field(
             ));
         } else {
             tokens.r#match.extend(quote!(
-                __Elements::#enum_name => match <#no_lifetime_type as FromXml>::KIND {
-                    Kind::Element(_) => {
+                __Elements::#enum_name => match <#no_lifetime_type>::KIND {
+                    Kind::Element => {
                         let mut nested = deserializer.nested(data);
                         FromXml::deserialize(&mut nested, &mut #enum_name)?;
                     }
@@ -552,10 +543,7 @@ fn deserialize_tuple_struct(
                 Ok(())
             }
 
-            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Element(::instant_xml::Id {
-                ns: #default_namespace,
-                name: #name,
-            });
+            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element;
         }
     )
 }
@@ -574,7 +562,7 @@ fn unnamed_field(
     let name = Ident::new(&format!("v{index}"), Span::call_site());
     declare_values.extend(quote!(
         let #name = match <#no_lifetime_type as FromXml>::KIND {
-            Kind::Element(_) => match deserializer.next() {
+            Kind::Element => match deserializer.next() {
                 Some(Ok(Node::Open(data))) => {
                     let mut nested = deserializer.nested(data);
                     let mut value: Option<#no_lifetime_type> = None;
@@ -584,7 +572,7 @@ fn unnamed_field(
                 }
                 Some(Ok(node)) => return Err(Error::UnexpectedNode(format!("{:?}", node))),
                 Some(Err(e)) => return Err(e),
-                None => return Err(Error::MissingValue(&<#no_lifetime_type as FromXml>::KIND)),
+                None => return Err(Error::MissingValue(<#no_lifetime_type as FromXml>::KIND)),
             }
             Kind::Scalar => {
                 let mut value: Option<#no_lifetime_type> = None;
@@ -627,10 +615,7 @@ fn deserialize_unit_struct(input: &syn::DeriveInput, meta: &ContainerMeta) -> To
                 Ok(())
             }
 
-            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Element(::instant_xml::Id {
-                ns: #default_namespace,
-                name: #name,
-            });
+            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element;
         }
     )
 }

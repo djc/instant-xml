@@ -42,21 +42,17 @@ pub trait FromXml<'xml>: Sized {
     // If the missing field is of type `Option<T>` then treat is as `None`,
     // otherwise it is an error.
     fn missing_value() -> Result<Self, Error> {
-        Err(Error::MissingValue(&Self::KIND))
+        Err(Error::MissingValue(Self::KIND))
     }
 
-    const KIND: Kind<'static>;
+    const KIND: Kind;
 }
 
 pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     let (mut context, root) = Context::new(input)?;
     let id = context.element_id(&root)?;
-    let expected = match T::KIND {
-        Kind::Scalar => return Err(Error::UnexpectedState("found scalar as root")),
-        Kind::Element(expected) => expected,
-    };
 
-    if id != expected {
+    if !T::matches(id, None) {
         return Err(Error::UnexpectedValue("unexpected root"));
     }
 
@@ -102,7 +98,7 @@ pub enum Error {
     #[error("missing tag")]
     MissingTag,
     #[error("missing value")]
-    MissingValue(&'static Kind<'static>),
+    MissingValue(Kind),
     #[error("unexpected token: {0}")]
     UnexpectedToken(String),
     #[error("unknown prefix: {0}")]
@@ -117,19 +113,10 @@ pub enum Error {
     DuplicateValue,
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum Kind<'a> {
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Kind {
     Scalar,
-    Element(Id<'a>),
-}
-
-impl<'a> Kind<'a> {
-    pub const fn element(&self) -> Id<'a> {
-        match self {
-            Kind::Element(id) => *id,
-            _ => panic!("expected element kind"),
-        }
-    }
+    Element,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

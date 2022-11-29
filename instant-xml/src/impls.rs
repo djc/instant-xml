@@ -38,7 +38,7 @@ impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
         }
     }
 
-    const KIND: Kind<'static> = Kind::Scalar;
+    const KIND: Kind = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for bool {
@@ -65,11 +65,11 @@ impl<'xml> FromXml<'xml> for bool {
                 *into = Some(value.0);
                 Ok(())
             }
-            None => Err(Error::MissingValue(&Kind::Scalar)),
+            None => Err(Error::MissingValue(Kind::Scalar)),
         }
     }
 
-    const KIND: Kind<'static> = Kind::Scalar;
+    const KIND: Kind = Kind::Scalar;
 }
 
 // Serializer
@@ -142,11 +142,11 @@ macro_rules! from_xml_for_number {
                         *into = Some(value.0);
                         Ok(())
                     }
-                    None => Err(Error::MissingValue(&Kind::Scalar)),
+                    None => Err(Error::MissingValue(Kind::Scalar)),
                 }
             }
 
-            const KIND: Kind<'static> = Kind::Scalar;
+            const KIND: Kind = Kind::Scalar;
         }
     };
 }
@@ -188,11 +188,11 @@ impl<'xml> FromXml<'xml> for char {
                 *into = Some(value.0);
                 Ok(())
             }
-            None => Err(Error::MissingValue(&Kind::Scalar)),
+            None => Err(Error::MissingValue(Kind::Scalar)),
         }
     }
 
-    const KIND: Kind<'static> = Kind::Scalar;
+    const KIND: Kind = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for String {
@@ -217,7 +217,7 @@ impl<'xml> FromXml<'xml> for String {
         Ok(())
     }
 
-    const KIND: Kind<'static> = Kind::Scalar;
+    const KIND: Kind = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for &'xml str {
@@ -250,7 +250,7 @@ impl<'xml> FromXml<'xml> for &'xml str {
         Ok(())
     }
 
-    const KIND: Kind<'static> = Kind::Scalar;
+    const KIND: Kind = Kind::Scalar;
 }
 
 impl<'xml, 'a, T: ?Sized> FromXml<'xml> for Cow<'a, T>
@@ -281,11 +281,11 @@ where
                 *into = Some(Cow::Owned(value));
                 Ok(())
             }
-            None => Err(Error::MissingValue(&Kind::Scalar)),
+            None => Err(Error::MissingValue(Kind::Scalar)),
         }
     }
 
-    const KIND: Kind<'static> = Kind::Scalar;
+    const KIND: Kind = Kind::Scalar;
 }
 
 impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
@@ -303,7 +303,7 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
                 <T>::deserialize(deserializer, value)?;
                 match value {
                     Some(_) => Ok(()),
-                    None => Err(Error::MissingValue(&<T as FromXml<'_>>::KIND)),
+                    None => Err(Error::MissingValue(<T as FromXml<'_>>::KIND)),
                 }
             }
             None => {
@@ -314,7 +314,7 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
                         *into = Some(Some(value));
                         Ok(())
                     }
-                    None => Err(Error::MissingValue(&<T as FromXml<'_>>::KIND)),
+                    None => Err(Error::MissingValue(<T as FromXml<'_>>::KIND)),
                 }
             }
         }
@@ -324,7 +324,7 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
         Ok(None)
     }
 
-    const KIND: Kind<'static> = <T>::KIND;
+    const KIND: Kind = <T>::KIND;
 }
 
 to_xml_for_number!(i8);
@@ -514,7 +514,7 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Vec<T> {
         Ok(Vec::new())
     }
 
-    const KIND: Kind<'static> = T::KIND;
+    const KIND: Kind = T::KIND;
 }
 
 impl<T: ToXml> ToXml for Vec<T> {
@@ -584,7 +584,7 @@ impl<'xml> FromXml<'xml> for DateTime<Utc> {
         }
     }
 
-    const KIND: Kind<'static> = Kind::Scalar;
+    const KIND: Kind = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for () {
@@ -604,7 +604,7 @@ impl<'xml> FromXml<'xml> for () {
         Ok(())
     }
 
-    const KIND: Kind<'static> = Kind::Scalar;
+    const KIND: Kind = Kind::Scalar;
 }
 
 impl ToXml for IpAddr {
@@ -641,9 +641,9 @@ impl<'xml> FromXml<'xml> for IpAddr {
                 *into = Some(value.0);
                 Ok(())
             }
-            None => Err(Error::MissingValue(&Kind::Scalar)),
+            None => Err(Error::MissingValue(Kind::Scalar)),
         }
     }
 
-    const KIND: Kind<'static> = Kind::Scalar;
+    const KIND: Kind = Kind::Scalar;
 }

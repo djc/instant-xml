@@ -34,9 +34,9 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         match self.next() {
             Some(Ok(Node::AttributeValue(s))) => Ok(s),
             Some(Ok(Node::Text(s))) => Ok(s),
-            Some(Ok(node)) => return Err(Error::ExpectedScalar(format!("{node:?}"))),
-            Some(Err(e)) => return Err(e),
-            None => return Err(Error::MissingValue(&Kind::Scalar)),
+            Some(Ok(node)) => Err(Error::ExpectedScalar(format!("{node:?}"))),
+            Some(Err(e)) => Err(e),
+            None => Err(Error::MissingValue(&Kind::Scalar)),
         }
     }
 
@@ -137,7 +137,7 @@ impl<'xml> Context<'xml> {
         Ok(Id {
             ns: match (element.default_ns, element.prefix) {
                 (_, Some(prefix)) => match element.level.prefixes.get(prefix) {
-                    Some(ns) => *ns,
+                    Some(ns) => ns,
                     None => match self.lookup(prefix) {
                         Some(ns) => ns,
                         None => return Err(Error::UnknownPrefix(prefix.to_owned())),

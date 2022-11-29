@@ -74,7 +74,7 @@ impl<'input> ContainerMeta<'input> {
         })
     }
 
-    fn xml_generics<'a>(&self, borrowed: BTreeSet<syn::Lifetime>) -> Generics {
+    fn xml_generics(&self, borrowed: BTreeSet<syn::Lifetime>) -> Generics {
         let mut xml_generics = self.input.generics.clone();
         let mut xml = syn::LifetimeDef::new(syn::Lifetime::new("'xml", Span::call_site()));
         xml.bounds.extend(borrowed.into_iter());

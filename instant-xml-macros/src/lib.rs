@@ -1,5 +1,8 @@
 extern crate proc_macro;
 
+use std::collections::BTreeSet;
+use std::mem;
+
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
@@ -71,11 +74,10 @@ impl<'input> ContainerMeta<'input> {
         })
     }
 
-    fn xml_generics(&self) -> Generics {
+    fn xml_generics<'a>(&self, borrowed: BTreeSet<syn::Lifetime>) -> Generics {
         let mut xml_generics = self.input.generics.clone();
         let mut xml = syn::LifetimeDef::new(syn::Lifetime::new("'xml", Span::call_site()));
-        xml.bounds
-            .extend(xml_generics.lifetimes().map(|lt| lt.lifetime.clone()));
+        xml.bounds.extend(borrowed.into_iter());
         xml_generics.params.push(xml.into());
 
         for param in xml_generics.type_params_mut() {
@@ -105,9 +107,11 @@ impl<'input> ContainerMeta<'input> {
 #[derive(Debug, Default)]
 struct FieldMeta {
     attribute: bool,
+    borrow: bool,
     ns: NamespaceMeta,
     tag: TokenStream,
     serialize_with: Option<Literal>,
+    deserialize_with: Option<Literal>,
 }
 
 impl FieldMeta {
@@ -124,9 +128,11 @@ impl FieldMeta {
         for (item, span) in meta_items(&input.attrs) {
             match item {
                 MetaItem::Attribute => meta.attribute = true,
+                MetaItem::Borrow => meta.borrow = true,
                 MetaItem::Ns(ns) => meta.ns = ns,
                 MetaItem::Rename(lit) => meta.tag = quote!(#lit),
                 MetaItem::SerializeWith(lit) => meta.serialize_with = Some(lit),
+                MetaItem::DeserializeWith(lit) => meta.deserialize_with = Some(lit),
                 MetaItem::RenameAll(_) => {
                     return Err(syn::Error::new(
                         span,
@@ -216,20 +222,51 @@ impl VariantMeta {
     }
 }
 
-fn discard_lifetimes(ty: &mut syn::Type) {
+fn discard_lifetimes(
+    ty: &mut syn::Type,
+    borrowed: &mut BTreeSet<syn::Lifetime>,
+    borrow: bool,
+    top: bool,
+) {
     match ty {
-        syn::Type::Path(ty) => discard_path_lifetimes(ty),
+        syn::Type::Path(ty) => discard_path_lifetimes(ty, borrowed, borrow),
         syn::Type::Reference(ty) => {
-            ty.lifetime = None;
-            discard_lifetimes(&mut ty.elem);
+            if top {
+                // If at the top level, we'll want to borrow from `&'a str` and `&'a [u8]`.
+                match &*ty.elem {
+                    syn::Type::Path(inner) if top && inner.path.is_ident("str") => {
+                        if let Some(lt) = ty.lifetime.take() {
+                            borrowed.insert(lt);
+                        }
+                    }
+                    syn::Type::Slice(inner) if top => match &*inner.elem {
+                        syn::Type::Path(inner) if inner.path.is_ident("u8") => {
+                            borrowed.extend(ty.lifetime.take().into_iter());
+                        }
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            } else if borrow {
+                // Otherwise, only borrow if the user has requested it.
+                borrowed.extend(ty.lifetime.take().into_iter());
+            } else {
+                ty.lifetime = None;
+            }
+
+            discard_lifetimes(&mut ty.elem, borrowed, borrow, false);
         }
         _ => {}
     }
 }
 
-fn discard_path_lifetimes(path: &mut syn::TypePath) {
+fn discard_path_lifetimes(
+    path: &mut syn::TypePath,
+    borrowed: &mut BTreeSet<syn::Lifetime>,
+    borrow: bool,
+) {
     if let Some(q) = &mut path.qself {
-        discard_lifetimes(&mut q.ty);
+        discard_lifetimes(&mut q.ty, borrowed, borrow, false);
     }
 
     for segment in &mut path.path.segments {
@@ -238,17 +275,23 @@ fn discard_path_lifetimes(path: &mut syn::TypePath) {
             syn::PathArguments::AngleBracketed(args) => {
                 args.args.iter_mut().for_each(|arg| match arg {
                     syn::GenericArgument::Lifetime(lt) => {
-                        *lt = syn::Lifetime::new("'_", Span::call_site())
+                        let lt = mem::replace(lt, syn::Lifetime::new("'_", Span::call_site()));
+                        if borrow {
+                            borrowed.insert(lt);
+                        }
                     }
-                    syn::GenericArgument::Type(ty) => discard_lifetimes(ty),
+                    syn::GenericArgument::Type(ty) => {
+                        discard_lifetimes(ty, borrowed, borrow, false)
+                    }
                     syn::GenericArgument::Binding(_)
                     | syn::GenericArgument::Constraint(_)
                     | syn::GenericArgument::Const(_) => {}
                 })
             }
-            syn::PathArguments::Parenthesized(args) => {
-                args.inputs.iter_mut().for_each(discard_lifetimes)
-            }
+            syn::PathArguments::Parenthesized(args) => args
+                .inputs
+                .iter_mut()
+                .for_each(|ty| discard_lifetimes(ty, borrowed, borrow, false)),
         }
     }
 }

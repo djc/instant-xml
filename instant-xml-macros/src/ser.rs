@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::spanned::Spanned;
@@ -180,12 +182,14 @@ fn serialize_struct(
     let tag = meta.tag();
     let mut body = TokenStream::new();
     let mut attributes = TokenStream::new();
-
+    let mut borrowed = BTreeSet::new();
     match &data.fields {
         syn::Fields::Named(fields) => {
             body.extend(quote!(serializer.end_start()?;));
             for field in &fields.named {
-                if let Err(err) = named_field(field, &mut body, &mut attributes, &meta) {
+                if let Err(err) =
+                    named_field(field, &mut body, &mut attributes, &mut borrowed, &meta)
+                {
                     return err.to_compile_error();
                 }
             }
@@ -194,7 +198,7 @@ fn serialize_struct(
         syn::Fields::Unnamed(fields) => {
             body.extend(quote!(serializer.end_start()?;));
             for (index, field) in fields.unnamed.iter().enumerate() {
-                if let Err(err) = unnamed_field(field, index, &mut body) {
+                if let Err(err) = unnamed_field(field, index, &mut body, &mut borrowed) {
                     return err.to_compile_error();
                 }
             }
@@ -261,6 +265,7 @@ fn named_field(
     field: &syn::Field,
     body: &mut TokenStream,
     attributes: &mut TokenStream,
+    borrowed: &mut BTreeSet<syn::Lifetime>,
     meta: &ContainerMeta,
 ) -> Result<(), syn::Error> {
     let field_name = field.ident.as_ref().unwrap();
@@ -338,7 +343,7 @@ fn named_field(
     };
 
     let mut no_lifetime_type = field.ty.clone();
-    discard_lifetimes(&mut no_lifetime_type);
+    discard_lifetimes(&mut no_lifetime_type, borrowed, false, true);
     body.extend(quote!(
         self.#field_name.serialize(Some(::instant_xml::Id { ns: #ns, name: #tag }), serializer)?;
     ));
@@ -350,6 +355,7 @@ fn unnamed_field(
     field: &syn::Field,
     index: usize,
     body: &mut TokenStream,
+    borrowed: &mut BTreeSet<syn::Lifetime>,
 ) -> Result<(), syn::Error> {
     if !field.attrs.is_empty() {
         return Err(syn::Error::new(
@@ -359,7 +365,7 @@ fn unnamed_field(
     }
 
     let mut no_lifetime_type = field.ty.clone();
-    discard_lifetimes(&mut no_lifetime_type);
+    discard_lifetimes(&mut no_lifetime_type, borrowed, false, true);
     let index = syn::Index::from(index);
     body.extend(quote!(
         self.#index.serialize(None, serializer)?;

@@ -176,15 +176,9 @@ impl<'xml> FromXml<'xml> for String {
             return Err(Error::DuplicateValue);
         }
 
-        let mut value = None;
-        <Cow<'xml, str> as FromXml<'xml>>::deserialize(deserializer, &mut value)?;
-        match value {
-            Some(value) => {
-                *into = Some(value.into_owned());
-                Ok(())
-            }
-            None => Err(Error::MissingValue(&Kind::Scalar)),
-        }
+        let value = deserializer.take_str()?;
+        *into = Some(decode(value).into_owned());
+        Ok(())
     }
 
     const KIND: Kind<'static> = Kind::Scalar;
@@ -199,24 +193,27 @@ impl<'xml> FromXml<'xml> for &'xml str {
             return Err(Error::DuplicateValue);
         }
 
-        let mut value = None;
-        <Cow<'xml, str> as FromXml<'xml>>::deserialize(deserializer, &mut value)?;
-        match value {
-            Some(Cow::Borrowed(s)) => {
-                *into = Some(s);
-                Ok(())
+        let value = deserializer.take_str()?;
+        match decode(value) {
+            Cow::Borrowed(str) => *into = Some(str),
+            Cow::Owned(_) => {
+                return Err(Error::UnexpectedValue(
+                    "string with escape characters cannot be deserialized as &str",
+                ))
             }
-            Some(Cow::Owned(_)) => Err(Error::UnexpectedValue(
-                "string with escape characters cannot be deserialized as &str",
-            )),
-            None => Err(Error::MissingValue(&Kind::Scalar)),
         }
+
+        Ok(())
     }
 
     const KIND: Kind<'static> = Kind::Scalar;
 }
 
-impl<'xml> FromXml<'xml> for Cow<'xml, str> {
+impl<'xml, 'a, T: ?Sized> FromXml<'xml> for Cow<'a, T>
+where
+    T: ToOwned,
+    T::Owned: FromXml<'xml>,
+{
     fn deserialize(
         deserializer: &mut Deserializer<'_, 'xml>,
         into: &mut Option<Self>,
@@ -225,9 +222,15 @@ impl<'xml> FromXml<'xml> for Cow<'xml, str> {
             return Err(Error::DuplicateValue);
         }
 
-        let value = deserializer.take_str()?;
-        *into = Some(decode(value));
-        Ok(())
+        let mut value = None;
+        T::Owned::deserialize(deserializer, &mut value)?;
+        match value {
+            Some(value) => {
+                *into = Some(Cow::Owned(value));
+                Ok(())
+            }
+            None => Err(Error::MissingValue(&Kind::Scalar)),
+        }
     }
 
     const KIND: Kind<'static> = Kind::Scalar;
@@ -386,7 +389,7 @@ fn encode(input: &str) -> Result<Cow<'_, str>, Error> {
     Ok(Cow::Owned(result))
 }
 
-fn decode(input: &str) -> Cow<'_, str> {
+pub(crate) fn decode(input: &str) -> Cow<'_, str> {
     let mut result = String::with_capacity(input.len());
     let input_len = input.len();
 

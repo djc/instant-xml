@@ -292,6 +292,9 @@ pub(crate) fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
                 if id == "attribute" {
                     items.push((MetaItem::Attribute, span));
                     MetaState::Comma
+                } else if id == "borrow" {
+                    items.push((MetaItem::Borrow, span));
+                    MetaState::Comma
                 } else if id == "ns" {
                     MetaState::Ns
                 } else if id == "rename" {
@@ -306,6 +309,8 @@ pub(crate) fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
                     MetaState::Comma
                 } else if id == "serialize_with" {
                     MetaState::SerializeWith
+                } else if id == "deserialize_with" {
+                    MetaState::DeserializeWith
                 } else {
                     panic!("unexpected key in xml attribute");
                 }
@@ -340,6 +345,13 @@ pub(crate) fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
                 items.push((MetaItem::SerializeWith(lit), span));
                 MetaState::Comma
             }
+            (MetaState::DeserializeWith, TokenTree::Punct(punct)) if punct.as_char() == '=' => {
+                MetaState::DeserializeWithValue
+            }
+            (MetaState::DeserializeWithValue, TokenTree::Literal(lit)) => {
+                items.push((MetaItem::DeserializeWith(lit), span));
+                MetaState::Comma
+            }
             (state, tree) => {
                 panic!(
                     "invalid state transition while parsing xml attribute ({}, {tree})",
@@ -363,6 +375,8 @@ enum MetaState {
     RenameAllValue,
     SerializeWith,
     SerializeWithValue,
+    DeserializeWith,
+    DeserializeWithValue,
 }
 
 impl MetaState {
@@ -377,6 +391,8 @@ impl MetaState {
             MetaState::RenameAllValue => "RenameAllValue",
             MetaState::SerializeWith => "SerializeWith",
             MetaState::SerializeWithValue => "SerializeWithValue",
+            MetaState::DeserializeWith => "DeserializeWith",
+            MetaState::DeserializeWithValue => "DeserializeWithValue",
         }
     }
 }
@@ -460,9 +476,11 @@ impl fmt::Debug for Namespace {
 #[derive(Debug)]
 pub(crate) enum MetaItem {
     Attribute,
+    Borrow,
     Ns(NamespaceMeta),
     Rename(Literal),
     Mode(Mode),
     RenameAll(Literal),
     SerializeWith(Literal),
+    DeserializeWith(Literal),
 }

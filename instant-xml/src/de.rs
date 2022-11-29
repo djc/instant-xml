@@ -134,9 +134,13 @@ impl<'xml> Context<'xml> {
     pub(crate) fn element_id(&self, element: &Element<'xml>) -> Result<Id<'xml>, Error> {
         Ok(Id {
             ns: match (element.default_ns, element.prefix) {
-                (_, Some(prefix)) => self
-                    .lookup(prefix)
-                    .ok_or_else(|| Error::UnknownPrefix(prefix.to_owned()))?,
+                (_, Some(prefix)) => match element.level.prefixes.get(prefix) {
+                    Some(ns) => *ns,
+                    None => match self.lookup(prefix) {
+                        Some(ns) => ns,
+                        None => return Err(Error::UnknownPrefix(prefix.to_owned())),
+                    },
+                },
                 (Some(ns), None) => ns,
                 (None, None) => self.default_ns(),
             },

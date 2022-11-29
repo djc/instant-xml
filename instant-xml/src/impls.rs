@@ -69,7 +69,7 @@ where
     ) -> Result<(), Error> {
         let prefix = match field {
             Some(id) => {
-                let prefix = serializer.write_start(id.name, id.ns, true)?;
+                let prefix = serializer.write_start(id.name, id.ns)?;
                 serializer.end_start()?;
                 Some((prefix, id.name))
             }
@@ -489,7 +489,7 @@ impl ToXml for DateTime<Utc> {
     ) -> Result<(), Error> {
         let prefix = match field {
             Some(id) => {
-                let prefix = serializer.write_start(id.name, id.ns, true)?;
+                let prefix = serializer.write_start(id.name, id.ns)?;
                 serializer.end_start()?;
                 Some((prefix, id.name))
             }

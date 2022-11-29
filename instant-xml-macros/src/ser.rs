@@ -54,7 +54,7 @@ fn serialize_scalar_enum(
             ) -> Result<(), instant_xml::Error> {
                 let prefix = match field {
                     Some(id) => {
-                        let prefix = serializer.write_start(id.name, id.ns, true)?;
+                        let prefix = serializer.write_start(id.name, id.ns)?;
                         serializer.end_start()?;
                         Some((prefix, id.name))
                     }
@@ -143,7 +143,7 @@ fn serialize_wrapped_enum(
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> Result<(), instant_xml::Error> {
                 // Start tag
-                let prefix = serializer.write_start(#tag, #default_namespace, false)?;
+                let prefix = serializer.write_start(#tag, #default_namespace)?;
                 debug_assert_eq!(prefix, None);
 
                 // Set up element context, this will also emit namespace declarations
@@ -234,7 +234,7 @@ fn serialize_struct(
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> Result<(), instant_xml::Error> {
                 // Start tag
-                let prefix = serializer.write_start(#tag, #default_namespace, false)?;
+                let prefix = serializer.write_start(#tag, #default_namespace)?;
                 debug_assert_eq!(prefix, None);
 
                 // Set up element context, this will also emit namespace declarations

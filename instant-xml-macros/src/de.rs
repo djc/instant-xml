@@ -338,6 +338,7 @@ fn named_field(
     let field_name = field.ident.as_ref().unwrap();
     let field_tag = field_meta.tag;
     let default_ns = match &field_meta.ns.uri {
+        None if field_meta.attribute => &None,
         None => &container_meta.ns.uri,
         _ => &field_meta.ns.uri,
     };

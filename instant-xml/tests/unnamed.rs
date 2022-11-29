@@ -33,7 +33,7 @@ struct Foo;
 #[test]
 fn string_element() {
     let v = StringElement("f42".to_owned(), Foo);
-    let xml = r#"<StringElement>f42<Foo></Foo></StringElement>"#;
+    let xml = r#"<StringElement>f42<Foo /></StringElement>"#;
     assert_eq!(xml, to_string(&v).unwrap());
     assert_eq!(v, from_str(xml).unwrap());
 }

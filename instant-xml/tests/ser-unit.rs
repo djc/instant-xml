@@ -7,6 +7,5 @@ struct Unit;
 
 #[test]
 fn unit() {
-    assert_eq!(to_string(&Unit).unwrap(), "<Unit></Unit>");
-    //assert_eq!(Unit::from_xml("<Unit/>").unwrap(), Unit);
+    assert_eq!(to_string(&Unit).unwrap(), "<Unit />");
 }

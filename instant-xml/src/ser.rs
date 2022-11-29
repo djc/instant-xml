@@ -111,6 +111,16 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         Ok(())
     }
 
+    pub fn end_empty(&mut self) -> Result<(), Error> {
+        if self.state != State::Attribute {
+            return Err(Error::UnexpectedState("invalid state for element end"));
+        }
+
+        self.output.write_str(" />")?;
+        self.state = State::Element;
+        Ok(())
+    }
+
     pub fn write_close(&mut self, prefix: Option<&str>, name: &str) -> Result<(), Error> {
         if self.state != State::Element {
             return Err(Error::UnexpectedState("invalid state for close element"));

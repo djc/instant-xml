@@ -177,26 +177,31 @@ fn serialize_struct(
     data: &syn::DataStruct,
     meta: ContainerMeta,
 ) -> proc_macro2::TokenStream {
+    let tag = meta.tag();
     let mut body = TokenStream::new();
     let mut attributes = TokenStream::new();
 
     match &data.fields {
         syn::Fields::Named(fields) => {
+            body.extend(quote!(serializer.end_start()?;));
             for field in &fields.named {
                 if let Err(err) = named_field(field, &mut body, &mut attributes, &meta) {
                     return err.to_compile_error();
                 }
             }
+            body.extend(quote!(serializer.write_close(prefix, #tag)?;));
         }
         syn::Fields::Unnamed(fields) => {
+            body.extend(quote!(serializer.end_start()?;));
             for (index, field) in fields.unnamed.iter().enumerate() {
                 if let Err(err) = unnamed_field(field, index, &mut body) {
                     return err.to_compile_error();
                 }
             }
+            body.extend(quote!(serializer.write_close(prefix, #tag)?;));
         }
-        syn::Fields::Unit => {}
-    };
+        syn::Fields::Unit => body.extend(quote!(serializer.end_empty()?;)),
+    }
 
     let default_namespace = meta.default_namespace();
     let cx_len = meta.ns.prefixes.len();
@@ -221,7 +226,6 @@ fn serialize_struct(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let tag = meta.tag();
     let ident = &input.ident;
-
     quote!(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {
             fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
@@ -239,14 +243,9 @@ fn serialize_struct(
 
                 // Finalize start element
                 #attributes
-                serializer.end_start()?;
-
                 #body
 
-                // Close tag
-                serializer.write_close(prefix, #tag)?;
                 serializer.pop(old);
-
                 Ok(())
             }
 

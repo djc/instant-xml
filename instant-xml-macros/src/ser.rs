@@ -70,8 +70,6 @@ fn serialize_scalar_enum(
 
                 Ok(())
             }
-
-            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Scalar;
         }
     )
 }
@@ -165,11 +163,6 @@ fn serialize_wrapped_enum(
 
                 Ok(())
             }
-
-            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Element(::instant_xml::Id {
-                ns: #default_namespace,
-                name: #tag,
-            });
         };
     )
 }
@@ -252,11 +245,6 @@ fn serialize_struct(
                 serializer.pop(old);
                 Ok(())
             }
-
-            const KIND: ::instant_xml::Kind<'static> = ::instant_xml::Kind::Element(::instant_xml::Id {
-                ns: #default_namespace,
-                name: #tag,
-            });
         };
     )
 }

@@ -19,8 +19,6 @@ pub trait ToXml {
         field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error>;
-
-    const KIND: Kind<'static>;
 }
 
 impl<'a, T: ToXml + ?Sized> ToXml for &'a T {
@@ -31,8 +29,6 @@ impl<'a, T: ToXml + ?Sized> ToXml for &'a T {
     ) -> Result<(), Error> {
         (*self).serialize(field, serializer)
     }
-
-    const KIND: Kind<'static> = T::KIND;
 }
 
 pub trait FromXml<'xml>: Sized {

@@ -28,35 +28,25 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         }
     }
 
-    pub fn write_start(
-        &mut self,
-        name: &str,
-        ns: &str,
-        scalar: bool,
-    ) -> Result<Option<&'static str>, Error> {
+    pub fn write_start(&mut self, name: &str, ns: &str) -> Result<Option<&'static str>, Error> {
         if self.state != State::Element {
             return Err(Error::UnexpectedState("invalid state for element start"));
         }
 
-        let prefix = match ns == self.default_ns {
-            true => {
+        let prefix = match (ns == self.default_ns, self.prefixes.get(ns)) {
+            (true, _) => {
                 self.output.write_fmt(format_args!("<{name}"))?;
                 None
             }
-            // In the case of scalars, we can use the prefix instead of setting a
-            // default namespace (since there are no child elements that will
-            // expect the default namespace to be set).
-            false => match (scalar, self.prefixes.get(ns)) {
-                (false, _) | (true, None) => {
-                    self.output
-                        .write_fmt(format_args!("<{name} xmlns=\"{ns}\""))?;
-                    None
-                }
-                (true, Some(&prefix)) => {
-                    self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
-                    Some(prefix)
-                }
-            },
+            (false, Some(prefix)) => {
+                self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
+                Some(*prefix)
+            }
+            _ => {
+                self.output
+                    .write_fmt(format_args!("<{name} xmlns=\"{ns}\""))?;
+                None
+            }
         };
 
         self.state = State::Attribute;

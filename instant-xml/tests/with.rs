@@ -1,5 +1,7 @@
 use std::fmt;
 
+use similar_asserts::assert_eq;
+
 use instant_xml::{to_string, Error, Serializer, ToXml};
 
 #[derive(ToXml)]

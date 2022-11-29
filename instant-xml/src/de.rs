@@ -1,7 +1,9 @@
+use std::borrow::Cow;
 use std::collections::{BTreeMap, VecDeque};
 
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
+use crate::impls::decode;
 use crate::{Error, Id, Kind};
 
 pub struct Deserializer<'cx, 'xml> {
@@ -318,6 +320,38 @@ impl<'xml> Iterator for Context<'xml> {
             }
         }
     }
+}
+
+pub fn borrow_cow_str<'xml>(
+    deserializer: &mut Deserializer<'_, 'xml>,
+    into: &mut Option<Cow<'xml, str>>,
+) -> Result<(), Error> {
+    if into.is_some() {
+        return Err(Error::DuplicateValue);
+    }
+
+    let value = deserializer.take_str()?;
+    *into = Some(decode(value));
+    deserializer.ignore()?;
+    Ok(())
+}
+
+pub fn borrow_cow_slice_u8<'xml>(
+    deserializer: &mut Deserializer<'_, 'xml>,
+    into: &mut Option<Cow<'xml, [u8]>>,
+) -> Result<(), Error> {
+    if into.is_some() {
+        return Err(Error::DuplicateValue);
+    }
+
+    let value = deserializer.take_str()?;
+    *into = Some(match decode(value) {
+        Cow::Borrowed(v) => Cow::Borrowed(v.as_bytes()),
+        Cow::Owned(v) => Cow::Owned(v.into_bytes()),
+    });
+
+    deserializer.ignore()?;
+    Ok(())
 }
 
 #[derive(Debug)]

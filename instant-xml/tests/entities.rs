@@ -9,6 +9,7 @@ use instant_xml::{from_str, to_string, Error, FromXml, ToXml};
 struct StructSpecialEntities<'a> {
     string: String,
     str: &'a str,
+    #[xml(borrow)]
     cow: Cow<'a, str>,
 }
 

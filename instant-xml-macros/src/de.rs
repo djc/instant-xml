@@ -1,4 +1,6 @@
-use proc_macro2::{Ident, Span, TokenStream};
+use std::collections::BTreeSet;
+
+use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
 use syn::spanned::Spanned;
 
@@ -49,7 +51,7 @@ fn deserialize_scalar_enum(
         variants.extend(quote!(Ok(#serialize_as) => #ident::#v_ident,));
     }
 
-    let generics = meta.xml_generics();
+    let generics = meta.xml_generics(BTreeSet::new());
     let (impl_generics, _, _) = generics.split_for_impl();
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
 
@@ -90,6 +92,7 @@ fn deserialize_wrapped_enum(
 
     let ident = &input.ident;
     let mut variants = TokenStream::new();
+    let mut borrowed = BTreeSet::new();
     for variant in data.variants.iter() {
         let field = match &variant.fields {
             syn::Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
@@ -113,7 +116,7 @@ fn deserialize_wrapped_enum(
         }
 
         let mut no_lifetime_type = field.ty.clone();
-        discard_lifetimes(&mut no_lifetime_type);
+        discard_lifetimes(&mut no_lifetime_type, &mut borrowed, false, true);
 
         if !variants.is_empty() {
             variants.extend(quote!(else));
@@ -132,7 +135,7 @@ fn deserialize_wrapped_enum(
 
     let name = meta.tag();
     let default_namespace = meta.default_namespace();
-    let generics = meta.xml_generics();
+    let generics = meta.xml_generics(borrowed);
     let (xml_impl_generics, _, _) = generics.split_for_impl();
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
     quote!(
@@ -194,6 +197,7 @@ fn deserialize_struct(
     let mut declare_values = TokenStream::new();
     let mut return_val = TokenStream::new();
 
+    let mut borrowed = BTreeSet::new();
     for (index, field) in fields.named.iter().enumerate() {
         let field_meta = match FieldMeta::from_field(field, &container_meta) {
             Ok(meta) => meta,
@@ -205,15 +209,20 @@ fn deserialize_struct(
             false => &mut elements_tokens,
         };
 
-        named_field(
+        let result = named_field(
             field,
             index,
             &mut declare_values,
             &mut return_val,
             tokens,
+            &mut borrowed,
             field_meta,
             &container_meta,
         );
+
+        if let Err(err) = result {
+            return err.into_compile_error();
+        }
     }
 
     // Elements
@@ -237,7 +246,7 @@ fn deserialize_struct(
     let ident = &input.ident;
     let name = container_meta.tag();
     let default_namespace = container_meta.default_namespace();
-    let generics = container_meta.xml_generics();
+    let generics = container_meta.xml_generics(borrowed);
 
     let (xml_impl_generics, _, _) = generics.split_for_impl();
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -313,9 +322,10 @@ fn named_field(
     declare_values: &mut TokenStream,
     return_val: &mut TokenStream,
     tokens: &mut Tokens,
-    field_meta: FieldMeta,
+    borrowed: &mut BTreeSet<syn::Lifetime>,
+    mut field_meta: FieldMeta,
     container_meta: &ContainerMeta,
-) {
+) -> Result<(), syn::Error> {
     let field_name = field.ident.as_ref().unwrap();
     let field_tag = field_meta.tag;
     let default_ns = match &field_meta.ns.uri {
@@ -329,8 +339,18 @@ fn named_field(
         None => quote!(""),
     };
 
+    if field_meta.borrow && field_meta.deserialize_with.is_none() {
+        if is_cow(&field.ty, is_str) {
+            field_meta.deserialize_with =
+                Some(Literal::string("::instant_xml::de::borrow_cow_str"));
+        } else if is_cow(&field.ty, is_slice_u8) {
+            field_meta.deserialize_with =
+                Some(Literal::string("::instant_xml::de::borrow_cow_slice_u8"));
+        }
+    }
+
     let mut no_lifetime_type = field.ty.clone();
-    discard_lifetimes(&mut no_lifetime_type);
+    discard_lifetimes(&mut no_lifetime_type, borrowed, field_meta.borrow, true);
 
     let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
     tokens.r#enum.extend(quote!(#enum_name,));
@@ -351,27 +371,58 @@ fn named_field(
         let mut #enum_name: Option<#no_lifetime_type> = None;
     ));
 
+    let deserialize_with = field_meta
+        .deserialize_with
+        .map(|with| {
+            let path = with.to_string();
+            syn::parse_str::<syn::Path>(path.trim_matches('"')).map_err(|err| {
+                syn::Error::new(
+                    with.span(),
+                    format!("failed to parse deserialize_with as path: {err}"),
+                )
+            })
+        })
+        .transpose()?;
+
     if !field_meta.attribute {
-        tokens.r#match.extend(quote!(
-            __Elements::#enum_name => match <#no_lifetime_type as FromXml>::KIND {
-                Kind::Element(_) => {
+        if let Some(with) = deserialize_with {
+            tokens.r#match.extend(quote!(
+                __Elements::#enum_name => {
                     let mut nested = deserializer.nested(data);
-                    FromXml::deserialize(&mut nested, &mut #enum_name)?;
-                }
-                Kind::Scalar => {
-                    let mut nested = deserializer.nested(data);
-                    FromXml::deserialize(&mut nested, &mut #enum_name)?;
-                    nested.ignore()?;
-                }
-            },
-        ));
+                    #with(&mut nested, &mut #enum_name)?;
+                },
+            ));
+        } else {
+            tokens.r#match.extend(quote!(
+                __Elements::#enum_name => match <#no_lifetime_type as FromXml>::KIND {
+                    Kind::Element(_) => {
+                        let mut nested = deserializer.nested(data);
+                        FromXml::deserialize(&mut nested, &mut #enum_name)?;
+                    }
+                    Kind::Scalar => {
+                        let mut nested = deserializer.nested(data);
+                        FromXml::deserialize(&mut nested, &mut #enum_name)?;
+                        nested.ignore()?;
+                    }
+                },
+            ));
+        }
     } else {
-        tokens.r#match.extend(quote!(
-            __Attributes::#enum_name => {
-                let mut nested = deserializer.for_node(Node::AttributeValue(attr.value));
-                let new = <#no_lifetime_type>::deserialize(&mut nested, &mut #enum_name)?;
-            },
-        ));
+        if let Some(with) = deserialize_with {
+            tokens.r#match.extend(quote!(
+                __Attributes::#enum_name => {
+                    let mut nested = deserializer.nested(data);
+                    #with(&mut nested, &mut #enum_name)?;
+                },
+            ));
+        } else {
+            tokens.r#match.extend(quote!(
+                __Attributes::#enum_name => {
+                    let mut nested = deserializer.for_node(Node::AttributeValue(attr.value));
+                    let new = <#no_lifetime_type>::deserialize(&mut nested, &mut #enum_name)?;
+                },
+            ));
+        }
     }
 
     return_val.extend(quote!(
@@ -380,6 +431,8 @@ fn named_field(
             None => <#no_lifetime_type>::missing_value()?,
         },
     ));
+
+    Ok(())
 }
 
 fn deserialize_tuple_struct(
@@ -397,7 +450,7 @@ fn deserialize_tuple_struct(
     // Varying values
     let mut declare_values = TokenStream::new();
     let mut return_val = TokenStream::new();
-
+    let mut borrowed = BTreeSet::new();
     for (index, field) in fields.unnamed.iter().enumerate() {
         if !field.attrs.is_empty() {
             return syn::Error::new(
@@ -407,13 +460,19 @@ fn deserialize_tuple_struct(
             .to_compile_error();
         }
 
-        unnamed_field(field, index, &mut declare_values, &mut return_val);
+        unnamed_field(
+            field,
+            index,
+            &mut declare_values,
+            &mut return_val,
+            &mut borrowed,
+        );
     }
 
     let ident = &input.ident;
     let name = container_meta.tag();
     let default_namespace = container_meta.default_namespace();
-    let generics = container_meta.xml_generics();
+    let generics = container_meta.xml_generics(borrowed);
 
     let (xml_impl_generics, _, _) = generics.split_for_impl();
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -448,9 +507,10 @@ fn unnamed_field(
     index: usize,
     declare_values: &mut TokenStream,
     return_val: &mut TokenStream,
+    borrowed: &mut BTreeSet<syn::Lifetime>,
 ) {
     let mut no_lifetime_type = field.ty.clone();
-    discard_lifetimes(&mut no_lifetime_type);
+    discard_lifetimes(&mut no_lifetime_type, borrowed, false, true);
 
     let name = Ident::new(&format!("v{index}"), Span::call_site());
     declare_values.extend(quote!(
@@ -487,7 +547,7 @@ fn deserialize_unit_struct(input: &syn::DeriveInput, meta: &ContainerMeta) -> To
     let ident = &input.ident;
     let name = meta.tag();
     let default_namespace = meta.default_namespace();
-    let generics = meta.xml_generics();
+    let generics = meta.xml_generics(BTreeSet::new());
 
     let (xml_impl_generics, _, _) = generics.split_for_impl();
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -509,6 +569,68 @@ fn deserialize_unit_struct(input: &syn::DeriveInput, meta: &ContainerMeta) -> To
             });
         }
     )
+}
+
+fn is_cow(ty: &syn::Type, elem: fn(&syn::Type) -> bool) -> bool {
+    let path = match ungroup(ty) {
+        syn::Type::Path(ty) => &ty.path,
+        _ => {
+            return false;
+        }
+    };
+
+    let seg = match path.segments.last() {
+        Some(seg) => seg,
+        None => {
+            return false;
+        }
+    };
+
+    let args = match &seg.arguments {
+        syn::PathArguments::AngleBracketed(bracketed) => &bracketed.args,
+        _ => {
+            return false;
+        }
+    };
+
+    seg.ident == "Cow"
+        && args.len() == 2
+        && match (&args[0], &args[1]) {
+            (syn::GenericArgument::Lifetime(_), syn::GenericArgument::Type(arg)) => elem(arg),
+            _ => false,
+        }
+}
+
+fn is_str(ty: &syn::Type) -> bool {
+    is_primitive_type(ty, "str")
+}
+
+fn is_slice_u8(ty: &syn::Type) -> bool {
+    match ungroup(ty) {
+        syn::Type::Slice(ty) => is_primitive_type(&ty.elem, "u8"),
+        _ => false,
+    }
+}
+
+fn is_primitive_type(ty: &syn::Type, primitive: &str) -> bool {
+    match ungroup(ty) {
+        syn::Type::Path(ty) => ty.qself.is_none() && is_primitive_path(&ty.path, primitive),
+        _ => false,
+    }
+}
+
+fn is_primitive_path(path: &syn::Path, primitive: &str) -> bool {
+    path.leading_colon.is_none()
+        && path.segments.len() == 1
+        && path.segments[0].ident == primitive
+        && path.segments[0].arguments.is_empty()
+}
+
+pub fn ungroup(mut ty: &syn::Type) -> &syn::Type {
+    while let syn::Type::Group(group) = ty {
+        ty = &group.elem;
+    }
+    ty
 }
 
 #[derive(Default)]

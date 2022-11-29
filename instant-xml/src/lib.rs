@@ -114,8 +114,8 @@ pub enum Error {
     UnexpectedNode(String),
     #[error("unexpected state: {0}")]
     UnexpectedState(&'static str),
-    #[error("expected scalar")]
-    ExpectedScalar,
+    #[error("expected scalar, found {0}")]
+    ExpectedScalar(String),
     #[error("duplicate value")]
     DuplicateValue,
 }

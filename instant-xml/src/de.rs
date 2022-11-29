@@ -32,7 +32,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         match self.next() {
             Some(Ok(Node::AttributeValue(s))) => Ok(s),
             Some(Ok(Node::Text(s))) => Ok(s),
-            Some(Ok(_)) => return Err(Error::ExpectedScalar),
+            Some(Ok(node)) => return Err(Error::ExpectedScalar(format!("{node:?}"))),
             Some(Err(e)) => return Err(e),
             None => return Err(Error::MissingValue(&Kind::Scalar)),
         }

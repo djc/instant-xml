@@ -465,7 +465,6 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Vec<T> {
     }
 
     const KIND: Kind<'static> = T::KIND;
-    const WRAPPED: bool = true;
 }
 
 impl<T: ToXml> ToXml for Vec<T> {

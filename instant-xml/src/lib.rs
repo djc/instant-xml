@@ -48,7 +48,6 @@ pub trait FromXml<'xml>: Sized {
     }
 
     const KIND: Kind<'static>;
-    const WRAPPED: bool = false;
 }
 
 pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {

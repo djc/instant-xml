@@ -134,7 +134,9 @@ impl<'xml> Context<'xml> {
     pub(crate) fn element_id(&self, element: &Element<'xml>) -> Result<Id<'xml>, Error> {
         Ok(Id {
             ns: match (element.default_ns, element.prefix) {
-                (_, Some(prefix)) => self.lookup(prefix).ok_or(Error::WrongNamespace)?,
+                (_, Some(prefix)) => self
+                    .lookup(prefix)
+                    .ok_or_else(|| Error::UnknownPrefix(prefix.to_owned()))?,
                 (Some(ns), None) => ns,
                 (None, None) => self.default_ns(),
             },
@@ -145,7 +147,9 @@ impl<'xml> Context<'xml> {
     fn attribute_id(&self, attr: &Attribute<'xml>) -> Result<Id<'xml>, Error> {
         Ok(Id {
             ns: match attr.prefix {
-                Some(ns) => self.lookup(ns).ok_or(Error::WrongNamespace)?,
+                Some(ns) => self
+                    .lookup(ns)
+                    .ok_or_else(|| Error::UnknownPrefix(ns.to_owned()))?,
                 None => self.default_ns(),
             },
             name: attr.local,

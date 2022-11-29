@@ -108,16 +108,14 @@ pub enum Error {
     MissingValue(&'static Kind<'static>),
     #[error("unexpected token: {0}")]
     UnexpectedToken(String),
-    #[error("missing prefix")]
-    MissingdPrefix,
+    #[error("unknown prefix: {0}")]
+    UnknownPrefix(String),
     #[error("unexpected node: {0}")]
     UnexpectedNode(String),
     #[error("unexpected state: {0}")]
     UnexpectedState(&'static str),
     #[error("expected scalar")]
     ExpectedScalar,
-    #[error("wrong namespace")]
-    WrongNamespace,
     #[error("duplicate value")]
     DuplicateValue,
 }

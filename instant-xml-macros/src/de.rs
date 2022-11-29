@@ -196,9 +196,15 @@ fn deserialize_struct(
     // Common values
     let mut declare_values = TokenStream::new();
     let mut return_val = TokenStream::new();
+    let mut direct = TokenStream::new();
 
     let mut borrowed = BTreeSet::new();
     for (index, field) in fields.named.iter().enumerate() {
+        if !direct.is_empty() {
+            return syn::Error::new(field.span(), "direct field must be the last")
+                .into_compile_error();
+        }
+
         let field_meta = match FieldMeta::from_field(field, &container_meta) {
             Ok(meta) => meta,
             Err(err) => return err.into_compile_error(),
@@ -216,6 +222,7 @@ fn deserialize_struct(
             &mut return_val,
             tokens,
             &mut borrowed,
+            &mut direct,
             field_meta,
             &container_meta,
         );
@@ -299,6 +306,7 @@ fn deserialize_struct(
                                 }
                             }
                         }
+                        #direct
                         node => return Err(Error::UnexpectedNode(format!("{:?}", node))),
                     }
                 }
@@ -323,6 +331,7 @@ fn named_field(
     return_val: &mut TokenStream,
     tokens: &mut Tokens,
     borrowed: &mut BTreeSet<syn::Lifetime>,
+    direct: &mut TokenStream,
     mut field_meta: FieldMeta,
     container_meta: &ContainerMeta,
 ) -> Result<(), syn::Error> {
@@ -353,19 +362,21 @@ fn named_field(
     discard_lifetimes(&mut no_lifetime_type, borrowed, field_meta.borrow, true);
 
     let enum_name = Ident::new(&format!("__Value{index}"), Span::call_site());
-    tokens.r#enum.extend(quote!(#enum_name,));
+    if !field_meta.direct {
+        tokens.r#enum.extend(quote!(#enum_name,));
 
-    if !tokens.branches.is_empty() {
-        tokens.branches.extend(quote!(else));
+        if !tokens.branches.is_empty() {
+            tokens.branches.extend(quote!(else));
+        }
+        tokens.branches.extend(quote!(
+            if <#no_lifetime_type as FromXml>::KIND.matches(id, Id { ns: #ns, name: #field_tag })
+        ));
+
+        tokens.branches.extend(match field_meta.attribute {
+            true => quote!({ __Attributes::#enum_name }),
+            false => quote!({ __Elements::#enum_name }),
+        });
     }
-    tokens.branches.extend(quote!(
-        if <#no_lifetime_type as FromXml>::KIND.matches(id, Id { ns: #ns, name: #field_tag })
-    ));
-
-    tokens.branches.extend(match field_meta.attribute {
-        true => quote!({ __Attributes::#enum_name }),
-        false => quote!({ __Elements::#enum_name }),
-    });
 
     declare_values.extend(quote!(
         let mut #enum_name: Option<#no_lifetime_type> = None;
@@ -386,11 +397,25 @@ fn named_field(
 
     if !field_meta.attribute {
         if let Some(with) = deserialize_with {
+            if field_meta.direct {
+                return Err(syn::Error::new(
+                    field.span(),
+                    "direct attribute is not supported deserialization functions",
+                ));
+            }
+
             tokens.r#match.extend(quote!(
                 __Elements::#enum_name => {
                     let mut nested = deserializer.nested(data);
                     #with(&mut nested, &mut #enum_name)?;
                 },
+            ));
+        } else if field_meta.direct {
+            direct.extend(quote!(
+                Node::Text(text) => {
+                    let mut nested = deserializer.for_node(Node::Text(text));
+                    FromXml::deserialize(&mut nested, &mut #enum_name)?;
+                }
             ));
         } else {
             tokens.r#match.extend(quote!(
@@ -408,6 +433,13 @@ fn named_field(
             ));
         }
     } else {
+        if field_meta.direct {
+            return Err(syn::Error::new(
+                field.span(),
+                "direct attribute is not supported for attribute fields",
+            ));
+        }
+
         if let Some(with) = deserialize_with {
             tokens.r#match.extend(quote!(
                 __Attributes::#enum_name => {

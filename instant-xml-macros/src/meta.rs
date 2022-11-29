@@ -295,6 +295,9 @@ pub(crate) fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
                 } else if id == "borrow" {
                     items.push((MetaItem::Borrow, span));
                     MetaState::Comma
+                } else if id == "direct" {
+                    items.push((MetaItem::Direct, span));
+                    MetaState::Comma
                 } else if id == "ns" {
                     MetaState::Ns
                 } else if id == "rename" {
@@ -477,6 +480,7 @@ impl fmt::Debug for Namespace {
 pub(crate) enum MetaItem {
     Attribute,
     Borrow,
+    Direct,
     Ns(NamespaceMeta),
     Rename(Literal),
     Mode(Mode),

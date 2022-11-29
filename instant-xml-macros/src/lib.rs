@@ -108,6 +108,7 @@ impl<'input> ContainerMeta<'input> {
 struct FieldMeta {
     attribute: bool,
     borrow: bool,
+    direct: bool,
     ns: NamespaceMeta,
     tag: TokenStream,
     serialize_with: Option<Literal>,
@@ -129,6 +130,7 @@ impl FieldMeta {
             match item {
                 MetaItem::Attribute => meta.attribute = true,
                 MetaItem::Borrow => meta.borrow = true,
+                MetaItem::Direct => meta.direct = true,
                 MetaItem::Ns(ns) => meta.ns = ns,
                 MetaItem::Rename(lit) => meta.tag = quote!(#lit),
                 MetaItem::SerializeWith(lit) => meta.serialize_with = Some(lit),

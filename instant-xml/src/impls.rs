@@ -237,18 +237,25 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
         deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
     ) -> Result<(), Error> {
-        if into.is_some() {
-            return Err(Error::DuplicateValue);
-        }
-
-        let mut value = None;
-        <T>::deserialize(deserializer, &mut value)?;
-        match value {
-            Some(v) => {
-                *into = Some(Some(v));
-                Ok(())
+        match into.as_mut() {
+            Some(value) => {
+                <T>::deserialize(deserializer, value)?;
+                match value {
+                    Some(_) => Ok(()),
+                    None => Err(Error::MissingValue(&<T as FromXml<'_>>::KIND)),
+                }
             }
-            None => Err(Error::MissingValue(&Kind::Scalar)),
+            None => {
+                let mut value = None;
+                <T>::deserialize(deserializer, &mut value)?;
+                match value {
+                    Some(value) => {
+                        *into = Some(Some(value));
+                        Ok(())
+                    }
+                    None => return Err(Error::MissingValue(&<T as FromXml<'_>>::KIND)),
+                }
+            }
         }
     }
 

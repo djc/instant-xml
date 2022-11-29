@@ -24,12 +24,12 @@ fn direct_namespaces() {
         from_str(
             "<StructDirectNamespace xmlns=\"URI\"><flag xmlns=\"WRONG\">true</flag></StructDirectNamespace>"
         ),
-        Err::<StructDirectNamespace, _>(Error::MissingValue(&Kind::Scalar))
+        Err::<StructDirectNamespace, _>(Error::MissingValue(Kind::Scalar))
     );
 
     // Wrong direct namespace - missing namespace
     assert_eq!(
         from_str("<StructDirectNamespace xmlns=\"URI\"><flag>true</flag></StructDirectNamespace>"),
-        Err::<StructDirectNamespace, _>(Error::MissingValue(&Kind::Scalar))
+        Err::<StructDirectNamespace, _>(Error::MissingValue(Kind::Scalar))
     );
 }

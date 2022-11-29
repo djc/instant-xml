@@ -36,7 +36,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
             Some(Ok(Node::Text(s))) => Ok(s),
             Some(Ok(node)) => Err(Error::ExpectedScalar(format!("{node:?}"))),
             Some(Err(e)) => Err(e),
-            None => Err(Error::MissingValue(&Kind::Scalar)),
+            None => Err(Error::MissingValue(Kind::Scalar)),
         }
     }
 

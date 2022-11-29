@@ -36,6 +36,8 @@ impl<'a, T: ToXml + ?Sized> ToXml for &'a T {
 }
 
 pub trait FromXml<'xml>: Sized {
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool;
+
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
@@ -130,14 +132,6 @@ impl<'a> Kind<'a> {
         match self {
             Kind::Element(id) => *id,
             _ => panic!("expected element kind"),
-        }
-    }
-
-    #[inline]
-    pub fn matches(&self, id: Id<'_>, field: Id<'_>) -> bool {
-        match self {
-            Kind::Scalar => id == field,
-            Kind::Element(name) => id == *name,
         }
     }
 }

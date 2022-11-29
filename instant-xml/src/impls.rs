@@ -12,6 +12,14 @@ use crate::{Deserializer, Error, FromXml, Id, Kind, Serializer, ToXml};
 struct FromXmlStr<T: FromStr>(T);
 
 impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
     fn deserialize(
         deserializer: &mut Deserializer<'_, 'xml>,
         into: &mut Option<Self>,
@@ -34,6 +42,14 @@ impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
 }
 
 impl<'xml> FromXml<'xml> for bool {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
@@ -107,6 +123,14 @@ macro_rules! to_xml_for_number {
 macro_rules! from_xml_for_number {
     ($typ:ty) => {
         impl<'xml> FromXml<'xml> for $typ {
+            #[inline]
+            fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+                match field {
+                    Some(field) => id == field,
+                    None => false,
+                }
+            }
+
             fn deserialize<'cx>(
                 deserializer: &mut Deserializer<'cx, 'xml>,
                 into: &mut Option<Self>,
@@ -145,6 +169,14 @@ from_xml_for_number!(f32);
 from_xml_for_number!(f64);
 
 impl<'xml> FromXml<'xml> for char {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
@@ -168,6 +200,14 @@ impl<'xml> FromXml<'xml> for char {
 }
 
 impl<'xml> FromXml<'xml> for String {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
@@ -185,6 +225,14 @@ impl<'xml> FromXml<'xml> for String {
 }
 
 impl<'xml> FromXml<'xml> for &'xml str {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
@@ -214,6 +262,14 @@ where
     T: ToOwned,
     T::Owned: FromXml<'xml>,
 {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
     fn deserialize(
         deserializer: &mut Deserializer<'_, 'xml>,
         into: &mut Option<Self>,
@@ -237,6 +293,11 @@ where
 }
 
 impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        T::matches(id, field)
+    }
+
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
@@ -446,6 +507,11 @@ pub(crate) fn decode(input: &str) -> Cow<'_, str> {
 }
 
 impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Vec<T> {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        T::matches(id, field)
+    }
+
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
@@ -512,6 +578,14 @@ impl ToXml for DateTime<Utc> {
 
 #[cfg(feature = "chrono")]
 impl<'xml> FromXml<'xml> for DateTime<Utc> {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
@@ -534,6 +608,14 @@ impl<'xml> FromXml<'xml> for DateTime<Utc> {
 }
 
 impl<'xml> FromXml<'xml> for () {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
     fn deserialize<'cx>(
         _: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,
@@ -558,6 +640,14 @@ impl ToXml for IpAddr {
 }
 
 impl<'xml> FromXml<'xml> for IpAddr {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Option<Self>,

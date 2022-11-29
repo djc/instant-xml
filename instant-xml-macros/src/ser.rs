@@ -16,7 +16,7 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
     match (&input.data, meta.mode) {
         (syn::Data::Struct(data), None) => serialize_struct(input, data, meta),
         (syn::Data::Enum(data), Some(Mode::Scalar)) => serialize_scalar_enum(input, data, meta),
-        (syn::Data::Enum(data), Some(Mode::Wrapped)) => serialize_wrapped_enum(input, data, meta),
+        (syn::Data::Enum(data), Some(Mode::Forward)) => serialize_forward_enum(input, data, meta),
         (syn::Data::Struct(_), _) => {
             syn::Error::new(input.span(), "enum mode not allowed on struct type").to_compile_error()
         }
@@ -74,7 +74,7 @@ fn serialize_scalar_enum(
     )
 }
 
-fn serialize_wrapped_enum(
+fn serialize_forward_enum(
     input: &syn::DeriveInput,
     data: &syn::DataEnum,
     meta: ContainerMeta,
@@ -134,7 +134,6 @@ fn serialize_wrapped_enum(
     }
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let tag = meta.tag();
     quote!(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {
             fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
@@ -142,24 +141,9 @@ fn serialize_wrapped_enum(
                 field: Option<::instant_xml::Id<'_>>,
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> Result<(), instant_xml::Error> {
-                // Start tag
-                let prefix = serializer.write_start(#tag, #default_namespace)?;
-                debug_assert_eq!(prefix, None);
-
-                // Set up element context, this will also emit namespace declarations
-                #context
-                let old = serializer.push(new)?;
-
-                // Finalize start element
-                serializer.end_start()?;
-
                 match self {
                     #variants
                 }
-
-                // Close tag
-                serializer.write_close(prefix, #tag)?;
-                serializer.pop(old);
 
                 Ok(())
             }

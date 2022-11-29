@@ -93,8 +93,8 @@ pub enum Error {
     UnexpectedEndOfStream,
     #[error("unexpected value")]
     UnexpectedValue(&'static str),
-    #[error("unexpected tag")]
-    UnexpectedTag,
+    #[error("unexpected tag: {0}")]
+    UnexpectedTag(String),
     #[error("missing tag")]
     MissingTag,
     #[error("missing value")]

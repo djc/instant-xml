@@ -57,6 +57,14 @@ fn deserialize_scalar_enum(
 
     quote!(
         impl #impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
+            #[inline]
+            fn matches(id: ::instant_xml::Id<'_>, field: Option<::instant_xml::Id<'_>>) -> bool {
+                match field {
+                    Some(field) => id == field,
+                    None => false,
+                }
+            }
+
             fn deserialize<'cx>(
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Option<Self>,
@@ -123,14 +131,14 @@ fn deserialize_wrapped_enum(
         }
 
         let v_ident = &variant.ident;
-        variants.extend(quote!(if <#no_lifetime_type as FromXml>::KIND.matches(
-            id, ::instant_xml::Id { ns: "", name: "" }
-        ) {
-            let mut nested = deserializer.nested(data);
-            let mut value = None;
-            #no_lifetime_type::deserialize(&mut nested, &mut value)?;
-            *into = value.map(#ident::#v_ident);
-        }));
+        variants.extend(
+            quote!(if <#no_lifetime_type as FromXml>::matches(id, None) {
+                let mut nested = deserializer.nested(data);
+                let mut value = None;
+                #no_lifetime_type::deserialize(&mut nested, &mut value)?;
+                *into = value.map(#ident::#v_ident);
+            }),
+        );
     }
 
     let name = meta.tag();
@@ -140,6 +148,14 @@ fn deserialize_wrapped_enum(
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
+            #[inline]
+            fn matches(id: ::instant_xml::Id<'_>, field: Option<::instant_xml::Id<'_>>) -> bool {
+                match field {
+                    Some(field) => id == field,
+                    None => false,
+                }
+            }
+
             fn deserialize<'cx>(
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Option<Self>,
@@ -260,6 +276,11 @@ fn deserialize_struct(
 
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
+            #[inline]
+            fn matches(id: ::instant_xml::Id<'_>, field: Option<::instant_xml::Id<'_>>) -> bool {
+                id == ::instant_xml::Id { ns: #default_namespace, name: #name }
+            }
+
             fn deserialize<'cx>(
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Option<Self>,
@@ -370,7 +391,7 @@ fn named_field(
             tokens.branches.extend(quote!(else));
         }
         tokens.branches.extend(quote!(
-            if <#no_lifetime_type as FromXml>::KIND.matches(id, Id { ns: #ns, name: #field_tag })
+            if <#no_lifetime_type as FromXml>::matches(id, Some(Id { ns: #ns, name: #field_tag }))
         ));
 
         tokens.branches.extend(match field_meta.attribute {
@@ -512,6 +533,11 @@ fn deserialize_tuple_struct(
 
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
+            #[inline]
+            fn matches(id: ::instant_xml::Id<'_>, field: Option<::instant_xml::Id<'_>>) -> bool {
+                id == ::instant_xml::Id { ns: #default_namespace, name: #name }
+            }
+
             fn deserialize<'cx>(
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Option<Self>,
@@ -587,6 +613,11 @@ fn deserialize_unit_struct(input: &syn::DeriveInput, meta: &ContainerMeta) -> To
 
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
+            #[inline]
+            fn matches(id: ::instant_xml::Id<'_>, field: Option<::instant_xml::Id<'_>>) -> bool {
+                id == ::instant_xml::Id { ns: #default_namespace, name: #name }
+            }
+
             fn deserialize<'cx>(
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Option<Self>,

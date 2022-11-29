@@ -304,11 +304,11 @@ pub(crate) fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
                     MetaState::Rename
                 } else if id == "rename_all" {
                     MetaState::RenameAll
+                } else if id == "forward" {
+                    items.push((MetaItem::Mode(Mode::Forward), span));
+                    MetaState::Comma
                 } else if id == "scalar" {
                     items.push((MetaItem::Mode(Mode::Scalar), span));
-                    MetaState::Comma
-                } else if id == "wrapped" {
-                    items.push((MetaItem::Mode(Mode::Wrapped), span));
                     MetaState::Comma
                 } else if id == "serialize_with" {
                     MetaState::SerializeWith

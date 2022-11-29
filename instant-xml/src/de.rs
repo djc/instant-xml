@@ -75,6 +75,16 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
+    pub fn parent(&self) -> Id<'xml> {
+        Id {
+            ns: match self.prefix {
+                Some(ns) => self.context.lookup(ns).unwrap(),
+                None => self.context.default_ns(),
+            },
+            name: self.local,
+        }
+    }
+
     #[inline]
     pub fn element_id(&self, element: &Element<'xml>) -> Result<Id<'xml>, Error> {
         self.context.element_id(element)

@@ -300,8 +300,8 @@ fn discard_path_lifetimes(
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Mode {
+    Forward,
     Scalar,
-    Wrapped,
 }
 
 #[cfg(test)]

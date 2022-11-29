@@ -21,7 +21,7 @@ pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
             syn::Fields::Unit => deserialize_unit_struct(input, &meta),
         },
         (syn::Data::Enum(data), Some(Mode::Scalar)) => deserialize_scalar_enum(input, data, meta),
-        (syn::Data::Enum(data), Some(Mode::Wrapped)) => deserialize_wrapped_enum(input, data, meta),
+        (syn::Data::Enum(data), Some(Mode::Forward)) => deserialize_forward_enum(input, data, meta),
         (syn::Data::Struct(_), _) => {
             syn::Error::new(input.span(), "no enum mode allowed on struct type").to_compile_error()
         }
@@ -89,7 +89,7 @@ fn deserialize_scalar_enum(
     )
 }
 
-fn deserialize_wrapped_enum(
+fn deserialize_forward_enum(
     input: &syn::DeriveInput,
     data: &syn::DataEnum,
     meta: ContainerMeta,
@@ -99,6 +99,7 @@ fn deserialize_wrapped_enum(
     }
 
     let ident = &input.ident;
+    let mut matches = TokenStream::new();
     let mut variants = TokenStream::new();
     let mut borrowed = BTreeSet::new();
     for variant in data.variants.iter() {
@@ -126,6 +127,11 @@ fn deserialize_wrapped_enum(
         let mut no_lifetime_type = field.ty.clone();
         discard_lifetimes(&mut no_lifetime_type, &mut borrowed, false, true);
 
+        if !matches.is_empty() {
+            matches.extend(quote!(||));
+        }
+        matches.extend(quote!(#no_lifetime_type::matches(id, field)));
+
         if !variants.is_empty() {
             variants.extend(quote!(else));
         }
@@ -133,16 +139,13 @@ fn deserialize_wrapped_enum(
         let v_ident = &variant.ident;
         variants.extend(
             quote!(if <#no_lifetime_type as FromXml>::matches(id, None) {
-                let mut nested = deserializer.nested(data);
                 let mut value = None;
-                #no_lifetime_type::deserialize(&mut nested, &mut value)?;
+                #no_lifetime_type::deserialize(deserializer, &mut value)?;
                 *into = value.map(#ident::#v_ident);
             }),
         );
     }
 
-    let name = meta.tag();
-    let default_ns = meta.default_namespace();
     let generics = meta.xml_generics(borrowed);
     let (xml_impl_generics, _, _) = generics.split_for_impl();
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -150,7 +153,7 @@ fn deserialize_wrapped_enum(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
             #[inline]
             fn matches(id: ::instant_xml::Id<'_>, field: Option<::instant_xml::Id<'_>>) -> bool {
-                id == ::instant_xml::Id { name: #name, ns: #default_ns }
+                #matches
             }
 
             fn deserialize<'cx>(
@@ -160,19 +163,9 @@ fn deserialize_wrapped_enum(
                 use ::instant_xml::de::Node;
                 use ::instant_xml::Error;
 
-                let node = match deserializer.next() {
-                    Some(result) => result?,
-                    None => return Err(Error::MissingValue(Self::KIND)),
-                };
-
-                let data = match node {
-                    Node::Open(data) => data,
-                    _ => return Err(Error::UnexpectedState("unexpected node type for wrapped enum variant")),
-                };
-
-                let id = deserializer.element_id(&data)?;
+                let id = deserializer.parent();
                 #variants else {
-                    return Err(Error::UnexpectedTag);
+                    return Err(Error::UnexpectedTag(format!("{:?}", id)));
                 };
 
                 if let Some(_) = deserializer.next() {

@@ -277,19 +277,6 @@ fn named_field(
         }
     };
 
-    if let Some(with) = field_meta.serialize_with {
-        let path = with.to_string();
-        let path = syn::parse_str::<syn::Path>(path.trim_matches('"')).map_err(|err| {
-            syn::Error::new(
-                with.span(),
-                format!("failed to parse serialize_with as path: {err}"),
-            )
-        })?;
-
-        body.extend(quote!(#path(&self.#field_name, serializer)?;));
-        return Ok(());
-    }
-
     let tag = field_meta.tag;
     let default_ns = match &meta.ns.uri {
         Some(ns) => quote!(#ns),
@@ -297,6 +284,13 @@ fn named_field(
     };
 
     if field_meta.attribute {
+        if field_meta.direct {
+            return Err(syn::Error::new(
+                field.span(),
+                "direct attribute is not supported on attributes",
+            ));
+        }
+
         let (ns, error) = match &field_meta.ns.uri {
             Some(Namespace::Path(path)) => match path.get_ident() {
                 Some(prefix) => match &meta.ns.prefixes.get(&prefix.to_string()) {
@@ -344,9 +338,33 @@ fn named_field(
 
     let mut no_lifetime_type = field.ty.clone();
     discard_lifetimes(&mut no_lifetime_type, borrowed, false, true);
-    body.extend(quote!(
-        self.#field_name.serialize(Some(::instant_xml::Id { ns: #ns, name: #tag }), serializer)?;
-    ));
+    if let Some(with) = field_meta.serialize_with {
+        if field_meta.direct {
+            return Err(syn::Error::new(
+                field.span(),
+                "direct serialization is not supported with `serialize_with`",
+            ));
+        }
+
+        let path = with.to_string();
+        let path = syn::parse_str::<syn::Path>(path.trim_matches('"')).map_err(|err| {
+            syn::Error::new(
+                with.span(),
+                format!("failed to parse serialize_with as path: {err}"),
+            )
+        })?;
+
+        body.extend(quote!(#path(&self.#field_name, serializer)?;));
+        return Ok(());
+    } else if field_meta.direct {
+        body.extend(quote!(
+            self.#field_name.serialize(None, serializer)?;
+        ));
+    } else {
+        body.extend(quote!(
+            self.#field_name.serialize(Some(::instant_xml::Id { ns: #ns, name: #tag }), serializer)?;
+        ));
+    }
 
     Ok(())
 }

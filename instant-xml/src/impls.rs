@@ -100,8 +100,6 @@ where
 
         Ok(())
     }
-
-    const KIND: Kind<'static> = Kind::Scalar;
 }
 
 macro_rules! to_xml_for_number {
@@ -114,8 +112,6 @@ macro_rules! to_xml_for_number {
             ) -> Result<(), Error> {
                 DisplayToXml(self).serialize(field, serializer)
             }
-
-            const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
         }
     };
 }
@@ -357,8 +353,6 @@ impl ToXml for bool {
 
         DisplayToXml(&value).serialize(field, serializer)
     }
-
-    const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
 }
 
 impl ToXml for String {
@@ -369,8 +363,6 @@ impl ToXml for String {
     ) -> Result<(), Error> {
         DisplayToXml(&encode(self)?).serialize(field, serializer)
     }
-
-    const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
 }
 
 impl ToXml for char {
@@ -382,8 +374,6 @@ impl ToXml for char {
         let mut tmp = [0u8; 4];
         DisplayToXml(&encode(&*self.encode_utf8(&mut tmp))?).serialize(field, serializer)
     }
-
-    const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
 }
 
 impl ToXml for &str {
@@ -394,8 +384,6 @@ impl ToXml for &str {
     ) -> Result<(), Error> {
         DisplayToXml(&encode(self)?).serialize(field, serializer)
     }
-
-    const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
 }
 
 impl ToXml for Cow<'_, str> {
@@ -406,8 +394,6 @@ impl ToXml for Cow<'_, str> {
     ) -> Result<(), Error> {
         DisplayToXml(&encode(self)?).serialize(field, serializer)
     }
-
-    const KIND: Kind<'static> = DisplayToXml::<Self>::KIND;
 }
 
 impl<T: ToXml> ToXml for Option<T> {
@@ -421,8 +407,6 @@ impl<T: ToXml> ToXml for Option<T> {
             None => Ok(()),
         }
     }
-
-    const KIND: Kind<'static> = T::KIND;
 }
 
 fn encode(input: &str) -> Result<Cow<'_, str>, Error> {
@@ -545,8 +529,6 @@ impl<T: ToXml> ToXml for Vec<T> {
 
         Ok(())
     }
-
-    const KIND: Kind<'static> = T::KIND;
 }
 
 #[cfg(feature = "chrono")]
@@ -572,8 +554,6 @@ impl ToXml for DateTime<Utc> {
 
         Ok(())
     }
-
-    const KIND: Kind<'static> = Kind::Scalar;
 }
 
 #[cfg(feature = "chrono")]
@@ -635,8 +615,6 @@ impl ToXml for IpAddr {
     ) -> Result<(), Error> {
         DisplayToXml(self).serialize(field, serializer)
     }
-
-    const KIND: Kind<'static> = Kind::Scalar;
 }
 
 impl<'xml> FromXml<'xml> for IpAddr {

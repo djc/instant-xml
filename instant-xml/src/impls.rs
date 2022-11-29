@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::fmt;
+use std::net::IpAddr;
 use std::str::FromStr;
 
 #[cfg(feature = "chrono")]
@@ -537,6 +538,41 @@ impl<'xml> FromXml<'xml> for () {
     ) -> Result<(), Error> {
         *into = Some(());
         Ok(())
+    }
+
+    const KIND: Kind<'static> = Kind::Scalar;
+}
+
+impl ToXml for IpAddr {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        DisplayToXml(self).serialize(field, serializer)
+    }
+
+    const KIND: Kind<'static> = Kind::Scalar;
+}
+
+impl<'xml> FromXml<'xml> for IpAddr {
+    fn deserialize<'cx>(
+        deserializer: &mut Deserializer<'cx, 'xml>,
+        into: &mut Option<Self>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue);
+        }
+
+        let mut value = None;
+        FromXmlStr::<Self>::deserialize(deserializer, &mut value)?;
+        match value {
+            Some(value) => {
+                *into = Some(value.0);
+                Ok(())
+            }
+            None => Err(Error::MissingValue(&Kind::Scalar)),
+        }
     }
 
     const KIND: Kind<'static> = Kind::Scalar;

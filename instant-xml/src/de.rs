@@ -156,7 +156,7 @@ impl<'xml> Context<'xml> {
                 Some(ns) => self
                     .lookup(ns)
                     .ok_or_else(|| Error::UnknownPrefix(ns.to_owned()))?,
-                None => self.default_ns(),
+                None => "",
             },
             name: attr.local,
         })

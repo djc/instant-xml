@@ -522,3 +522,15 @@ impl<'xml> FromXml<'xml> for DateTime<Utc> {
 
     const KIND: Kind<'static> = Kind::Scalar;
 }
+
+impl<'xml> FromXml<'xml> for () {
+    fn deserialize<'cx>(
+        _: &mut Deserializer<'cx, 'xml>,
+        into: &mut Option<Self>,
+    ) -> Result<(), Error> {
+        *into = Some(());
+        Ok(())
+    }
+
+    const KIND: Kind<'static> = Kind::Scalar;
+}

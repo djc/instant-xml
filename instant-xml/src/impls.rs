@@ -318,7 +318,7 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
                         *into = Some(Some(value));
                         Ok(())
                     }
-                    None => return Err(Error::MissingValue(&<T as FromXml<'_>>::KIND)),
+                    None => Err(Error::MissingValue(&<T as FromXml<'_>>::KIND)),
                 }
             }
         }

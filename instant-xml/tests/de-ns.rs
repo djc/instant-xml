@@ -105,7 +105,7 @@ fn other_namespaces() {
         from_str(
             "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><wrong:flag>true</wrong:flag></NestedOtherNamespace>"
         ),
-        Err::<NestedOtherNamespace, _>(Error::WrongNamespace)
+        Err::<NestedOtherNamespace, _>(Error::UnknownPrefix("wrong".to_owned()))
     );
 
     // Other namespace not-nested - wrong parser namespace
@@ -153,6 +153,6 @@ fn other_namespaces() {
         from_str(
             "<StructOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedOtherNamespace><wrong:flag>true</wrong:flag></NestedOtherNamespace></StructOtherNamespace>"
         ),
-        Err::<StructOtherNamespace, _>(Error::WrongNamespace)
+        Err::<StructOtherNamespace, _>(Error::UnknownPrefix("wrong".to_owned()))
     );
 }

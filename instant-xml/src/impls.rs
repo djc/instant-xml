@@ -523,6 +523,16 @@ impl<T: ToXml> ToXml for Vec<T> {
         field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
+        self.as_slice().serialize(field, serializer)
+    }
+}
+
+impl<T: ToXml> ToXml for [T] {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
         for i in self {
             i.serialize(field, serializer)?;
         }

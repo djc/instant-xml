@@ -53,7 +53,10 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     let id = context.element_id(&root)?;
 
     if !T::matches(id, None) {
-        return Err(Error::UnexpectedValue("unexpected root"));
+        return Err(Error::UnexpectedValue(format!(
+            "unexpected root element {} in namespace {}",
+            id.name, id.ns
+        )));
     }
 
     let mut value = None;
@@ -91,8 +94,8 @@ pub enum Error {
     Other(std::string::String),
     #[error("unexpected end of stream")]
     UnexpectedEndOfStream,
-    #[error("unexpected value")]
-    UnexpectedValue(&'static str),
+    #[error("unexpected value: '{0}'")]
+    UnexpectedValue(String),
     #[error("unexpected tag: {0}")]
     UnexpectedTag(String),
     #[error("missing tag")]

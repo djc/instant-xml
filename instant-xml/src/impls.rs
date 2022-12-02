@@ -1,3 +1,4 @@
+use std::any::type_name;
 use std::borrow::Cow;
 use std::fmt;
 use std::net::IpAddr;
@@ -34,7 +35,10 @@ impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
                 *into = Some(FromXmlStr(value));
                 Ok(())
             }
-            Err(_) => Err(Error::UnexpectedValue("unable to parse value")),
+            Err(_) => Err(Error::UnexpectedValue(format!(
+                "unable to parse {} from `{value}`",
+                type_name::<T>()
+            ))),
         }
     }
 
@@ -58,15 +62,18 @@ impl<'xml> FromXml<'xml> for bool {
             return Err(Error::DuplicateValue);
         }
 
-        let mut value = None;
-        FromXmlStr::<Self>::deserialize(deserializer, &mut value)?;
-        match value {
-            Some(value) => {
-                *into = Some(value.0);
-                Ok(())
+        let value = match deserializer.take_str()? {
+            "true" | "1" => true,
+            "false" | "0" => false,
+            val => {
+                return Err(Error::UnexpectedValue(format!(
+                    "unable to parse bool from '{val}'"
+                )))
             }
-            None => Err(Error::MissingValue(Kind::Scalar)),
-        }
+        };
+
+        *into = Some(value);
+        Ok(())
     }
 
     const KIND: Kind = Kind::Scalar;
@@ -241,9 +248,9 @@ impl<'xml> FromXml<'xml> for &'xml str {
         match decode(value) {
             Cow::Borrowed(str) => *into = Some(str),
             Cow::Owned(_) => {
-                return Err(Error::UnexpectedValue(
-                    "string with escape characters cannot be deserialized as &str",
-                ))
+                return Err(Error::UnexpectedValue(format!(
+                    "string with escape characters cannot be deserialized as &str: '{value}'",
+                )))
             }
         }
 

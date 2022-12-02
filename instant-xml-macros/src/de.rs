@@ -48,7 +48,7 @@ fn deserialize_scalar_enum(
         };
 
         let serialize_as = meta.serialize_as;
-        variants.extend(quote!(Ok(#serialize_as) => #ident::#v_ident,));
+        variants.extend(quote!(#serialize_as => #ident::#v_ident,));
     }
 
     let generics = meta.xml_generics(BTreeSet::new());
@@ -75,9 +75,9 @@ fn deserialize_scalar_enum(
                     return Err(Error::DuplicateValue);
                 }
 
-                let value = match deserializer.take_str() {
+                let value = match deserializer.take_str()? {
                     #variants
-                    _ => return Err(Error::UnexpectedValue("enum variant not found")),
+                    val => return Err(Error::UnexpectedValue(format!("enum variant not found for '{}'", val))),
                 };
 
                 *into = Some(value);

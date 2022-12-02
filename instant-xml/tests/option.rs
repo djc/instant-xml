@@ -17,3 +17,24 @@ fn option_vec() {
     assert_eq!(xml, to_string(&v).unwrap());
     assert_eq!(v, from_str(xml).unwrap());
 }
+
+#[derive(Debug, Eq, FromXml, PartialEq, ToXml)]
+struct Bar<'a> {
+    #[xml(attribute, borrow)]
+    maybe: Option<&'a str>,
+}
+
+#[test]
+fn option_borrow() {
+    let v = Bar { maybe: Some("a") };
+    let xml = r#"<Bar maybe="a"></Bar>"#;
+
+    assert_eq!(xml, to_string(&v).unwrap());
+    assert_eq!(v, from_str(xml).unwrap());
+
+    let v = Bar { maybe: None };
+    let xml = r#"<Bar></Bar>"#;
+
+    assert_eq!(xml, to_string(&v).unwrap());
+    assert_eq!(v, from_str(xml).unwrap());
+}

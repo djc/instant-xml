@@ -298,7 +298,9 @@ fn named_field(
 
         attributes.extend(quote!(
             #error
-            serializer.write_attr(#tag, #ns, &self.#field_name)?;
+            if self.#field_name.present() {
+                serializer.write_attr(#tag, #ns, &self.#field_name)?;
+            }
         ));
         return Ok(());
     }

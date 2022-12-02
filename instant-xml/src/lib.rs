@@ -20,6 +20,10 @@ pub trait ToXml {
         field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error>;
+
+    fn present(&self) -> bool {
+        true
+    }
 }
 
 impl<'a, T: ToXml + ?Sized> ToXml for &'a T {

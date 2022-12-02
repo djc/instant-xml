@@ -453,6 +453,10 @@ impl<T: ToXml> ToXml for Option<T> {
             None => Ok(()),
         }
     }
+
+    fn present(&self) -> bool {
+        self.is_some()
+    }
 }
 
 fn encode(input: &str) -> Result<Cow<'_, str>, Error> {

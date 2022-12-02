@@ -48,12 +48,13 @@ fn deserialize_scalar_enum(
         };
 
         let serialize_as = meta.serialize_as;
-        variants.extend(quote!(#serialize_as => #ident::#v_ident,));
+        variants.extend(quote!(Some(#serialize_as) => #ident::#v_ident,));
     }
 
     let generics = meta.xml_generics(BTreeSet::new());
     let (impl_generics, _, _) = generics.split_for_impl();
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
+    let type_str = ident.to_string();
 
     quote!(
         impl #impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
@@ -77,7 +78,10 @@ fn deserialize_scalar_enum(
 
                 let value = match deserializer.take_str()? {
                     #variants
-                    val => return Err(Error::UnexpectedValue(format!("enum variant not found for '{}'", val))),
+                    Some(val) => return Err(Error::UnexpectedValue(
+                        format!("enum variant not found for '{}'", val)
+                    )),
+                    None => return Err(Error::MissingValue(#type_str)),
                 };
 
                 *into = Some(value);
@@ -137,11 +141,13 @@ fn deserialize_forward_enum(
         }
 
         let v_ident = &variant.ident;
-        variants.extend(quote!(if <#no_lifetime_type as FromXml>::matches(id, None) {
-            let mut value = None;
-            <#no_lifetime_type as FromXml>::deserialize(deserializer, &mut value)?;
-            *into = value.map(#ident::#v_ident);
-        }));
+        variants.extend(
+            quote!(if <#no_lifetime_type as FromXml>::matches(id, None) {
+                let mut value = None;
+                <#no_lifetime_type as FromXml>::deserialize(deserializer, &mut value)?;
+                *into = value.map(#ident::#v_ident);
+            }),
+        );
     }
 
     let generics = meta.xml_generics(borrowed);
@@ -226,6 +232,7 @@ fn deserialize_struct(
             &mut borrowed,
             &mut direct,
             field_meta,
+            &input.ident,
             &container_meta,
         );
 
@@ -337,6 +344,7 @@ fn named_field(
     borrowed: &mut BTreeSet<syn::Lifetime>,
     direct: &mut TokenStream,
     mut field_meta: FieldMeta,
+    type_name: &Ident,
     container_meta: &ContainerMeta,
 ) -> Result<(), syn::Error> {
     let field_name = field.ident.as_ref().unwrap();
@@ -462,10 +470,11 @@ fn named_field(
         }
     }
 
+    let field_str = format!("{type_name}::{field_name}");
     return_val.extend(quote!(
         #field_name: match #enum_name {
             Some(v) => v,
-            None => <#no_lifetime_type as FromXml>::missing_value()?,
+            None => <#no_lifetime_type as FromXml>::missing(#field_str)?,
         },
     ));
 
@@ -503,6 +512,7 @@ fn deserialize_tuple_struct(
             &mut declare_values,
             &mut return_val,
             &mut borrowed,
+            &input.ident,
         );
     }
 
@@ -547,11 +557,13 @@ fn unnamed_field(
     declare_values: &mut TokenStream,
     return_val: &mut TokenStream,
     borrowed: &mut BTreeSet<syn::Lifetime>,
+    type_name: &Ident,
 ) {
     let mut no_lifetime_type = field.ty.clone();
     discard_lifetimes(&mut no_lifetime_type, borrowed, false, true);
 
     let name = Ident::new(&format!("v{index}"), Span::call_site());
+    let field_str = format!("{type_name}::{index}");
     declare_values.extend(quote!(
         let #name = match <#no_lifetime_type as FromXml>::KIND {
             Kind::Element => match deserializer.next() {
@@ -564,7 +576,7 @@ fn unnamed_field(
                 }
                 Some(Ok(node)) => return Err(Error::UnexpectedNode(format!("{:?}", node))),
                 Some(Err(e)) => return Err(e),
-                None => return Err(Error::MissingValue(<#no_lifetime_type as FromXml>::KIND)),
+                None => return Err(Error::MissingValue(#field_str)),
             }
             Kind::Scalar => {
                 let mut value: Option<#no_lifetime_type> = None;
@@ -574,10 +586,11 @@ fn unnamed_field(
         };
     ));
 
+    let field_str = format!("{type_name}::{index}");
     return_val.extend(quote!(
         match #name {
             Some(v) => v,
-            None => <#no_lifetime_type as FromXml>::missing_value()?,
+            None => <#no_lifetime_type as FromXml>::missing(#field_str)?,
         },
     ));
 }

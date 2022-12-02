@@ -29,7 +29,11 @@ impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
             return Err(Error::DuplicateValue);
         }
 
-        let value = deserializer.take_str()?;
+        let value = match deserializer.take_str()? {
+            Some(value) => value,
+            None => return Ok(()),
+        };
+
         match T::from_str(value) {
             Ok(value) => {
                 *into = Some(FromXmlStr(value));
@@ -63,6 +67,11 @@ impl<'xml> FromXml<'xml> for bool {
         }
 
         let value = match deserializer.take_str()? {
+            Some(value) => value,
+            None => return Ok(()),
+        };
+
+        let value = match value {
             "true" | "1" => true,
             "false" | "0" => false,
             val => {
@@ -215,8 +224,11 @@ impl<'xml> FromXml<'xml> for String {
             return Err(Error::DuplicateValue);
         }
 
-        let value = deserializer.take_str()?;
-        *into = Some(decode(value).into_owned());
+        match deserializer.take_str()? {
+            Some(value) => *into = Some(decode(value).into_owned()),
+            None => return Ok(()),
+        }
+
         Ok(())
     }
 
@@ -240,7 +252,11 @@ impl<'xml> FromXml<'xml> for &'xml str {
             return Err(Error::DuplicateValue);
         }
 
-        let value = deserializer.take_str()?;
+        let value = match deserializer.take_str()? {
+            Some(value) => value,
+            None => return Ok(()),
+        };
+
         match decode(value) {
             Cow::Borrowed(str) => *into = Some(str),
             Cow::Owned(_) => {
@@ -315,7 +331,7 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
         Ok(())
     }
 
-    fn missing_value() -> Result<Self, Error> {
+    fn missing(_: &'static str) -> Result<Self, Error> {
         Ok(None)
     }
 
@@ -505,7 +521,7 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Vec<T> {
         Ok(())
     }
 
-    fn missing_value() -> Result<Self, Error> {
+    fn missing(_: &'static str) -> Result<Self, Error> {
         Ok(Vec::new())
     }
 
@@ -579,8 +595,12 @@ impl<'xml> FromXml<'xml> for DateTime<Utc> {
             return Err(Error::DuplicateValue);
         }
 
-        let data = deserializer.take_str()?;
-        match DateTime::parse_from_rfc3339(data) {
+        let value = match deserializer.take_str()? {
+            Some(value) => value,
+            None => return Ok(()),
+        };
+
+        match DateTime::parse_from_rfc3339(value) {
             Ok(dt) if dt.timezone().utc_minus_local() == 0 => {
                 *into = Some(dt.with_timezone(&Utc));
                 Ok(())
@@ -635,8 +655,12 @@ impl<'xml> FromXml<'xml> for NaiveDate {
             return Err(Error::DuplicateValue);
         }
 
-        let data = deserializer.take_str()?;
-        match NaiveDate::parse_from_str(data, "%Y-%m-%d") {
+        let value = match deserializer.take_str()? {
+            Some(value) => value,
+            None => return Ok(()),
+        };
+
+        match NaiveDate::parse_from_str(value, "%Y-%m-%d") {
             Ok(d) => {
                 *into = Some(d);
                 Ok(())

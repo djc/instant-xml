@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, Error, FromXml, Kind};
+use instant_xml::{from_str, Error, FromXml};
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
 struct NestedWrongNamespace {
@@ -39,7 +39,9 @@ fn default_namespaces() {
         from_str(
             "<NestedDe xmlns=\"WRONG\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe>"
         ),
-        Err::<NestedDe, _>(Error::UnexpectedValue("unexpected root element NestedDe in namespace WRONG".to_owned()))
+        Err::<NestedDe, _>(Error::UnexpectedValue(
+            "unexpected root element NestedDe in namespace WRONG".to_owned()
+        ))
     );
 
     // Correct child namespace
@@ -72,7 +74,7 @@ fn default_namespaces() {
     assert_eq!(
         from_str("<StructWithWrongNestedNamespace xmlns=\"URI\" xmlns:dar=\"BAZ\"><NestedWrongNamespace><flag>true</flag></NestedWrongNamespace></StructWithWrongNestedNamespace>"),
         Err::<StructWithWrongNestedNamespace, _>(
-            Error::MissingValue(Kind::Element)
+            Error::MissingValue("StructWithWrongNestedNamespace::test")
         )
     );
 }
@@ -113,7 +115,7 @@ fn other_namespaces() {
         from_str(
             "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"WRONG\"><bar:flag>true</bar:flag></NestedOtherNamespace>"
         ),
-        Err::<NestedOtherNamespace, _>(Error::MissingValue(Kind::Scalar))
+        Err::<NestedOtherNamespace, _>(Error::MissingValue("NestedOtherNamespace::flag"))
     );
 
     // Other namespace not-nested - missing parser prefix
@@ -121,7 +123,7 @@ fn other_namespaces() {
         from_str(
             "<NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAR\"><flag>true</flag></NestedOtherNamespace>"
         ),
-        Err::<NestedOtherNamespace, _>(Error::MissingValue(Kind::Scalar))
+        Err::<NestedOtherNamespace, _>(Error::MissingValue("NestedOtherNamespace::flag"))
     );
 
     // Correct child other namespace

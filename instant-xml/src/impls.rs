@@ -144,13 +144,11 @@ macro_rules! from_xml_for_number {
 
                 let mut value = None;
                 FromXmlStr::<Self>::deserialize(deserializer, &mut value)?;
-                match value {
-                    Some(value) => {
-                        *into = Some(value.0);
-                        Ok(())
-                    }
-                    None => Err(Error::MissingValue(Kind::Scalar)),
+                if let Some(value) = value {
+                    *into = Some(value.0);
                 }
+
+                Ok(())
             }
 
             const KIND: Kind = Kind::Scalar;
@@ -190,13 +188,11 @@ impl<'xml> FromXml<'xml> for char {
 
         let mut value = None;
         FromXmlStr::<Self>::deserialize(deserializer, &mut value)?;
-        match value {
-            Some(value) => {
-                *into = Some(value.0);
-                Ok(())
-            }
-            None => Err(Error::MissingValue(Kind::Scalar)),
+        if let Some(value) = value {
+            *into = Some(value.0);
         }
+
+        Ok(())
     }
 
     const KIND: Kind = Kind::Scalar;
@@ -283,13 +279,11 @@ where
 
         let mut value = None;
         T::Owned::deserialize(deserializer, &mut value)?;
-        match value {
-            Some(value) => {
-                *into = Some(Cow::Owned(value));
-                Ok(())
-            }
-            None => Err(Error::MissingValue(Kind::Scalar)),
+        if let Some(value) = value {
+            *into = Some(Cow::Owned(value));
         }
+
+        Ok(())
     }
 
     const KIND: Kind = Kind::Scalar;
@@ -308,23 +302,17 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
         match into.as_mut() {
             Some(value) => {
                 <T>::deserialize(deserializer, value)?;
-                match value {
-                    Some(_) => Ok(()),
-                    None => Err(Error::MissingValue(<T as FromXml<'_>>::KIND)),
-                }
             }
             None => {
                 let mut value = None;
                 <T>::deserialize(deserializer, &mut value)?;
-                match value {
-                    Some(value) => {
-                        *into = Some(Some(value));
-                        Ok(())
-                    }
-                    None => Err(Error::MissingValue(<T as FromXml<'_>>::KIND)),
+                if let Some(value) = value {
+                    *into = Some(Some(value));
                 }
             }
         }
+
+        Ok(())
     }
 
     fn missing_value() -> Result<Self, Error> {
@@ -709,13 +697,11 @@ impl<'xml> FromXml<'xml> for IpAddr {
 
         let mut value = None;
         FromXmlStr::<Self>::deserialize(deserializer, &mut value)?;
-        match value {
-            Some(value) => {
-                *into = Some(value.0);
-                Ok(())
-            }
-            None => Err(Error::MissingValue(Kind::Scalar)),
+        if let Some(value) = value {
+            *into = Some(value.0);
         }
+
+        Ok(())
     }
 
     const KIND: Kind = Kind::Scalar;

@@ -5,7 +5,7 @@ use std::net::IpAddr;
 use std::str::FromStr;
 
 #[cfg(feature = "chrono")]
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 
 use crate::{Deserializer, Error, FromXml, Id, Kind, Serializer, ToXml};
 
@@ -595,6 +595,62 @@ impl<'xml> FromXml<'xml> for DateTime<Utc> {
         match DateTime::parse_from_rfc3339(data) {
             Ok(dt) if dt.timezone().utc_minus_local() == 0 => {
                 *into = Some(dt.with_timezone(&Utc));
+                Ok(())
+            }
+            _ => Err(Error::Other("invalid date/time".into())),
+        }
+    }
+
+    const KIND: Kind = Kind::Scalar;
+}
+
+#[cfg(feature = "chrono")]
+impl ToXml for NaiveDate {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        let prefix = match field {
+            Some(id) => {
+                let prefix = serializer.write_start(id.name, id.ns)?;
+                serializer.end_start()?;
+                Some((prefix, id.name))
+            }
+            None => None,
+        };
+
+        serializer.write_str(&self)?;
+        if let Some((prefix, name)) = prefix {
+            serializer.write_close(prefix, name)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "chrono")]
+impl<'xml> FromXml<'xml> for NaiveDate {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
+    fn deserialize<'cx>(
+        deserializer: &mut Deserializer<'cx, 'xml>,
+        into: &mut Option<Self>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue);
+        }
+
+        let data = deserializer.take_str()?;
+        match NaiveDate::parse_from_str(data, "%Y-%m-%d") {
+            Ok(d) => {
+                *into = Some(d);
                 Ok(())
             }
             _ => Err(Error::Other("invalid date/time".into())),

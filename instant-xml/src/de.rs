@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, VecDeque};
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
 use crate::impls::decode;
-use crate::{Error, Id, Kind};
+use crate::{Error, Id};
 
 pub struct Deserializer<'cx, 'xml> {
     pub(crate) local: &'xml str,
@@ -30,13 +30,13 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
-    pub fn take_str(&mut self) -> Result<&'xml str, Error> {
+    pub fn take_str(&mut self) -> Result<Option<&'xml str>, Error> {
         match self.next() {
-            Some(Ok(Node::AttributeValue(s))) => Ok(s),
-            Some(Ok(Node::Text(s))) => Ok(s),
+            Some(Ok(Node::AttributeValue(s))) => Ok(Some(s)),
+            Some(Ok(Node::Text(s))) => Ok(Some(s)),
             Some(Ok(node)) => Err(Error::ExpectedScalar(format!("{node:?}"))),
             Some(Err(e)) => Err(e),
-            None => Err(Error::MissingValue(Kind::Scalar)),
+            None => Ok(None),
         }
     }
 
@@ -340,8 +340,10 @@ pub fn borrow_cow_str<'xml>(
         return Err(Error::DuplicateValue);
     }
 
-    let value = deserializer.take_str()?;
-    *into = Some(decode(value));
+    if let Some(value) = deserializer.take_str()? {
+        *into = Some(decode(value));
+    };
+
     deserializer.ignore()?;
     Ok(())
 }
@@ -354,11 +356,12 @@ pub fn borrow_cow_slice_u8<'xml>(
         return Err(Error::DuplicateValue);
     }
 
-    let value = deserializer.take_str()?;
-    *into = Some(match decode(value) {
-        Cow::Borrowed(v) => Cow::Borrowed(v.as_bytes()),
-        Cow::Owned(v) => Cow::Owned(v.into_bytes()),
-    });
+    if let Some(value) = deserializer.take_str()? {
+        *into = Some(match decode(value) {
+            Cow::Borrowed(v) => Cow::Borrowed(v.as_bytes()),
+            Cow::Owned(v) => Cow::Owned(v.into_bytes()),
+        });
+    }
 
     deserializer.ignore()?;
     Ok(())

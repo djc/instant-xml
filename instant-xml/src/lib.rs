@@ -41,8 +41,8 @@ pub trait FromXml<'xml>: Sized {
 
     // If the missing field is of type `Option<T>` then treat is as `None`,
     // otherwise it is an error.
-    fn missing_value() -> Result<Self, Error> {
-        Err(Error::MissingValue(Self::KIND))
+    fn missing(field: &'static str) -> Result<Self, Error> {
+        Err(Error::MissingValue(field))
     }
 
     const KIND: Kind;
@@ -63,7 +63,7 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     T::deserialize(&mut Deserializer::new(root, &mut context), &mut value)?;
     match value {
         Some(value) => Ok(value),
-        None => T::missing_value(),
+        None => T::missing("<root>"),
     }
 }
 
@@ -100,8 +100,8 @@ pub enum Error {
     UnexpectedTag(String),
     #[error("missing tag")]
     MissingTag,
-    #[error("missing value")]
-    MissingValue(Kind),
+    #[error("missing value: {0}")]
+    MissingValue(&'static str),
     #[error("unexpected token: {0}")]
     UnexpectedToken(String),
     #[error("unknown prefix: {0}")]

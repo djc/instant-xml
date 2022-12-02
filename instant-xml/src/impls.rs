@@ -10,6 +10,32 @@ use chrono::{DateTime, NaiveDate, Utc};
 use crate::{Deserializer, Error, FromXml, Id, Kind, Serializer, ToXml};
 
 // Deserializer
+
+pub fn from_xml_str<T: FromStr>(
+    deserializer: &mut Deserializer<'_, '_>,
+    into: &mut Option<T>,
+) -> Result<(), Error> {
+    if into.is_some() {
+        return Err(Error::DuplicateValue);
+    }
+
+    let value = match deserializer.take_str()? {
+        Some(value) => value,
+        None => return Ok(()),
+    };
+
+    match T::from_str(value) {
+        Ok(value) => {
+            *into = Some(value);
+            Ok(())
+        }
+        Err(_) => Err(Error::UnexpectedValue(format!(
+            "unable to parse {} from `{value}`",
+            type_name::<T>()
+        ))),
+    }
+}
+
 struct FromXmlStr<T: FromStr>(T);
 
 impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
@@ -89,6 +115,15 @@ impl<'xml> FromXml<'xml> for bool {
 }
 
 // Serializer
+
+pub fn display_to_xml(
+    value: &impl fmt::Display,
+    field: Option<Id<'_>>,
+    serializer: &mut Serializer<impl fmt::Write + ?Sized>,
+) -> Result<(), Error> {
+    DisplayToXml(value).serialize(field, serializer)
+}
+
 struct DisplayToXml<'a, T: fmt::Display>(pub &'a T);
 
 impl<'a, T> ToXml for DisplayToXml<'a, T>

@@ -241,6 +241,12 @@ fn deserialize_struct(
         }
     }
 
+    if direct.is_empty() {
+        direct.extend(quote!(Node::Text(_) => {
+            // no direct field, ignore
+        }));
+    }
+
     // Elements
     let elements_enum = elements_tokens.r#enum;
     let mut elements_branches = elements_tokens.branches;

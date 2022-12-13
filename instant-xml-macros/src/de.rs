@@ -260,6 +260,7 @@ fn deserialize_struct(
     });
 
     let ident = &input.ident;
+    let ident_str = format!("{ident}");
     let name = container_meta.tag();
     let default_namespace = container_meta.default_namespace();
     let generics = container_meta.xml_generics(borrowed);
@@ -321,7 +322,7 @@ fn deserialize_struct(
                             }
                         }
                         #direct
-                        node => return Err(Error::UnexpectedNode(format!("{:?}", node))),
+                        node => return Err(Error::UnexpectedNode(format!("{:?} in {}", node, #ident_str))),
                     }
                 }
 

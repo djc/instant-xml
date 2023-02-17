@@ -86,7 +86,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
             return Err(Error::UnexpectedState("invalid state for scalar"));
         }
 
-        self.output.write_fmt(format_args!("{}", value))?;
+        self.output.write_fmt(format_args!("{value}"))?;
         self.state = State::Element;
         Ok(())
     }

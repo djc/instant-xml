@@ -271,7 +271,7 @@ fn named_field(
                         quote!(""),
                         syn::Error::new(
                             field_meta.ns.uri.span(),
-                            &format!("unknown prefix `{prefix}` (prefix must be defined on the field's type)"),
+                            format!("unknown prefix `{prefix}` (prefix must be defined on the field's type)"),
                         )
                         .into_compile_error(),
                     ),

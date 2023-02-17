@@ -54,7 +54,7 @@ impl<'input> ContainerMeta<'input> {
                 }
                 MetaItem::Mode(new) => match mode {
                     None => mode = Some(new),
-                    Some(_) => return Err(syn::Error::new(span, "cannot have two enum modes")),
+                    Some(_) => return Err(syn::Error::new(span, "cannot have two modes")),
                 },
                 _ => {
                     return Err(syn::Error::new(
@@ -302,6 +302,7 @@ fn discard_path_lifetimes(
 enum Mode {
     Forward,
     Scalar,
+    Transparent,
 }
 
 #[cfg(test)]
@@ -334,7 +335,7 @@ mod tests {
             }
         })
         .to_string())
-        .find("compile_error ! { \"missing enum mode\" }")
+        .find("compile_error ! { \"missing mode\" }")
         .unwrap();
     }
 

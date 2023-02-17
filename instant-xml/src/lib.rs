@@ -58,10 +58,13 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     let id = context.element_id(&root)?;
 
     if !T::matches(id, None) {
-        return Err(Error::UnexpectedValue(format!(
-            "unexpected root element {} in namespace {}",
-            id.name, id.ns
-        )));
+        return Err(Error::UnexpectedValue(match id.ns.is_empty() {
+            true => format!("unexpected root element {:?}", id.name),
+            false => format!(
+                "unexpected root element {:?} in namespace {:?}",
+                id.name, id.ns
+            ),
+        }));
     }
 
     let mut value = None;

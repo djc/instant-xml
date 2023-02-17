@@ -298,6 +298,9 @@ pub(crate) fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
                 } else if id == "direct" {
                     items.push((MetaItem::Direct, span));
                     MetaState::Comma
+                } else if id == "transparent" {
+                    items.push((MetaItem::Mode(Mode::Transparent), span));
+                    MetaState::Comma
                 } else if id == "ns" {
                     MetaState::Ns
                 } else if id == "rename" {

@@ -15,13 +15,23 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
 
     match (&input.data, meta.mode) {
         (syn::Data::Struct(data), None) => serialize_struct(input, data, meta),
+        (syn::Data::Struct(data), Some(Mode::Transparent)) => {
+            serialize_inline_struct(input, data, meta)
+        }
         (syn::Data::Enum(data), Some(Mode::Scalar)) => serialize_scalar_enum(input, data, meta),
         (syn::Data::Enum(data), Some(Mode::Forward)) => serialize_forward_enum(input, data, meta),
-        (syn::Data::Struct(_), _) => {
-            syn::Error::new(input.span(), "enum mode not allowed on struct type").to_compile_error()
-        }
-        (syn::Data::Enum(_), _) => {
-            syn::Error::new(input.span(), "missing enum mode").to_compile_error()
+        (syn::Data::Struct(_), Some(mode)) => syn::Error::new(
+            input.span(),
+            format_args!("{mode:?} mode not allowed on struct type"),
+        )
+        .to_compile_error(),
+        (syn::Data::Enum(_), Some(mode)) => syn::Error::new(
+            input.span(),
+            format_args!("{mode:?} mode not allowed on enum type"),
+        )
+        .to_compile_error(),
+        (syn::Data::Enum(_), None) => {
+            syn::Error::new(input.span(), "missing mode").to_compile_error()
         }
         _ => todo!(),
     }
@@ -227,6 +237,82 @@ fn serialize_struct(
                 #body
 
                 serializer.pop(old);
+                Ok(())
+            }
+        };
+    )
+}
+
+fn serialize_inline_struct(
+    input: &syn::DeriveInput,
+    data: &syn::DataStruct,
+    meta: ContainerMeta,
+) -> proc_macro2::TokenStream {
+    if !meta.ns.prefixes.is_empty() {
+        return syn::Error::new(
+            input.span(),
+            "inline structs cannot have namespace declarations",
+        )
+        .to_compile_error();
+    } else if let Some(ns) = meta.ns.uri {
+        return syn::Error::new(
+            ns.span(),
+            "inline structs cannot have namespace declarations",
+        )
+        .to_compile_error();
+    } else if let Some(rename) = meta.rename {
+        return syn::Error::new(rename.span(), "inline structs cannot be renamed")
+            .to_compile_error();
+    }
+
+    let mut body = TokenStream::new();
+    let mut attributes = TokenStream::new();
+    let mut borrowed = BTreeSet::new();
+    match &data.fields {
+        syn::Fields::Named(fields) => {
+            for field in &fields.named {
+                if let Err(err) =
+                    named_field(field, &mut body, &mut attributes, &mut borrowed, &meta)
+                {
+                    return err.to_compile_error();
+                }
+
+                if !attributes.is_empty() {
+                    return syn::Error::new(
+                        input.span(),
+                        "no attributes allowed on inline structs",
+                    )
+                    .to_compile_error();
+                }
+            }
+        }
+        syn::Fields::Unnamed(fields) => {
+            for (index, field) in fields.unnamed.iter().enumerate() {
+                if let Err(err) = unnamed_field(field, index, &mut body, &mut borrowed) {
+                    return err.to_compile_error();
+                }
+            }
+        }
+        syn::Fields::Unit => body.extend(quote!(serializer.end_empty()?;)),
+    }
+
+    let mut generics = input.generics.clone();
+    for param in generics.type_params_mut() {
+        param
+            .bounds
+            .push(syn::parse_str("::instant_xml::ToXml").unwrap());
+    }
+
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let ident = &input.ident;
+    quote!(
+        impl #impl_generics ToXml for #ident #ty_generics #where_clause {
+            fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
+                &self,
+                field: Option<::instant_xml::Id<'_>>,
+                serializer: &mut instant_xml::Serializer<W>,
+            ) -> Result<(), instant_xml::Error> {
+                #body
                 Ok(())
             }
         };

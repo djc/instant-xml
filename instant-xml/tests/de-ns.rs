@@ -40,7 +40,7 @@ fn default_namespaces() {
             "<NestedDe xmlns=\"WRONG\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe>"
         ),
         Err::<NestedDe, _>(Error::UnexpectedValue(
-            "unexpected root element NestedDe in namespace WRONG".to_owned()
+            "unexpected root element \"NestedDe\" in namespace \"WRONG\"".to_owned()
         ))
     );
 

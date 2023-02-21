@@ -14,9 +14,9 @@ struct Foo {
 fn direct() {
     let v = Foo {
         flag: true,
-        inner: "hello".to_string(),
+        inner: "cbdté".to_string(),
     };
-    let xml = "<Foo flag=\"true\">hello</Foo>";
+    let xml = "<Foo flag=\"true\">cbdté</Foo>";
 
     assert_eq!(to_string(&v).unwrap(), xml);
     assert_eq!(from_str::<Foo>(xml), Ok(v));

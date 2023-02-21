@@ -490,28 +490,30 @@ pub(crate) fn decode(input: &str) -> Cow<'_, str> {
 
     let mut last_end = 0;
     while input_len - last_end >= 4 {
-        match &input[last_end..(last_end + 4)] {
-            "&lt;" => {
-                result.push('<');
-                last_end += 4;
-                continue;
-            }
-            "&gt;" => {
-                result.push('>');
-                last_end += 4;
-                continue;
-            }
-            _ => (),
-        };
+        if input.is_char_boundary(last_end + 4) {
+            match &input[last_end..(last_end + 4)] {
+                "&lt;" => {
+                    result.push('<');
+                    last_end += 4;
+                    continue;
+                }
+                "&gt;" => {
+                    result.push('>');
+                    last_end += 4;
+                    continue;
+                }
+                _ => (),
+            };
+        }
 
-        if input_len - last_end >= 5 {
+        if input_len - last_end >= 5 && input.is_char_boundary(last_end + 5) {
             if &input[last_end..(last_end + 5)] == "&amp;" {
                 result.push('&');
                 last_end += 5;
                 continue;
             }
 
-            if input_len - last_end >= 6 {
+            if input_len - last_end >= 6 && input.is_char_boundary(last_end + 6) {
                 match &input[last_end..(last_end + 6)] {
                     "&apos;" => {
                         result.push('\'');

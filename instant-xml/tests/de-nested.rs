@@ -13,7 +13,7 @@ struct NestedDe {
 #[xml(ns("URI", bar = "BAZ", foo = "BAR"))]
 struct StructWithCustomFieldFromXml {
     #[xml(ns(BAR))]
-    flag: bool,
+    r#flag: bool,
     #[xml(attribute)]
     flag_attribute: bool,
     test: NestedDe,

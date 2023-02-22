@@ -74,3 +74,21 @@ fn scalars() {
         })
     );
 }
+
+#[derive(Debug, FromXml, PartialEq)]
+struct ScalarElementAttr {
+    s: String,
+}
+
+#[test]
+fn scalar_element_attr() {
+    assert_eq!(
+        from_str::<ScalarElementAttr>(
+            "<ScalarElementAttr><s lang=\"en\">hello</s></ScalarElementAttr>"
+        )
+        .unwrap(),
+        ScalarElementAttr {
+            s: "hello".to_string(),
+        }
+    );
+}

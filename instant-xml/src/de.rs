@@ -31,12 +31,15 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
     }
 
     pub fn take_str(&mut self) -> Result<Option<&'xml str>, Error> {
-        match self.next() {
-            Some(Ok(Node::AttributeValue(s))) => Ok(Some(s)),
-            Some(Ok(Node::Text(s))) => Ok(Some(s)),
-            Some(Ok(node)) => Err(Error::ExpectedScalar(format!("{node:?}"))),
-            Some(Err(e)) => Err(e),
-            None => Ok(None),
+        loop {
+            match self.next() {
+                Some(Ok(Node::AttributeValue(s))) => return Ok(Some(s)),
+                Some(Ok(Node::Text(s))) => return Ok(Some(s)),
+                Some(Ok(Node::Attribute(_))) => continue,
+                Some(Ok(node)) => return Err(Error::ExpectedScalar(format!("{node:?}"))),
+                Some(Err(e)) => return Err(e),
+                None => return Ok(None),
+            }
         }
     }
 

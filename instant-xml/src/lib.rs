@@ -9,7 +9,7 @@ pub mod de;
 mod impls;
 use de::Context;
 pub use de::Deserializer;
-pub use impls::{display_to_xml, from_xml_str};
+pub use impls::{display_to_xml, from_xml_str, OptionAccumulator};
 #[doc(hidden)]
 pub mod ser;
 pub use ser::Serializer;

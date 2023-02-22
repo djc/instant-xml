@@ -20,13 +20,28 @@ pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
             syn::Fields::Unnamed(fields) => deserialize_tuple_struct(input, fields, meta),
             syn::Fields::Unit => deserialize_unit_struct(input, &meta),
         },
+        (syn::Data::Struct(data), Some(Mode::Transparent)) => match &data.fields {
+            syn::Fields::Named(fields) => deserialize_inline_struct(input, fields, meta),
+            _ => syn::Error::new(
+                input.span(),
+                "inline mode is only supported on types with named fields",
+            )
+            .to_compile_error(),
+        },
         (syn::Data::Enum(data), Some(Mode::Scalar)) => deserialize_scalar_enum(input, data, meta),
         (syn::Data::Enum(data), Some(Mode::Forward)) => deserialize_forward_enum(input, data, meta),
-        (syn::Data::Struct(_), _) => {
-            syn::Error::new(input.span(), "no enum mode allowed on struct type").to_compile_error()
-        }
+        (syn::Data::Struct(_), Some(mode)) => syn::Error::new(
+            input.span(),
+            format_args!("{mode:?} mode not allowed on struct type"),
+        )
+        .to_compile_error(),
+        (syn::Data::Enum(_), Some(mode)) => syn::Error::new(
+            input.span(),
+            format_args!("{mode:?} mode not allowed on enum type"),
+        )
+        .to_compile_error(),
         (syn::Data::Enum(_), None) => {
-            syn::Error::new(input.span(), "missing enum mode").to_compile_error()
+            syn::Error::new(input.span(), "missing mode").to_compile_error()
         }
         _ => todo!(),
     }
@@ -348,9 +363,168 @@ fn deserialize_struct(
     )
 }
 
+fn deserialize_inline_struct(
+    input: &syn::DeriveInput,
+    fields: &syn::FieldsNamed,
+    meta: ContainerMeta,
+) -> TokenStream {
+    if !meta.ns.prefixes.is_empty() {
+        return syn::Error::new(
+            input.span(),
+            "inline structs cannot have namespace declarations",
+        )
+        .to_compile_error();
+    } else if let Some(ns) = meta.ns.uri {
+        return syn::Error::new(
+            ns.span(),
+            "inline structs cannot have namespace declarations",
+        )
+        .to_compile_error();
+    } else if let Some(rename) = meta.rename {
+        return syn::Error::new(rename.span(), "inline structs cannot be renamed")
+            .to_compile_error();
+    }
+
+    // Varying values
+    let mut elements_tokens = Tokens::default();
+
+    // Common values
+    let mut declare_values = TokenStream::new();
+    let mut return_val = TokenStream::new();
+    let mut direct = TokenStream::new();
+
+    let mut borrowed = BTreeSet::new();
+    let mut matches = TokenStream::new();
+    let mut acc_field_defs = TokenStream::new();
+    let mut acc_field_inits = TokenStream::new();
+    let mut deserialize = TokenStream::new();
+    let mut acc_field_defaults = TokenStream::new();
+    for (index, field) in fields.named.iter().enumerate() {
+        let field_meta = match FieldMeta::from_field(field, &meta) {
+            Ok(meta) => meta,
+            Err(err) => return err.into_compile_error(),
+        };
+
+        if field_meta.direct {
+            return syn::Error::new(field.span(), "inline structs cannot have a direct field")
+                .to_compile_error();
+        } else if field_meta.attribute {
+            return syn::Error::new(field.span(), "inline structs cannot have attribute fields")
+                .to_compile_error();
+        }
+
+        let result = named_field(
+            field,
+            index,
+            &mut declare_values,
+            &mut return_val,
+            &mut elements_tokens,
+            &mut borrowed,
+            &mut direct,
+            field_meta,
+            &input.ident,
+            &meta,
+        );
+
+        let data = match result {
+            Ok(data) => data,
+            Err(err) => return err.into_compile_error(),
+        };
+
+        if !matches.is_empty() {
+            matches.extend(quote!(||));
+        }
+
+        let field_ty = data.no_lifetime_type;
+        matches.extend(quote!(
+            #field_ty::matches(id, None)
+        ));
+
+        let field_name = &field.ident;
+        acc_field_defs.extend(quote!(#field_name: <#field_ty as FromXml<'xml>>::Accumulator,));
+        let field_str = format!("{}::{}", input.ident, data.field_name);
+        acc_field_inits.extend(quote!(#field_name: self.#field_name.try_done(#field_str)?,));
+        acc_field_defaults.extend(quote!(#field_name: Default::default(),));
+
+        if !deserialize.is_empty() {
+            deserialize.extend(quote!(else));
+        }
+        if let Some(with) = data.deserialize_with {
+            deserialize.extend(quote!(if #field_ty::matches(current, None) {
+                #with(&mut into.#field_name, #field_str, deserializer)?;
+            }));
+        } else {
+            deserialize.extend(quote!(if #field_ty::matches(current, None) {
+                match <#field_ty as FromXml>::KIND {
+                    Kind::Element => {
+                        <#field_ty>::deserialize(&mut into.#field_name, #field_str, deserializer)?;
+                    }
+                    Kind::Scalar => {
+                        <#field_ty>::deserialize(&mut into.#field_name, #field_str, deserializer)?;
+                        deserializer.ignore()?;
+                    }
+                }
+            }));
+        }
+    }
+
+    // Attributes
+    let ident = &input.ident;
+    let accumulator = Ident::new(&format!("__{}Accumulator", ident), Span::call_site());
+    let generics = meta.xml_generics(borrowed);
+
+    let (xml_impl_generics, xml_ty_generics, _) = generics.split_for_impl();
+    let (_, ty_generics, where_clause) = input.generics.split_for_impl();
+
+    quote!(
+        impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
+            #[inline]
+            fn matches(id: ::instant_xml::Id<'_>, _: Option<::instant_xml::Id<'_>>) -> bool {
+                #matches
+            }
+
+            fn deserialize<'cx>(
+                into: &mut Self::Accumulator,
+                _: &'static str,
+                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
+            ) -> Result<(), ::instant_xml::Error> {
+                use ::instant_xml::Kind;
+
+                let current = deserializer.parent();
+                #deserialize
+
+                Ok(())
+            }
+
+            type Accumulator = #accumulator #xml_ty_generics;
+            const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element;
+        }
+
+        struct #accumulator #xml_ty_generics #where_clause {
+            #acc_field_defs
+        }
+
+        impl #xml_impl_generics ::instant_xml::Accumulate<#ident #ty_generics> for #accumulator #xml_ty_generics #where_clause {
+            fn try_done(self, field: &'static str) -> Result<#ident #ty_generics, ::instant_xml::Error> {
+                Ok(#ident {
+                    #acc_field_inits
+                })
+            }
+        }
+
+        impl #xml_impl_generics Default for #accumulator #xml_ty_generics #where_clause {
+            fn default() -> Self {
+                Self {
+                    #acc_field_defaults
+                }
+            }
+        }
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
-fn named_field(
-    field: &syn::Field,
+fn named_field<'a>(
+    field: &'a syn::Field,
     index: usize,
     declare_values: &mut TokenStream,
     return_val: &mut TokenStream,
@@ -360,7 +534,7 @@ fn named_field(
     mut field_meta: FieldMeta,
     type_name: &Ident,
     container_meta: &ContainerMeta,
-) -> Result<(), syn::Error> {
+) -> Result<FieldData<'a>, syn::Error> {
     let field_name = field.ident.as_ref().unwrap();
     let field_tag = field_meta.tag;
     let default_ns = match &field_meta.ns.uri {
@@ -424,7 +598,7 @@ fn named_field(
 
     let field_str = format!("{type_name}::{field_name}");
     if !field_meta.attribute {
-        if let Some(with) = deserialize_with {
+        if let Some(with) = &deserialize_with {
             if field_meta.direct {
                 return Err(syn::Error::new(
                     field.span(),
@@ -468,7 +642,7 @@ fn named_field(
             ));
         }
 
-        if let Some(with) = deserialize_with {
+        if let Some(with) = &deserialize_with {
             tokens.r#match.extend(quote!(
                 __Attributes::#enum_name => {
                     let mut nested = deserializer.nested(data);
@@ -483,13 +657,23 @@ fn named_field(
                 },
             ));
         }
-    }
+    };
 
     return_val.extend(quote!(
         #field_name: #enum_name.try_done(#field_str)?,
     ));
 
-    Ok(())
+    Ok(FieldData {
+        field_name,
+        no_lifetime_type,
+        deserialize_with,
+    })
+}
+
+struct FieldData<'a> {
+    field_name: &'a Ident,
+    no_lifetime_type: syn::Type,
+    deserialize_with: Option<syn::Path>,
 }
 
 fn deserialize_tuple_struct(

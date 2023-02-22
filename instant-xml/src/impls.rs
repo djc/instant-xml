@@ -375,6 +375,12 @@ pub struct OptionAccumulator<T, A: Accumulate<T>> {
     marker: PhantomData<T>,
 }
 
+impl<T, A: Accumulate<T>> OptionAccumulator<T, A> {
+    pub fn get_mut(&mut self) -> &mut A {
+        &mut self.value
+    }
+}
+
 impl<T, A: Accumulate<T>> Default for OptionAccumulator<T, A> {
     fn default() -> Self {
         Self {

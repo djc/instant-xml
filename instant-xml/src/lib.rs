@@ -96,6 +96,8 @@ impl<T> FromXmlOwned for T where T: for<'xml> FromXml<'xml> {}
 pub enum Error {
     #[error("format: {0}")]
     Format(#[from] fmt::Error),
+    #[error("invalid entity: {0}")]
+    InvalidEntity(String),
     #[error("parse: {0}")]
     Parse(#[from] xmlparser::Error),
     #[error("other: {0}")]

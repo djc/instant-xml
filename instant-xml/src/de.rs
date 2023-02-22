@@ -341,7 +341,7 @@ pub fn borrow_cow_str<'xml>(
     }
 
     if let Some(value) = deserializer.take_str()? {
-        *into = Some(decode(value));
+        *into = Some(decode(value)?);
     };
 
     deserializer.ignore()?;
@@ -357,7 +357,7 @@ pub fn borrow_cow_slice_u8<'xml>(
     }
 
     if let Some(value) = deserializer.take_str()? {
-        *into = Some(match decode(value) {
+        *into = Some(match decode(value)? {
             Cow::Borrowed(v) => Cow::Borrowed(v.as_bytes()),
             Cow::Owned(v) => Cow::Owned(v.into_bytes()),
         });

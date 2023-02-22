@@ -333,8 +333,9 @@ impl<'xml> Iterator for Context<'xml> {
 }
 
 pub fn borrow_cow_str<'xml>(
-    deserializer: &mut Deserializer<'_, 'xml>,
     into: &mut Option<Cow<'xml, str>>,
+    _: &'static str,
+    deserializer: &mut Deserializer<'_, 'xml>,
 ) -> Result<(), Error> {
     if into.is_some() {
         return Err(Error::DuplicateValue);
@@ -349,8 +350,9 @@ pub fn borrow_cow_str<'xml>(
 }
 
 pub fn borrow_cow_slice_u8<'xml>(
-    deserializer: &mut Deserializer<'_, 'xml>,
     into: &mut Option<Cow<'xml, [u8]>>,
+    _: &'static str,
+    deserializer: &mut Deserializer<'_, 'xml>,
 ) -> Result<(), Error> {
     if into.is_some() {
         return Err(Error::DuplicateValue);

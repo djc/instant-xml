@@ -40,8 +40,9 @@ pub trait FromXml<'xml>: Sized {
     fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool;
 
     fn deserialize<'cx>(
-        deserializer: &mut Deserializer<'cx, 'xml>,
         into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut Deserializer<'cx, 'xml>,
     ) -> Result<(), Error>;
 
     type Accumulator: Accumulate<Self>;
@@ -86,8 +87,12 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     }
 
     let mut value = T::Accumulator::default();
-    T::deserialize(&mut Deserializer::new(root, &mut context), &mut value)?;
-    value.try_done("root element")
+    T::deserialize(
+        &mut value,
+        "<root element>",
+        &mut Deserializer::new(root, &mut context),
+    )?;
+    value.try_done("<root element>")
 }
 
 pub fn to_string(value: &(impl ToXml + ?Sized)) -> Result<String, Error> {

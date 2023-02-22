@@ -67,8 +67,9 @@ fn deserialize_scalar_enum(
             }
 
             fn deserialize<'cx>(
-                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Self::Accumulator,
+                field: &'static str,
+                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::Error;
 
@@ -104,6 +105,7 @@ fn deserialize_forward_enum(
     }
 
     let ident = &input.ident;
+    let field_str = format!("{ident}::0");
     let mut matches = TokenStream::new();
     let mut variants = TokenStream::new();
     let mut borrowed = BTreeSet::new();
@@ -145,7 +147,7 @@ fn deserialize_forward_enum(
         variants.extend(
             quote!(if <#no_lifetime_type as FromXml>::matches(id, None) {
                 let mut value = None;
-                <#no_lifetime_type as FromXml>::deserialize(deserializer, &mut value)?;
+                <#no_lifetime_type as FromXml>::deserialize(&mut value, #field_str, deserializer)?;
                 *into = value.map(#ident::#v_ident);
             }),
         );
@@ -163,8 +165,9 @@ fn deserialize_forward_enum(
             }
 
             fn deserialize<'cx>(
-                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Self::Accumulator,
+                field: &'static str,
+                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
                 use ::instant_xml::{Accumulate, Error, FromXml};
@@ -284,8 +287,9 @@ fn deserialize_struct(
             }
 
             fn deserialize<'cx>(
-                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Self::Accumulator,
+                field: &'static str,
+                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
                 use ::instant_xml::{Accumulate, Error, FromXml, Id, Kind};
@@ -418,6 +422,7 @@ fn named_field(
         })
         .transpose()?;
 
+    let field_str = format!("{type_name}::{field_name}");
     if !field_meta.attribute {
         if let Some(with) = deserialize_with {
             if field_meta.direct {
@@ -430,14 +435,14 @@ fn named_field(
             tokens.r#match.extend(quote!(
                 __Elements::#enum_name => {
                     let mut nested = deserializer.nested(data);
-                    #with(&mut nested, &mut #enum_name)?;
+                    #with(&mut #enum_name, #field_str, &mut nested)?;
                 },
             ));
         } else if field_meta.direct {
             direct.extend(quote!(
                 Node::Text(text) => {
                     let mut nested = deserializer.for_node(Node::Text(text));
-                    <#no_lifetime_type>::deserialize(&mut nested, &mut #enum_name)?;
+                    <#no_lifetime_type>::deserialize(&mut #enum_name, #field_str, &mut nested)?;
                 }
             ));
         } else {
@@ -445,11 +450,11 @@ fn named_field(
                 __Elements::#enum_name => match <#no_lifetime_type as FromXml>::KIND {
                     Kind::Element => {
                         let mut nested = deserializer.nested(data);
-                        <#no_lifetime_type>::deserialize(&mut nested, &mut #enum_name)?;
+                        <#no_lifetime_type>::deserialize(&mut #enum_name, #field_str, &mut nested)?;
                     }
                     Kind::Scalar => {
                         let mut nested = deserializer.nested(data);
-                        <#no_lifetime_type>::deserialize(&mut nested, &mut #enum_name)?;
+                        <#no_lifetime_type>::deserialize(&mut #enum_name, #field_str, &mut nested)?;
                         nested.ignore()?;
                     }
                 },
@@ -467,20 +472,19 @@ fn named_field(
             tokens.r#match.extend(quote!(
                 __Attributes::#enum_name => {
                     let mut nested = deserializer.nested(data);
-                    #with(&mut nested, &mut #enum_name)?;
+                    #with(&mut #enum_name, #field_str, &mut nested)?;
                 },
             ));
         } else {
             tokens.r#match.extend(quote!(
                 __Attributes::#enum_name => {
                     let mut nested = deserializer.for_node(Node::AttributeValue(attr.value));
-                    let new = <#no_lifetime_type as FromXml>::deserialize(&mut nested, &mut #enum_name)?;
+                    let new = <#no_lifetime_type as FromXml>::deserialize(&mut #enum_name, #field_str, &mut nested)?;
                 },
             ));
         }
     }
 
-    let field_str = format!("{type_name}::{field_name}");
     return_val.extend(quote!(
         #field_name: #enum_name.try_done(#field_str)?,
     ));
@@ -539,8 +543,9 @@ fn deserialize_tuple_struct(
             }
 
             fn deserialize<'cx>(
-                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Self::Accumulator,
+                field: &'static str,
+                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
                 use ::instant_xml::{Accumulate, Error, FromXml, Id, Kind};
@@ -578,7 +583,7 @@ fn unnamed_field(
                 Some(Ok(Node::Open(data))) => {
                     let mut nested = deserializer.nested(data);
                     let mut value = <#no_lifetime_type as FromXml>::Accumulator::default();
-                    <#no_lifetime_type as FromXml>::deserialize(&mut nested, &mut value)?;
+                    <#no_lifetime_type as FromXml>::deserialize(&mut value, #field_str, &mut nested)?;
                     nested.ignore()?;
                     value
                 }
@@ -588,13 +593,12 @@ fn unnamed_field(
             }
             Kind::Scalar => {
                 let mut value = <#no_lifetime_type as FromXml>::Accumulator::default();
-                <#no_lifetime_type as FromXml>::deserialize(deserializer, &mut value)?;
+                <#no_lifetime_type as FromXml>::deserialize(&mut value, #field_str, deserializer)?;
                 value
             }
         };
     ));
 
-    let field_str = format!("{type_name}::{index}");
     return_val.extend(quote!(
         #name.try_done(#field_str)?,
     ));
@@ -617,8 +621,9 @@ fn deserialize_unit_struct(input: &syn::DeriveInput, meta: &ContainerMeta) -> To
             }
 
             fn deserialize<'cx>(
-                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
                 into: &mut Self::Accumulator,
+                field: &'static str,
+                deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
             ) -> Result<(), ::instant_xml::Error> {
                 deserializer.ignore()?;
                 *into = Some(Self);

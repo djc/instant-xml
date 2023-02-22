@@ -31,7 +31,7 @@ fn escape_back() {
         from_str(
             "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><str>str&amp;</str></StructSpecialEntities>"
         ),
-        Err::<StructSpecialEntities, _>(Error::UnexpectedValue("string with escape characters cannot be deserialized as &str: 'str&amp;'".to_owned()))
+        Err::<StructSpecialEntities, _>(Error::UnexpectedValue("string with escape characters cannot be deserialized as &str for StructSpecialEntities::str: 'str&amp;'".to_owned()))
     );
 
     // Borrowed

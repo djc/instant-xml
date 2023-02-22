@@ -13,4 +13,9 @@ thiserror = "1.0.29"
 xmlparser = "0.13.3"
 
 [dev-dependencies]
+bencher = "0.1.5"
 similar-asserts = "1.4.2"
+
+[[bench]]
+name = "decode"
+harness = false

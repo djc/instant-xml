@@ -68,7 +68,7 @@ fn deserialize_scalar_enum(
 
             fn deserialize<'cx>(
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
-                into: &mut Option<Self>,
+                into: &mut Self::Accumulator,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::Error;
 
@@ -88,6 +88,7 @@ fn deserialize_scalar_enum(
                 Ok(())
             }
 
+            type Accumulator = Option<Self>;
             const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Scalar;
         }
     )
@@ -163,10 +164,10 @@ fn deserialize_forward_enum(
 
             fn deserialize<'cx>(
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
-                into: &mut Option<Self>,
+                into: &mut Self::Accumulator,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
-                use ::instant_xml::{Error, FromXml};
+                use ::instant_xml::{Accumulate, Error, FromXml};
 
                 let id = deserializer.parent();
                 #variants else {
@@ -180,6 +181,7 @@ fn deserialize_forward_enum(
                 Ok(())
             }
 
+            type Accumulator = Option<Self>;
             const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element;
         }
     )
@@ -283,10 +285,10 @@ fn deserialize_struct(
 
             fn deserialize<'cx>(
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
-                into: &mut Option<Self>,
+                into: &mut Self::Accumulator,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
-                use ::instant_xml::{Error, FromXml, Id, Kind};
+                use ::instant_xml::{Accumulate, Error, FromXml, Id, Kind};
 
                 enum __Elements {
                     #elements_enum
@@ -336,6 +338,7 @@ fn deserialize_struct(
                 Ok(())
             }
 
+            type Accumulator = Option<Self>;
             const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element;
         }
     )
@@ -399,7 +402,7 @@ fn named_field(
     }
 
     declare_values.extend(quote!(
-        let mut #enum_name: Option<#no_lifetime_type> = None;
+        let mut #enum_name = <#no_lifetime_type as FromXml>::Accumulator::default();
     ));
 
     let deserialize_with = field_meta
@@ -434,7 +437,7 @@ fn named_field(
             direct.extend(quote!(
                 Node::Text(text) => {
                     let mut nested = deserializer.for_node(Node::Text(text));
-                    FromXml::deserialize(&mut nested, &mut #enum_name)?;
+                    <#no_lifetime_type>::deserialize(&mut nested, &mut #enum_name)?;
                 }
             ));
         } else {
@@ -442,11 +445,11 @@ fn named_field(
                 __Elements::#enum_name => match <#no_lifetime_type as FromXml>::KIND {
                     Kind::Element => {
                         let mut nested = deserializer.nested(data);
-                        FromXml::deserialize(&mut nested, &mut #enum_name)?;
+                        <#no_lifetime_type>::deserialize(&mut nested, &mut #enum_name)?;
                     }
                     Kind::Scalar => {
                         let mut nested = deserializer.nested(data);
-                        FromXml::deserialize(&mut nested, &mut #enum_name)?;
+                        <#no_lifetime_type>::deserialize(&mut nested, &mut #enum_name)?;
                         nested.ignore()?;
                     }
                 },
@@ -479,10 +482,7 @@ fn named_field(
 
     let field_str = format!("{type_name}::{field_name}");
     return_val.extend(quote!(
-        #field_name: match #enum_name {
-            Some(v) => v,
-            None => <#no_lifetime_type as FromXml>::missing(#field_str)?,
-        },
+        #field_name: #enum_name.try_done(#field_str)?,
     ));
 
     Ok(())
@@ -540,10 +540,10 @@ fn deserialize_tuple_struct(
 
             fn deserialize<'cx>(
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
-                into: &mut Option<Self>,
+                into: &mut Self::Accumulator,
             ) -> Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
-                use ::instant_xml::{Error, FromXml, Id, Kind};
+                use ::instant_xml::{Accumulate, Error, FromXml, Id, Kind};
 
                 #declare_values
                 deserializer.ignore()?;
@@ -552,6 +552,7 @@ fn deserialize_tuple_struct(
                 Ok(())
             }
 
+            type Accumulator = Option<Self>;
             const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element;
         }
     )
@@ -576,7 +577,7 @@ fn unnamed_field(
             Kind::Element => match deserializer.next() {
                 Some(Ok(Node::Open(data))) => {
                     let mut nested = deserializer.nested(data);
-                    let mut value: Option<#no_lifetime_type> = None;
+                    let mut value = <#no_lifetime_type as FromXml>::Accumulator::default();
                     <#no_lifetime_type as FromXml>::deserialize(&mut nested, &mut value)?;
                     nested.ignore()?;
                     value
@@ -586,7 +587,7 @@ fn unnamed_field(
                 None => return Err(Error::MissingValue(#field_str)),
             }
             Kind::Scalar => {
-                let mut value: Option<#no_lifetime_type> = None;
+                let mut value = <#no_lifetime_type as FromXml>::Accumulator::default();
                 <#no_lifetime_type as FromXml>::deserialize(deserializer, &mut value)?;
                 value
             }
@@ -595,10 +596,7 @@ fn unnamed_field(
 
     let field_str = format!("{type_name}::{index}");
     return_val.extend(quote!(
-        match #name {
-            Some(v) => v,
-            None => <#no_lifetime_type as FromXml>::missing(#field_str)?,
-        },
+        #name.try_done(#field_str)?,
     ));
 }
 
@@ -620,13 +618,14 @@ fn deserialize_unit_struct(input: &syn::DeriveInput, meta: &ContainerMeta) -> To
 
             fn deserialize<'cx>(
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
-                into: &mut Option<Self>,
+                into: &mut Self::Accumulator,
             ) -> Result<(), ::instant_xml::Error> {
                 deserializer.ignore()?;
                 *into = Some(Self);
                 Ok(())
             }
 
+            type Accumulator = Option<Self>;
             const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element;
         }
     )

@@ -41,16 +41,34 @@ pub trait FromXml<'xml>: Sized {
 
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
-        into: &mut Option<Self>,
+        into: &mut Self::Accumulator,
     ) -> Result<(), Error>;
 
-    // If the missing field is of type `Option<T>` then treat is as `None`,
-    // otherwise it is an error.
-    fn missing(field: &'static str) -> Result<Self, Error> {
-        Err(Error::MissingValue(field))
-    }
-
+    type Accumulator: Accumulate<Self>;
     const KIND: Kind;
+}
+
+/// A type implementing `Accumulate<T>` is used to accumulate a value of type `T`.
+pub trait Accumulate<T>: Default {
+    fn try_done(self, field: &'static str) -> Result<T, Error>;
+}
+
+impl<T> Accumulate<T> for Option<T> {
+    fn try_done(self, field: &'static str) -> Result<T, Error> {
+        self.ok_or(Error::MissingValue(field))
+    }
+}
+
+impl<T> Accumulate<Vec<T>> for Vec<T> {
+    fn try_done(self, _: &'static str) -> Result<Vec<T>, Error> {
+        Ok(self)
+    }
+}
+
+impl<T> Accumulate<Option<T>> for Option<T> {
+    fn try_done(self, _: &'static str) -> Result<Option<T>, Error> {
+        Ok(self)
+    }
 }
 
 pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
@@ -67,12 +85,9 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
         }));
     }
 
-    let mut value = None;
+    let mut value = T::Accumulator::default();
     T::deserialize(&mut Deserializer::new(root, &mut context), &mut value)?;
-    match value {
-        Some(value) => Ok(value),
-        None => T::missing("<root>"),
-    }
+    value.try_done("root element")
 }
 
 pub fn to_string(value: &(impl ToXml + ?Sized)) -> Result<String, Error> {

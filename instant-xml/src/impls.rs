@@ -1,13 +1,13 @@
-use std::any::type_name;
 use std::borrow::Cow;
 use std::fmt;
 use std::net::IpAddr;
 use std::str::FromStr;
+use std::{any::type_name, marker::PhantomData};
 
 #[cfg(feature = "chrono")]
 use chrono::{DateTime, NaiveDate, Utc};
 
-use crate::{Deserializer, Error, FromXml, Id, Kind, Serializer, ToXml};
+use crate::{Accumulate, Deserializer, Error, FromXml, Id, Kind, Serializer, ToXml};
 
 // Deserializer
 
@@ -49,7 +49,7 @@ impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
 
     fn deserialize(
         deserializer: &mut Deserializer<'_, 'xml>,
-        into: &mut Option<Self>,
+        into: &mut Self::Accumulator,
     ) -> Result<(), Error> {
         if into.is_some() {
             return Err(Error::DuplicateValue);
@@ -72,6 +72,7 @@ impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
         }
     }
 
+    type Accumulator = Option<FromXmlStr<T>>;
     const KIND: Kind = Kind::Scalar;
 }
 
@@ -86,7 +87,7 @@ impl<'xml> FromXml<'xml> for bool {
 
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
-        into: &mut Option<Self>,
+        into: &mut Self::Accumulator,
     ) -> Result<(), Error> {
         if into.is_some() {
             return Err(Error::DuplicateValue);
@@ -111,6 +112,7 @@ impl<'xml> FromXml<'xml> for bool {
         Ok(())
     }
 
+    type Accumulator = Option<bool>;
     const KIND: Kind = Kind::Scalar;
 }
 
@@ -180,7 +182,7 @@ macro_rules! from_xml_for_number {
 
             fn deserialize<'cx>(
                 deserializer: &mut Deserializer<'cx, 'xml>,
-                into: &mut Option<Self>,
+                into: &mut Self::Accumulator,
             ) -> Result<(), Error> {
                 if into.is_some() {
                     return Err(Error::DuplicateValue);
@@ -195,6 +197,7 @@ macro_rules! from_xml_for_number {
                 Ok(())
             }
 
+            type Accumulator = Option<Self>;
             const KIND: Kind = Kind::Scalar;
         }
     };
@@ -224,7 +227,7 @@ impl<'xml> FromXml<'xml> for char {
 
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
-        into: &mut Option<Self>,
+        into: &mut Self::Accumulator,
     ) -> Result<(), Error> {
         if into.is_some() {
             return Err(Error::DuplicateValue);
@@ -239,6 +242,7 @@ impl<'xml> FromXml<'xml> for char {
         Ok(())
     }
 
+    type Accumulator = Option<Self>;
     const KIND: Kind = Kind::Scalar;
 }
 
@@ -253,7 +257,7 @@ impl<'xml> FromXml<'xml> for String {
 
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
-        into: &mut Option<Self>,
+        into: &mut Self::Accumulator,
     ) -> Result<(), Error> {
         if into.is_some() {
             return Err(Error::DuplicateValue);
@@ -267,6 +271,7 @@ impl<'xml> FromXml<'xml> for String {
         Ok(())
     }
 
+    type Accumulator = Option<String>;
     const KIND: Kind = Kind::Scalar;
 }
 
@@ -281,7 +286,7 @@ impl<'xml> FromXml<'xml> for &'xml str {
 
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
-        into: &mut Option<Self>,
+        into: &mut Self::Accumulator,
     ) -> Result<(), Error> {
         if into.is_some() {
             return Err(Error::DuplicateValue);
@@ -304,6 +309,7 @@ impl<'xml> FromXml<'xml> for &'xml str {
         Ok(())
     }
 
+    type Accumulator = Option<&'xml str>;
     const KIND: Kind = Kind::Scalar;
 }
 
@@ -322,21 +328,19 @@ where
 
     fn deserialize(
         deserializer: &mut Deserializer<'_, 'xml>,
-        into: &mut Option<Self>,
+        into: &mut Self::Accumulator,
     ) -> Result<(), Error> {
         if into.is_some() {
             return Err(Error::DuplicateValue);
         }
 
-        let mut value = None;
+        let mut value = <T::Owned as FromXml<'xml>>::Accumulator::default();
         T::Owned::deserialize(deserializer, &mut value)?;
-        if let Some(value) = value {
-            *into = Some(Cow::Owned(value));
-        }
-
+        *into = Some(Cow::Owned(value.try_done("Cow<T>")?));
         Ok(())
     }
 
+    type Accumulator = Option<Cow<'a, T>>;
     const KIND: Kind = Kind::Scalar;
 }
 
@@ -348,29 +352,37 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
 
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
-        into: &mut Option<Self>,
+        into: &mut Self::Accumulator,
     ) -> Result<(), Error> {
-        match into.as_mut() {
-            Some(value) => {
-                <T>::deserialize(deserializer, value)?;
-            }
-            None => {
-                let mut value = None;
-                <T>::deserialize(deserializer, &mut value)?;
-                if let Some(value) = value {
-                    *into = Some(Some(value));
-                }
-            }
-        }
-
+        <T>::deserialize(deserializer, &mut into.value)?;
         Ok(())
     }
 
-    fn missing(_: &'static str) -> Result<Self, Error> {
-        Ok(None)
-    }
-
+    type Accumulator = OptionAccumulator<T, T::Accumulator>;
     const KIND: Kind = <T>::KIND;
+}
+
+pub struct OptionAccumulator<T, A: Accumulate<T>> {
+    value: A,
+    marker: PhantomData<T>,
+}
+
+impl<T, A: Accumulate<T>> Default for OptionAccumulator<T, A> {
+    fn default() -> Self {
+        Self {
+            value: A::default(),
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<T, A: Accumulate<T>> Accumulate<Option<T>> for OptionAccumulator<T, A> {
+    fn try_done(self, field: &'static str) -> Result<Option<T>, Error> {
+        match self.value.try_done(field) {
+            Ok(value) => Ok(Some(value)),
+            Err(_) => Ok(None),
+        }
+    }
 }
 
 to_xml_for_number!(i8);
@@ -556,22 +568,15 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Vec<T> {
 
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
-        into: &mut Option<Self>,
+        into: &mut Self::Accumulator,
     ) -> Result<(), Error> {
-        let mut value = None;
+        let mut value = T::Accumulator::default();
         T::deserialize(deserializer, &mut value)?;
-        let dst = into.get_or_insert(Vec::new());
-        if let Some(value) = value {
-            dst.push(value);
-        }
-
+        into.push(value.try_done("Vec<T>")?);
         Ok(())
     }
 
-    fn missing(_: &'static str) -> Result<Self, Error> {
-        Ok(Vec::new())
-    }
-
+    type Accumulator = Vec<T>;
     const KIND: Kind = T::KIND;
 }
 
@@ -636,7 +641,7 @@ impl<'xml> FromXml<'xml> for DateTime<Utc> {
 
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
-        into: &mut Option<Self>,
+        into: &mut Self::Accumulator,
     ) -> Result<(), Error> {
         if into.is_some() {
             return Err(Error::DuplicateValue);
@@ -656,6 +661,7 @@ impl<'xml> FromXml<'xml> for DateTime<Utc> {
         }
     }
 
+    type Accumulator = Option<Self>;
     const KIND: Kind = Kind::Scalar;
 }
 
@@ -696,7 +702,7 @@ impl<'xml> FromXml<'xml> for NaiveDate {
 
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
-        into: &mut Option<Self>,
+        into: &mut Self::Accumulator,
     ) -> Result<(), Error> {
         if into.is_some() {
             return Err(Error::DuplicateValue);
@@ -716,6 +722,7 @@ impl<'xml> FromXml<'xml> for NaiveDate {
         }
     }
 
+    type Accumulator = Option<Self>;
     const KIND: Kind = Kind::Scalar;
 }
 
@@ -730,12 +737,13 @@ impl<'xml> FromXml<'xml> for () {
 
     fn deserialize<'cx>(
         _: &mut Deserializer<'cx, 'xml>,
-        into: &mut Option<Self>,
+        into: &mut Self::Accumulator,
     ) -> Result<(), Error> {
         *into = Some(());
         Ok(())
     }
 
+    type Accumulator = Option<Self>;
     const KIND: Kind = Kind::Scalar;
 }
 
@@ -760,7 +768,7 @@ impl<'xml> FromXml<'xml> for IpAddr {
 
     fn deserialize<'cx>(
         deserializer: &mut Deserializer<'cx, 'xml>,
-        into: &mut Option<Self>,
+        into: &mut Self::Accumulator,
     ) -> Result<(), Error> {
         if into.is_some() {
             return Err(Error::DuplicateValue);
@@ -775,6 +783,7 @@ impl<'xml> FromXml<'xml> for IpAddr {
         Ok(())
     }
 
+    type Accumulator = Option<Self>;
     const KIND: Kind = Kind::Scalar;
 }
 

@@ -95,7 +95,11 @@ impl RenameRule {
 
     /// Apply a renaming rule to a struct field, returning the version expected in the source.
     pub fn apply_to_field(&self, ident: &Ident) -> String {
-        let field = ident.to_string();
+        let mut field = ident.to_string();
+        if field.starts_with("r#") {
+            field = field[2..].to_string();
+        }
+
         match *self {
             None | LowerCase | SnakeCase => field,
             UpperCase => field.to_ascii_uppercase(),

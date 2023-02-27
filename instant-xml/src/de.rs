@@ -211,7 +211,10 @@ impl<'xml> Iterator for Context<'xml> {
                     let prefix = prefix.as_str();
                     current = Some(Level {
                         local: local.as_str(),
-                        prefix: (!prefix.is_empty()).then_some(prefix),
+                        prefix: match prefix.is_empty() {
+                            true => None,
+                            false => Some(prefix),
+                        },
                         default_ns: None,
                         prefixes: BTreeMap::new(),
                     });
@@ -247,7 +250,11 @@ impl<'xml> Iterator for Context<'xml> {
                             }
                         };
 
-                        let prefix = (!prefix.is_empty()).then_some(prefix.as_str());
+                        let prefix = match prefix.is_empty() {
+                            true => None,
+                            false => Some(prefix.as_str()),
+                        };
+
                         match v.as_str() == level.local && prefix == level.prefix {
                             true => {
                                 return Some(Ok(Node::Close {
@@ -313,9 +320,11 @@ impl<'xml> Iterator for Context<'xml> {
                             }
                         }
                     } else {
-                        let prefix = (!prefix.is_empty()).then_some(prefix.as_str());
                         self.records.push_back(Node::Attribute(Attribute {
-                            prefix,
+                            prefix: match prefix.is_empty() {
+                                true => None,
+                                false => Some(prefix.as_str()),
+                            },
                             local: local.as_str(),
                             value: value.as_str(),
                         }));

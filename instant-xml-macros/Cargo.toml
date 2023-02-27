@@ -5,6 +5,9 @@ edition = "2021"
 rust-version = "1.58"
 workspace = ".."
 license = "Apache-2.0 OR MIT"
+description = "Procedural macros for instant-xml"
+documentation = "https://docs.rs/instant-xml-macros"
+repository = "https://github.com/InstantDomain/instant-xml"
 
 [lib]
 proc-macro = true

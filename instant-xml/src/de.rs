@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
-use crate::impls::decode;
+use crate::impls::{decode, CowStrAccumulator};
 use crate::{Error, Id};
 
 pub struct Deserializer<'cx, 'xml> {
@@ -344,19 +344,21 @@ impl<'xml> Iterator for Context<'xml> {
     }
 }
 
-pub fn borrow_cow_str<'xml>(
-    into: &mut Option<Cow<'xml, str>>,
+pub fn borrow_cow_str<'a, 'xml: 'a>(
+    into: &mut CowStrAccumulator<'xml, 'a>,
     _: &'static str,
     deserializer: &mut Deserializer<'_, 'xml>,
 ) -> Result<(), Error> {
-    if into.is_some() {
+    if into.inner.is_some() {
         return Err(Error::DuplicateValue);
     }
 
-    if let Some(value) = deserializer.take_str()? {
-        *into = Some(decode(value)?);
+    let value = match deserializer.take_str()? {
+        Some(value) => value,
+        None => return Ok(()),
     };
 
+    into.inner = Some(decode(value)?);
     deserializer.ignore()?;
     Ok(())
 }

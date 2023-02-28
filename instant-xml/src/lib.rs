@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{borrow::Cow, fmt};
 
 use thiserror::Error;
 
@@ -63,6 +63,15 @@ impl<T> Accumulate<T> for Option<T> {
 impl<T> Accumulate<Vec<T>> for Vec<T> {
     fn try_done(self, _: &'static str) -> Result<Vec<T>, Error> {
         Ok(self)
+    }
+}
+
+impl<'a, T> Accumulate<Cow<'a, [T]>> for Vec<T>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    fn try_done(self, _: &'static str) -> Result<Cow<'a, [T]>, Error> {
+        Ok(Cow::Owned(self))
     }
 }
 

@@ -479,6 +479,7 @@ fn deserialize_inline_struct(
 
     let (xml_impl_generics, xml_ty_generics, _) = generics.split_for_impl();
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
+    let visibility = &input.vis;
 
     quote!(
         impl #xml_impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
@@ -504,7 +505,7 @@ fn deserialize_inline_struct(
             const KIND: ::instant_xml::Kind = ::instant_xml::Kind::Element;
         }
 
-        struct #accumulator #xml_ty_generics #where_clause {
+        #visibility struct #accumulator #xml_ty_generics #where_clause {
             #acc_field_defs
         }
 

@@ -25,13 +25,14 @@ struct StructDeserializerScalars<'a, 'b> {
     nested: NestedLifetimes<'a>,
     cow: Cow<'a, str>,
     option: Option<&'a str>,
+    slice: Cow<'a, [u8]>,
 }
 
 #[test]
 fn scalars() {
     assert_eq!(
         from_str(
-            "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.20</f32_type><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes><cow>123</cow></StructDeserializerScalars>"
+            "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.20</f32_type><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes><cow>123</cow><slice>1</slice><slice>2</slice><slice>3</slice></StructDeserializerScalars>"
         ),
         Ok(StructDeserializerScalars{
             bool_type: true,
@@ -48,13 +49,14 @@ fn scalars() {
             },
             cow: Cow::from("123"),
             option: None,
+            slice: Cow::Borrowed(&[1, 2, 3]),
         })
     );
 
     // Option none
     assert_eq!(
         from_str(
-            "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.2</f32_type><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes><cow>123</cow><option>asd</option></StructDeserializerScalars>"
+            "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.2</f32_type><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes><cow>123</cow><option>asd</option><slice>1</slice><slice>2</slice><slice>3</slice></StructDeserializerScalars>"
         ),
         Ok(StructDeserializerScalars{
             bool_type: true,
@@ -71,6 +73,7 @@ fn scalars() {
             },
             cow: Cow::from("123"),
             option: Some("asd"),
+            slice: Cow::Borrowed(&[1, 2, 3]),
         })
     );
 }

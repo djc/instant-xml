@@ -319,11 +319,7 @@ impl<'xml> FromXml<'xml> for &'xml str {
     const KIND: Kind = Kind::Scalar;
 }
 
-impl<'xml, 'a, T: ?Sized> FromXml<'xml> for Cow<'a, T>
-where
-    T: ToOwned,
-    T::Owned: FromXml<'xml>,
-{
+impl<'xml, 'a> FromXml<'xml> for Cow<'a, str> {
     #[inline]
     fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
         match field {
@@ -334,20 +330,65 @@ where
 
     fn deserialize(
         into: &mut Self::Accumulator,
-        field: &'static str,
+        _: &'static str,
         deserializer: &mut Deserializer<'_, 'xml>,
     ) -> Result<(), Error> {
-        if into.is_some() {
+        if into.inner.is_some() {
             return Err(Error::DuplicateValue);
         }
 
-        let mut value = <T::Owned as FromXml<'xml>>::Accumulator::default();
-        T::Owned::deserialize(&mut value, field, deserializer)?;
-        *into = Some(Cow::Owned(value.try_done(field)?));
+        let value = match deserializer.take_str()? {
+            Some(value) => value,
+            None => return Ok(()),
+        };
+
+        into.inner = Some(decode(value)?.into_owned().into());
         Ok(())
     }
 
-    type Accumulator = Option<Cow<'a, T>>;
+    type Accumulator = CowStrAccumulator<'xml, 'a>;
+    const KIND: Kind = Kind::Scalar;
+}
+
+#[derive(Default)]
+pub struct CowStrAccumulator<'xml, 'a> {
+    pub(crate) inner: Option<Cow<'a, str>>,
+    marker: PhantomData<&'xml str>,
+}
+
+impl<'xml, 'a> Accumulate<Cow<'a, str>> for CowStrAccumulator<'xml, 'a> {
+    fn try_done(self, field: &'static str) -> Result<Cow<'a, str>, Error> {
+        match self.inner {
+            Some(inner) => Ok(inner),
+            None => Err(Error::MissingValue(field)),
+        }
+    }
+}
+
+// The `FromXml` implementation for `Cow<'a, [T]>` always builds a `Cow::Owned`:
+// it is not possible to deserialize into a `Cow::Borrowed` because there's no
+// place to store the originating slice (length only known at run-time).
+impl<'xml, 'a, T: FromXml<'xml>> FromXml<'xml> for Cow<'a, [T]>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        T::matches(id, field)
+    }
+
+    fn deserialize(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut Deserializer<'_, 'xml>,
+    ) -> Result<(), Error> {
+        let mut value = T::Accumulator::default();
+        T::deserialize(&mut value, field, deserializer)?;
+        into.push(value.try_done(field)?);
+        Ok(())
+    }
+
+    type Accumulator = Vec<T>;
     const KIND: Kind = Kind::Scalar;
 }
 

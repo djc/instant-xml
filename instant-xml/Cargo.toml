@@ -1,6 +1,6 @@
 [package]
 name = "instant-xml"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.58"
 workspace = ".."
@@ -11,7 +11,7 @@ repository = "https://github.com/InstantDomain/instant-xml"
 
 [dependencies]
 chrono = { version = "0.4.23", optional = true }
-macros = { package = "instant-xml-macros", version = "0.1", path = "../instant-xml-macros" }
+macros = { package = "instant-xml-macros", version = "0.2", path = "../instant-xml-macros" }
 thiserror = "1.0.29"
 xmlparser = "0.13.3"
 

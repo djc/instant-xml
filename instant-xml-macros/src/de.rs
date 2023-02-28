@@ -437,11 +437,13 @@ fn deserialize_inline_struct(
 
         let field_ty = data.no_lifetime_type;
         matches.extend(quote!(
-            #field_ty::matches(id, None)
+            <#field_ty as FromXml<'xml>>::matches(id, None)
         ));
 
         let field_name = &field.ident;
-        acc_field_defs.extend(quote!(#field_name: <#field_ty as FromXml<'xml>>::Accumulator,));
+        let field_ty_with_lifetime = &field.ty;
+        acc_field_defs
+            .extend(quote!(#field_name: <#field_ty_with_lifetime as FromXml<'xml>>::Accumulator,));
         let field_str = format!("{}::{}", input.ident, data.field_name);
         acc_field_inits.extend(quote!(#field_name: self.#field_name.try_done(#field_str)?,));
         acc_field_defaults.extend(quote!(#field_name: Default::default(),));
@@ -450,11 +452,13 @@ fn deserialize_inline_struct(
             deserialize.extend(quote!(else));
         }
         if let Some(with) = data.deserialize_with {
-            deserialize.extend(quote!(if #field_ty::matches(current, None) {
-                #with(&mut into.#field_name, #field_str, deserializer)?;
-            }));
+            deserialize.extend(
+                quote!(if <#field_ty as FromXml<'xml>>::matches(current, None) {
+                    #with(&mut into.#field_name, #field_str, deserializer)?;
+                }),
+            );
         } else {
-            deserialize.extend(quote!(if #field_ty::matches(current, None) {
+            deserialize.extend(quote!(if <#field_ty as FromXml<'xml>>::matches(current, None) {
                 match <#field_ty as FromXml>::KIND {
                     Kind::Element => {
                         <#field_ty>::deserialize(&mut into.#field_name, #field_str, deserializer)?;
@@ -505,7 +509,7 @@ fn deserialize_inline_struct(
         }
 
         impl #xml_impl_generics ::instant_xml::Accumulate<#ident #ty_generics> for #accumulator #xml_ty_generics #where_clause {
-            fn try_done(self, field: &'static str) -> Result<#ident #ty_generics, ::instant_xml::Error> {
+            fn try_done(self, _: &'static str) -> Result<#ident #ty_generics, ::instant_xml::Error> {
                 Ok(#ident {
                     #acc_field_inits
                 })

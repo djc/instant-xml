@@ -489,7 +489,7 @@ impl ToXml for char {
     }
 }
 
-impl ToXml for &str {
+impl ToXml for str {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,

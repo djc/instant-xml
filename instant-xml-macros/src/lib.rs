@@ -76,7 +76,7 @@ impl<'input> ContainerMeta<'input> {
 
     fn xml_generics(&self, borrowed: BTreeSet<syn::Lifetime>) -> Generics {
         let mut xml_generics = self.input.generics.clone();
-        let mut xml = syn::LifetimeDef::new(syn::Lifetime::new("'xml", Span::call_site()));
+        let mut xml = syn::LifetimeParam::new(syn::Lifetime::new("'xml", Span::call_site()));
         xml.bounds.extend(borrowed.into_iter());
         xml_generics.params.push(xml.into());
 
@@ -285,9 +285,7 @@ fn discard_path_lifetimes(
                     syn::GenericArgument::Type(ty) => {
                         discard_lifetimes(ty, borrowed, borrow, false)
                     }
-                    syn::GenericArgument::Binding(_)
-                    | syn::GenericArgument::Constraint(_)
-                    | syn::GenericArgument::Const(_) => {}
+                    _ => {}
                 })
             }
             syn::PathArguments::Parenthesized(args) => args

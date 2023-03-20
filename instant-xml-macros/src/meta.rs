@@ -4,7 +4,6 @@ use std::fmt;
 use proc_macro2::{Delimiter, Group, Ident, Literal, Punct, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use syn::punctuated::Punctuated;
-use syn::token::Colon2;
 
 use super::Mode;
 
@@ -81,9 +80,10 @@ impl NamespaceMeta {
                             segments.push_value(id.into());
 
                             syn::Path {
-                                leading_colon: Some(Colon2 {
-                                    spans: [colon1.span(), colon2.span()],
-                                }),
+                                leading_colon: Some(syn::Token![::]([
+                                    colon1.span(),
+                                    colon2.span(),
+                                ])),
                                 segments,
                             }
                         }
@@ -203,9 +203,10 @@ impl NamespaceMeta {
                             segments.push_value(id.into());
 
                             syn::Path {
-                                leading_colon: Some(Colon2 {
-                                    spans: [colon1.span(), colon2.span()],
-                                }),
+                                leading_colon: Some(syn::Token![::]([
+                                    colon1.span(),
+                                    colon2.span(),
+                                ])),
                                 segments,
                             }
                         }
@@ -266,26 +267,17 @@ impl NamespaceMeta {
 }
 
 pub(crate) fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
+    let list = match attrs.iter().find(|attr| attr.path().is_ident("xml")) {
+        Some(attr) => match &attr.meta {
+            syn::Meta::List(list) => list,
+            _ => panic!("expected list in xml attribute"),
+        },
+        None => return Vec::new(),
+    };
+
     let mut items = Vec::new();
-    let attr = match attrs.iter().find(|attr| attr.path.is_ident("xml")) {
-        Some(attr) => attr,
-        None => return items,
-    };
-
-    let mut iter = attr.tokens.clone().into_iter();
-    let first = match iter.next() {
-        Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Parenthesis => {
-            group.stream()
-        }
-        _ => panic!("expected parenthesized group in xml attribute"),
-    };
-
-    if iter.next().is_some() {
-        panic!("expected single token tree in xml attribute");
-    }
-
     let mut state = MetaState::Start;
-    for tree in first {
+    for tree in list.tokens.clone() {
         let span = tree.span();
         state = match (state, tree) {
             (MetaState::Start, TokenTree::Ident(id)) => {

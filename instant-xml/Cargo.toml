@@ -8,6 +8,7 @@ license = "Apache-2.0 OR MIT"
 description = "A more rigorous way to map XML to Rust types"
 documentation = "https://docs.rs/instant-xml"
 repository = "https://github.com/InstantDomain/instant-xml"
+readme = "../README.md"
 
 [dependencies]
 chrono = { version = "0.4.23", optional = true }

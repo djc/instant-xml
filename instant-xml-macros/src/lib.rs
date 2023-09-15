@@ -77,7 +77,7 @@ impl<'input> ContainerMeta<'input> {
     fn xml_generics(&self, borrowed: BTreeSet<syn::Lifetime>) -> Generics {
         let mut xml_generics = self.input.generics.clone();
         let mut xml = syn::LifetimeParam::new(syn::Lifetime::new("'xml", Span::call_site()));
-        xml.bounds.extend(borrowed.into_iter());
+        xml.bounds.extend(borrowed);
         xml_generics.params.push(xml.into());
 
         for param in xml_generics.type_params_mut() {
@@ -243,7 +243,7 @@ fn discard_lifetimes(
                     }
                     syn::Type::Slice(inner) if top => match &*inner.elem {
                         syn::Type::Path(inner) if inner.path.is_ident("u8") => {
-                            borrowed.extend(ty.lifetime.take().into_iter());
+                            borrowed.extend(ty.lifetime.take());
                         }
                         _ => {}
                     },
@@ -251,7 +251,7 @@ fn discard_lifetimes(
                 }
             } else if borrow {
                 // Otherwise, only borrow if the user has requested it.
-                borrowed.extend(ty.lifetime.take().into_iter());
+                borrowed.extend(ty.lifetime.take());
             } else {
                 ty.lifetime = None;
             }

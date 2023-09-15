@@ -584,8 +584,9 @@ fn named_field<'a>(
         });
     }
 
+    let val_name = Ident::new(&format!("__value{index}"), Span::call_site());
     declare_values.extend(quote!(
-        let mut #enum_name = <#no_lifetime_type as FromXml>::Accumulator::default();
+        let mut #val_name = <#no_lifetime_type as FromXml>::Accumulator::default();
     ));
 
     let deserialize_with = field_meta
@@ -614,14 +615,14 @@ fn named_field<'a>(
             tokens.r#match.extend(quote!(
                 __Elements::#enum_name => {
                     let mut nested = deserializer.nested(data);
-                    #with(&mut #enum_name, #field_str, &mut nested)?;
+                    #with(&mut #val_name, #field_str, &mut nested)?;
                 },
             ));
         } else if field_meta.direct {
             direct.extend(quote!(
                 Node::Text(text) => {
                     let mut nested = deserializer.for_node(Node::Text(text));
-                    <#no_lifetime_type>::deserialize(&mut #enum_name, #field_str, &mut nested)?;
+                    <#no_lifetime_type>::deserialize(&mut #val_name, #field_str, &mut nested)?;
                 }
             ));
         } else {
@@ -629,11 +630,11 @@ fn named_field<'a>(
                 __Elements::#enum_name => match <#no_lifetime_type as FromXml>::KIND {
                     Kind::Element => {
                         let mut nested = deserializer.nested(data);
-                        <#no_lifetime_type>::deserialize(&mut #enum_name, #field_str, &mut nested)?;
+                        <#no_lifetime_type>::deserialize(&mut #val_name, #field_str, &mut nested)?;
                     }
                     Kind::Scalar => {
                         let mut nested = deserializer.nested(data);
-                        <#no_lifetime_type>::deserialize(&mut #enum_name, #field_str, &mut nested)?;
+                        <#no_lifetime_type>::deserialize(&mut #val_name, #field_str, &mut nested)?;
                         nested.ignore()?;
                     }
                 },
@@ -651,21 +652,21 @@ fn named_field<'a>(
             tokens.r#match.extend(quote!(
                 __Attributes::#enum_name => {
                     let mut nested = deserializer.nested(data);
-                    #with(&mut #enum_name, #field_str, &mut nested)?;
+                    #with(&mut #val_name, #field_str, &mut nested)?;
                 },
             ));
         } else {
             tokens.r#match.extend(quote!(
                 __Attributes::#enum_name => {
                     let mut nested = deserializer.for_node(Node::AttributeValue(attr.value));
-                    let new = <#no_lifetime_type as FromXml>::deserialize(&mut #enum_name, #field_str, &mut nested)?;
+                    let new = <#no_lifetime_type as FromXml>::deserialize(&mut #val_name, #field_str, &mut nested)?;
                 },
             ));
         }
     };
 
     return_val.extend(quote!(
-        #field_name: #enum_name.try_done(#field_str)?,
+        #field_name: #val_name.try_done(#field_str)?,
     ));
 
     Ok(FieldData {

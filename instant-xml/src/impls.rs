@@ -529,7 +529,7 @@ impl<T: ToXml> ToXml for Option<T> {
 fn encode(input: &str) -> Result<Cow<'_, str>, Error> {
     let mut result = String::with_capacity(input.len());
     let mut last_end = 0;
-    for (start, c) in input.chars().enumerate() {
+    for (start, c) in input.char_indices() {
         let to = match c {
             '&' => "&amp;",
             '"' => "&quot;",
@@ -849,7 +849,7 @@ impl<'xml> FromXml<'xml> for IpAddr {
 
 #[cfg(test)]
 mod tests {
-    use super::decode;
+    use super::*;
 
     #[test]
     fn test_decode() {
@@ -866,5 +866,11 @@ mod tests {
         assert!(decode("&foo;").is_err());
         assert!(decode("&foobar;").is_err());
         assert!(decode("cbdtéd&ampü").is_err());
+    }
+
+    #[test]
+    fn encode_unicode() {
+        let input = "Iñtërnâ&tiônàlizætiøn";
+        assert_eq!(encode(input).unwrap(), "Iñtërnâ&amp;tiônàlizætiøn");
     }
 }

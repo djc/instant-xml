@@ -2,3 +2,4 @@
 /instant-xml/target
 /instant-xml-macros/target
 Cargo.lock
+**/.DS_Store

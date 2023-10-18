@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::fmt;
 use std::net::IpAddr;
+use std::str;
 use std::str::FromStr;
 use std::{any::type_name, marker::PhantomData};
 
@@ -560,12 +561,26 @@ pub(crate) fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
             (DecodeState::Normal, b'&') => DecodeState::Entity([0; 4], 0),
             (DecodeState::Normal, _) => DecodeState::Normal,
             (DecodeState::Entity(chars, len), b';') => {
-                let decoded = match chars[..len] {
+                let decoded = match &chars[..len] {
                     [b'a', b'm', b'p'] => '&',
                     [b'a', b'p', b'o', b's'] => '\'',
                     [b'g', b't'] => '>',
                     [b'l', b't'] => '<',
                     [b'q', b'u', b'o', b't'] => '"',
+                    [b'#', decimal @ ..] => {
+                        // Decimal character reference e.g. "&#1234;" -> 'Ӓ'
+                        str::from_utf8(decimal)
+                            .ok()
+                            .and_then(|decimal_str| u32::from_str(decimal_str).ok())
+                            .and_then(char::from_u32)
+                            // Valid character ranges per https://www.w3.org/TR/xml/#NT-Char
+                            .filter(|c| matches!(c, '\u{9}' | '\u{A}' | '\u{D}' | '\u{20}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..='\u{10FFFF}'))
+                            .ok_or_else(|| {
+                                Error::InvalidEntity(
+                                    String::from_utf8_lossy(&chars[..len]).into_owned(),
+                                )
+                            })?
+                    }
                     _ => {
                         return Err(Error::InvalidEntity(
                             String::from_utf8_lossy(&chars[..len]).into_owned(),
@@ -870,7 +885,13 @@ mod tests {
         assert_eq!(decode("&amp; foo").unwrap(), "& foo");
         assert_eq!(decode("foo &amp;").unwrap(), "foo &");
         assert_eq!(decode("cbdtéda&amp;sü").unwrap(), "cbdtéda&sü");
+        assert_eq!(decode("&#1234;").unwrap(), "Ӓ");
+        assert_eq!(decode("foo &#9; bar").unwrap(), "foo \t bar");
+        assert_eq!(decode("foo &#124; bar").unwrap(), "foo | bar");
+        assert_eq!(decode("foo &#1234; bar").unwrap(), "foo Ӓ bar");
         assert!(decode("&").is_err());
+        assert!(decode("&#").is_err());
+        assert!(decode("&#;").is_err());
         assert!(decode("foo&").is_err());
         assert!(decode("&bar").is_err());
         assert!(decode("&foo;").is_err());

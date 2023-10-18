@@ -333,6 +333,9 @@ impl<'xml> Iterator for Context<'xml> {
                 Ok(Token::Text { text }) => {
                     return Some(Ok(Node::Text(text.as_str())));
                 }
+                Ok(Token::Cdata { text, .. }) => {
+                    return Some(Ok(Node::Text(text.as_str())));
+                }
                 Ok(Token::Declaration { .. }) => match self.stack.is_empty() {
                     false => return Some(Err(Error::UnexpectedToken(format!("{token:?}")))),
                     true => {}

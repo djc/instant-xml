@@ -599,6 +599,13 @@ pub(crate) fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
         };
     }
 
+    // Unterminated entity (& without ;) at end of input
+    if let DecodeState::Entity(chars, len) = state {
+        return Err(Error::InvalidEntity(
+            String::from_utf8_lossy(&chars[..len]).into_owned(),
+        ));
+    }
+
     Ok(match result.is_empty() {
         true => Cow::Borrowed(input),
         false => {
@@ -863,6 +870,9 @@ mod tests {
         assert_eq!(decode("&amp; foo").unwrap(), "& foo");
         assert_eq!(decode("foo &amp;").unwrap(), "foo &");
         assert_eq!(decode("cbdtéda&amp;sü").unwrap(), "cbdtéda&sü");
+        assert!(decode("&").is_err());
+        assert!(decode("foo&").is_err());
+        assert!(decode("&bar").is_err());
         assert!(decode("&foo;").is_err());
         assert!(decode("&foobar;").is_err());
         assert!(decode("cbdtéd&ampü").is_err());

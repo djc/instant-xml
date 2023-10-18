@@ -558,7 +558,7 @@ pub(crate) fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
     for (i, &b) in input.as_bytes().iter().enumerate() {
         // use a state machine to find entities
         state = match (state, b) {
-            (DecodeState::Normal, b'&') => DecodeState::Entity([0; 4], 0),
+            (DecodeState::Normal, b'&') => DecodeState::Entity([0; 6], 0),
             (DecodeState::Normal, _) => DecodeState::Normal,
             (DecodeState::Entity(chars, len), b';') => {
                 let decoded = match &chars[..len] {
@@ -567,14 +567,26 @@ pub(crate) fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
                     [b'g', b't'] => '>',
                     [b'l', b't'] => '<',
                     [b'q', b'u', b'o', b't'] => '"',
+                    [b'#', b'x' | b'X', hex @ ..] => {
+                        // Hexadecimal character reference e.g. "&#x007c;" -> '|'
+                        str::from_utf8(hex)
+                            .ok()
+                            .and_then(|hex_str| u32::from_str_radix(hex_str, 16).ok())
+                            .and_then(char::from_u32)
+                            .filter(valid_xml_character)
+                            .ok_or_else(|| {
+                                Error::InvalidEntity(
+                                    String::from_utf8_lossy(&chars[..len]).into_owned(),
+                                )
+                            })?
+                    }
                     [b'#', decimal @ ..] => {
                         // Decimal character reference e.g. "&#1234;" -> 'Ӓ'
                         str::from_utf8(decimal)
                             .ok()
                             .and_then(|decimal_str| u32::from_str(decimal_str).ok())
                             .and_then(char::from_u32)
-                            // Valid character ranges per https://www.w3.org/TR/xml/#NT-Char
-                            .filter(|c| matches!(c, '\u{9}' | '\u{A}' | '\u{D}' | '\u{20}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..='\u{10FFFF}'))
+                            .filter(valid_xml_character)
                             .ok_or_else(|| {
                                 Error::InvalidEntity(
                                     String::from_utf8_lossy(&chars[..len]).into_owned(),
@@ -599,8 +611,8 @@ pub(crate) fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
                 DecodeState::Normal
             }
             (DecodeState::Entity(mut chars, len), b) => {
-                if len >= 4 {
-                    let mut bytes = Vec::with_capacity(5);
+                if len >= 6 {
+                    let mut bytes = Vec::with_capacity(7);
                     bytes.extend(&chars[..len]);
                     bytes.push(b);
                     return Err(Error::InvalidEntity(
@@ -634,7 +646,12 @@ pub(crate) fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
 #[derive(Debug)]
 enum DecodeState {
     Normal,
-    Entity([u8; 4], usize),
+    Entity([u8; 6], usize),
+}
+
+/// Valid character ranges per https://www.w3.org/TR/xml/#NT-Char
+fn valid_xml_character(c: &char) -> bool {
+    matches!(c, '\u{9}' | '\u{A}' | '\u{D}' | '\u{20}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..='\u{10FFFF}')
 }
 
 impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Vec<T> {
@@ -885,10 +902,20 @@ mod tests {
         assert_eq!(decode("&amp; foo").unwrap(), "& foo");
         assert_eq!(decode("foo &amp;").unwrap(), "foo &");
         assert_eq!(decode("cbdtéda&amp;sü").unwrap(), "cbdtéda&sü");
+        // Decimal character references
         assert_eq!(decode("&#1234;").unwrap(), "Ӓ");
         assert_eq!(decode("foo &#9; bar").unwrap(), "foo \t bar");
         assert_eq!(decode("foo &#124; bar").unwrap(), "foo | bar");
         assert_eq!(decode("foo &#1234; bar").unwrap(), "foo Ӓ bar");
+        // Hexadecimal character references
+        assert_eq!(decode("&#xc4;").unwrap(), "Ä");
+        assert_eq!(decode("&#x00c4;").unwrap(), "Ä");
+        assert_eq!(decode("foo &#x9; bar").unwrap(), "foo \t bar");
+        assert_eq!(decode("foo &#x007c; bar").unwrap(), "foo | bar");
+        assert_eq!(decode("foo &#xc4; bar").unwrap(), "foo Ä bar");
+        assert_eq!(decode("foo &#x00c4; bar").unwrap(), "foo Ä bar");
+        assert_eq!(decode("foo &#x10de; bar").unwrap(), "foo პ bar");
+
         assert!(decode("&").is_err());
         assert!(decode("&#").is_err());
         assert!(decode("&#;").is_err());

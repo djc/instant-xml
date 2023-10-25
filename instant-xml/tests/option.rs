@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use similar_asserts::assert_eq;
 
 use instant_xml::{from_str, to_string, FromXml, ToXml};
@@ -21,12 +23,14 @@ fn option_vec() {
 #[derive(Debug, Eq, FromXml, PartialEq, ToXml)]
 struct Bar<'a> {
     #[xml(attribute, borrow)]
-    maybe: Option<&'a str>,
+    maybe: Option<Cow<'a, str>>,
 }
 
 #[test]
 fn option_borrow() {
-    let v = Bar { maybe: Some("a") };
+    let v = Bar {
+        maybe: Some("a".into()),
+    };
     let xml = r#"<Bar maybe="a"></Bar>"#;
 
     assert_eq!(xml, to_string(&v).unwrap());

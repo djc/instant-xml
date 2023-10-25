@@ -8,7 +8,7 @@ use instant_xml::{from_str, FromXml, ToXml};
 #[xml(ns("URI"))]
 struct NestedLifetimes<'a> {
     flag: bool,
-    str_type_a: &'a str,
+    str_type_a: Cow<'a, str>,
 }
 
 #[derive(Debug, PartialEq, FromXml, ToXml)]
@@ -18,13 +18,13 @@ struct StructDeserializerScalars<'a, 'b> {
     i8_type: i8,
     u32_type: u32,
     string_type: String,
-    str_type_a: &'a str,
-    str_type_b: &'b str,
+    str_type_a: Cow<'a, str>,
+    str_type_b: Cow<'b, str>,
     char_type: char,
     f32_type: f32,
     nested: NestedLifetimes<'a>,
     cow: Cow<'a, str>,
-    option: Option<&'a str>,
+    option: Option<Cow<'a, str>>,
     slice: Cow<'a, [u8]>,
 }
 
@@ -39,13 +39,13 @@ fn scalars() {
             i8_type: 1,
             u32_type: 42,
             string_type: "string".to_string(),
-            str_type_a: "lifetime a",
-            str_type_b: "lifetime b",
+            str_type_a: "lifetime a".into(),
+            str_type_b: "lifetime b".into(),
             char_type: 'c',
             f32_type: 1.20,
             nested: NestedLifetimes {
                 flag: true,
-                str_type_a: "asd"
+                str_type_a: "asd".into()
             },
             cow: Cow::from("123"),
             option: None,
@@ -63,16 +63,16 @@ fn scalars() {
             i8_type: 1,
             u32_type: 42,
             string_type: "string".to_string(),
-            str_type_a: "lifetime a",
-            str_type_b: "lifetime b",
+            str_type_a: "lifetime a".into(),
+            str_type_b: "lifetime b".into(),
             char_type: 'c',
             f32_type: 1.20,
             nested: NestedLifetimes {
                 flag: true,
-                str_type_a: "asd"
+                str_type_a: "asd".into(),
             },
             cow: Cow::from("123"),
-            option: Some("asd"),
+            option: Some("asd".into()),
             slice: Cow::Borrowed(&[1, 2, 3]),
         })
     );

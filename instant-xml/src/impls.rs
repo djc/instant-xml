@@ -281,45 +281,6 @@ impl<'xml> FromXml<'xml> for String {
     const KIND: Kind = Kind::Scalar;
 }
 
-impl<'xml> FromXml<'xml> for &'xml str {
-    #[inline]
-    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
-        match field {
-            Some(field) => id == field,
-            None => false,
-        }
-    }
-
-    fn deserialize<'cx>(
-        into: &mut Self::Accumulator,
-        field: &'static str,
-        deserializer: &mut Deserializer<'cx, 'xml>,
-    ) -> Result<(), Error> {
-        if into.is_some() {
-            return Err(Error::DuplicateValue);
-        }
-
-        let value = match deserializer.take_str()? {
-            Some(value) => value,
-            None => return Ok(()),
-        };
-
-        match decode(value)? {
-            Cow::Borrowed(str) => *into = Some(str),
-            Cow::Owned(_) => {
-                return Err(Error::UnexpectedValue(format!(
-                    "string with escape characters cannot be deserialized as &str for {field}: '{value}'",
-                )))
-            }
-        }
-
-        Ok(())
-    }
-
-    type Accumulator = Option<&'xml str>;
-    const KIND: Kind = Kind::Scalar;
-}
-
 impl<'xml, 'a> FromXml<'xml> for Cow<'a, str> {
     #[inline]
     fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {

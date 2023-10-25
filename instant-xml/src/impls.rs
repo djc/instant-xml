@@ -8,7 +8,6 @@ use std::{any::type_name, marker::PhantomData};
 #[cfg(feature = "chrono")]
 use chrono::{DateTime, NaiveDate, Utc};
 
-use crate::de::decode;
 use crate::{Accumulate, Deserializer, Error, FromXml, Id, Kind, Serializer, ToXml};
 
 // Deserializer
@@ -26,7 +25,7 @@ pub fn from_xml_str<T: FromStr>(
         None => return Ok(()),
     };
 
-    match T::from_str(value) {
+    match T::from_str(value.as_ref()) {
         Ok(value) => {
             *into = Some(value);
             Ok(())
@@ -63,7 +62,7 @@ impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
             None => return Ok(()),
         };
 
-        match T::from_str(value) {
+        match T::from_str(value.as_ref()) {
             Ok(value) => {
                 *into = Some(FromXmlStr(value));
                 Ok(())
@@ -102,7 +101,7 @@ impl<'xml> FromXml<'xml> for bool {
             None => return Ok(()),
         };
 
-        let value = match value {
+        let value = match value.as_ref() {
             "true" | "1" => true,
             "false" | "0" => false,
             val => {
@@ -271,7 +270,7 @@ impl<'xml> FromXml<'xml> for String {
         }
 
         match deserializer.take_str()? {
-            Some(value) => *into = Some(decode(value)?.into_owned()),
+            Some(value) => *into = Some(value.into_owned()),
             None => return Ok(()),
         }
 
@@ -305,7 +304,7 @@ impl<'xml, 'a> FromXml<'xml> for Cow<'a, str> {
             None => return Ok(()),
         };
 
-        into.inner = Some(decode(value)?.into_owned().into());
+        into.inner = Some(value.into_owned().into());
         Ok(())
     }
 
@@ -608,7 +607,7 @@ impl<'xml> FromXml<'xml> for DateTime<Utc> {
             None => return Ok(()),
         };
 
-        match DateTime::parse_from_rfc3339(value) {
+        match DateTime::parse_from_rfc3339(value.as_ref()) {
             Ok(dt) if dt.timezone().utc_minus_local() == 0 => {
                 *into = Some(dt.with_timezone(&Utc));
                 Ok(())
@@ -670,7 +669,7 @@ impl<'xml> FromXml<'xml> for NaiveDate {
             None => return Ok(()),
         };
 
-        match NaiveDate::parse_from_str(value, "%Y-%m-%d") {
+        match NaiveDate::parse_from_str(value.as_ref(), "%Y-%m-%d") {
             Ok(d) => {
                 *into = Some(d);
                 Ok(())

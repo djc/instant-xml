@@ -892,38 +892,46 @@ mod tests {
 
     #[test]
     fn test_decode() {
-        assert_eq!(decode("foo").unwrap(), "foo");
-        assert_eq!(decode("foo &amp; bar").unwrap(), "foo & bar");
-        assert_eq!(decode("foo &lt; bar").unwrap(), "foo < bar");
-        assert_eq!(decode("foo &gt; bar").unwrap(), "foo > bar");
-        assert_eq!(decode("foo &quot; bar").unwrap(), "foo \" bar");
-        assert_eq!(decode("foo &apos; bar").unwrap(), "foo ' bar");
-        assert_eq!(decode("foo &amp;lt; bar").unwrap(), "foo &lt; bar");
-        assert_eq!(decode("&amp; foo").unwrap(), "& foo");
-        assert_eq!(decode("foo &amp;").unwrap(), "foo &");
-        assert_eq!(decode("cbdtéda&amp;sü").unwrap(), "cbdtéda&sü");
+        decode_ok("foo", "foo");
+        decode_ok("foo &amp; bar", "foo & bar");
+        decode_ok("foo &lt; bar", "foo < bar");
+        decode_ok("foo &gt; bar", "foo > bar");
+        decode_ok("foo &quot; bar", "foo \" bar");
+        decode_ok("foo &apos; bar", "foo ' bar");
+        decode_ok("foo &amp;lt; bar", "foo &lt; bar");
+        decode_ok("&amp; foo", "& foo");
+        decode_ok("foo &amp;", "foo &");
+        decode_ok("cbdtéda&amp;sü", "cbdtéda&sü");
         // Decimal character references
-        assert_eq!(decode("&#1234;").unwrap(), "Ӓ");
-        assert_eq!(decode("foo &#9; bar").unwrap(), "foo \t bar");
-        assert_eq!(decode("foo &#124; bar").unwrap(), "foo | bar");
-        assert_eq!(decode("foo &#1234; bar").unwrap(), "foo Ӓ bar");
+        decode_ok("&#1234;", "Ӓ");
+        decode_ok("foo &#9; bar", "foo \t bar");
+        decode_ok("foo &#124; bar", "foo | bar");
+        decode_ok("foo &#1234; bar", "foo Ӓ bar");
         // Hexadecimal character references
-        assert_eq!(decode("&#xc4;").unwrap(), "Ä");
-        assert_eq!(decode("&#x00c4;").unwrap(), "Ä");
-        assert_eq!(decode("foo &#x9; bar").unwrap(), "foo \t bar");
-        assert_eq!(decode("foo &#x007c; bar").unwrap(), "foo | bar");
-        assert_eq!(decode("foo &#xc4; bar").unwrap(), "foo Ä bar");
-        assert_eq!(decode("foo &#x00c4; bar").unwrap(), "foo Ä bar");
-        assert_eq!(decode("foo &#x10de; bar").unwrap(), "foo პ bar");
+        decode_ok("&#xc4;", "Ä");
+        decode_ok("&#x00c4;", "Ä");
+        decode_ok("foo &#x9; bar", "foo \t bar");
+        decode_ok("foo &#x007c; bar", "foo | bar");
+        decode_ok("foo &#xc4; bar", "foo Ä bar");
+        decode_ok("foo &#x00c4; bar", "foo Ä bar");
+        decode_ok("foo &#x10de; bar", "foo პ bar");
 
-        assert!(decode("&").is_err());
-        assert!(decode("&#").is_err());
-        assert!(decode("&#;").is_err());
-        assert!(decode("foo&").is_err());
-        assert!(decode("&bar").is_err());
-        assert!(decode("&foo;").is_err());
-        assert!(decode("&foobar;").is_err());
-        assert!(decode("cbdtéd&ampü").is_err());
+        decode_err("&");
+        decode_err("&#");
+        decode_err("&#;");
+        decode_err("foo&");
+        decode_err("&bar");
+        decode_err("&foo;");
+        decode_err("&foobar;");
+        decode_err("cbdtéd&ampü");
+    }
+
+    fn decode_ok(input: &str, expected: &'static str) {
+        assert_eq!(super::decode(input).unwrap(), expected, "{input:?}");
+    }
+
+    fn decode_err(input: &str) {
+        assert!(super::decode(input).is_err(), "{input:?}");
     }
 
     #[test]

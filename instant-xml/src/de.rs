@@ -339,6 +339,9 @@ impl<'xml> Iterator for Context<'xml> {
                 Ok(Token::Text { text }) => {
                     return Some(decode(text.as_str()).map(Node::Text));
                 }
+                Ok(Token::Cdata { text, .. }) => {
+                    return Some(Ok(Node::Text(Cow::Borrowed(text.as_str()))));
+                }
                 Ok(Token::Declaration { .. }) => match self.stack.is_empty() {
                     false => return Some(Err(Error::UnexpectedToken(format!("{token:?}")))),
                     true => {}

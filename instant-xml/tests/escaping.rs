@@ -55,3 +55,28 @@ fn special_entities() {
         "<StructSpecialEntities xmlns=\"URI\"><string>&amp;&quot;&lt;&gt;&apos;aa</string><cow>&amp;&quot;&lt;&gt;&apos;cc</cow></StructSpecialEntities>",
     );
 }
+
+#[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
+struct SimpleCData<'a> {
+    #[xml(borrow)]
+    foo: Cow<'a, str>,
+}
+
+#[test]
+fn simple_cdata() {
+    assert_eq!(
+        from_str::<SimpleCData>("<SimpleCData><foo><![CDATA[<fo&amp;o>]]></foo></SimpleCData>")
+            .unwrap(),
+        SimpleCData {
+            foo: Cow::Borrowed("<fo&amp;o>")
+        }
+    );
+
+    assert_eq!(
+        to_string(&SimpleCData {
+            foo: Cow::Borrowed("<foo>")
+        })
+        .unwrap(),
+        "<SimpleCData><foo>&lt;foo&gt;</foo></SimpleCData>",
+    );
+}

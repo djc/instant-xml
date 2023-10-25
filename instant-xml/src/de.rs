@@ -31,7 +31,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
-    pub fn take_str(&mut self) -> Result<Option<&'xml str>, Error> {
+    pub fn take_str(&mut self) -> Result<Option<Cow<'xml, str>>, Error> {
         loop {
             match self.next() {
                 Some(Ok(Node::AttributeValue(s))) => return Ok(Some(s)),
@@ -321,18 +321,23 @@ impl<'xml> Iterator for Context<'xml> {
                             }
                         }
                     } else {
+                        let value = match decode(value.as_str()) {
+                            Ok(value) => value,
+                            Err(e) => return Some(Err(e)),
+                        };
+
                         self.records.push_back(Node::Attribute(Attribute {
                             prefix: match prefix.is_empty() {
                                 true => None,
                                 false => Some(prefix.as_str()),
                             },
                             local: local.as_str(),
-                            value: value.as_str(),
+                            value,
                         }));
                     }
                 }
                 Ok(Token::Text { text }) => {
-                    return Some(Ok(Node::Text(text.as_str())));
+                    return Some(decode(text.as_str()).map(Node::Text));
                 }
                 Ok(Token::Declaration { .. }) => match self.stack.is_empty() {
                     false => return Some(Err(Error::UnexpectedToken(format!("{token:?}")))),
@@ -354,12 +359,11 @@ pub fn borrow_cow_str<'a, 'xml: 'a>(
         return Err(Error::DuplicateValue);
     }
 
-    let value = match deserializer.take_str()? {
-        Some(value) => value,
+    match deserializer.take_str()? {
+        Some(value) => into.inner = Some(value),
         None => return Ok(()),
     };
 
-    into.inner = Some(decode(value)?);
     deserializer.ignore()?;
     Ok(())
 }
@@ -374,7 +378,7 @@ pub fn borrow_cow_slice_u8<'xml>(
     }
 
     if let Some(value) = deserializer.take_str()? {
-        *into = Some(match decode(value)? {
+        *into = Some(match value {
             Cow::Borrowed(v) => Cow::Borrowed(v.as_bytes()),
             Cow::Owned(v) => Cow::Owned(v.into_bytes()),
         });
@@ -384,7 +388,7 @@ pub fn borrow_cow_slice_u8<'xml>(
     Ok(())
 }
 
-pub(crate) fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
+fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
     let mut result = String::with_capacity(input.len());
     let (mut state, mut last_end) = (DecodeState::Normal, 0);
     for (i, &b) in input.as_bytes().iter().enumerate() {
@@ -489,12 +493,12 @@ fn valid_xml_character(c: &char) -> bool {
 #[derive(Debug)]
 pub enum Node<'xml> {
     Attribute(Attribute<'xml>),
-    AttributeValue(&'xml str),
+    AttributeValue(Cow<'xml, str>),
     Close {
         prefix: Option<&'xml str>,
         local: &'xml str,
     },
-    Text(&'xml str),
+    Text(Cow<'xml, str>),
     Open(Element<'xml>),
 }
 
@@ -519,7 +523,7 @@ struct Level<'xml> {
 pub struct Attribute<'xml> {
     pub prefix: Option<&'xml str>,
     pub local: &'xml str,
-    pub value: &'xml str,
+    pub value: Cow<'xml, str>,
 }
 
 #[cfg(test)]

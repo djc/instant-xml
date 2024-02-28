@@ -1,3 +1,5 @@
+![Cover logo](./cover.svg)
+
 # instant-xml: more rigorously mapping XML to Rust types
 
 [![Documentation](https://docs.rs/instant-xml/badge.svg)](https://docs.rs/instant-xml)

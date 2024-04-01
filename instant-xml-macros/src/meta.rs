@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use proc_macro2::{Delimiter, Group, Ident, Literal, Punct, Span, TokenStream, TokenTree};
+use proc_macro2::{Delimiter, Group, Literal, Punct, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use syn::punctuated::Punctuated;
 
@@ -128,10 +128,20 @@ impl NamespaceMeta {
                     }
 
                     NsState::PrefixValue {
-                        prefix: segment.ident,
+                        prefix: segment.ident.to_string(),
                     }
                 }
-                (NsState::Prefix, TokenTree::Ident(id)) => NsState::Eq { prefix: id },
+                (NsState::Prefix, TokenTree::Ident(id)) => NsState::Eq {
+                    prefix: id.to_string(),
+                },
+                (NsState::Eq { mut prefix }, TokenTree::Punct(punct)) if punct.as_char() == '-' => {
+                    prefix.push(punct.as_char());
+                    NsState::Eq { prefix }
+                }
+                (NsState::Eq { mut prefix }, TokenTree::Ident(id)) => {
+                    prefix.push_str(&id.to_string());
+                    NsState::Eq { prefix }
+                }
                 (NsState::Eq { prefix }, TokenTree::Punct(punct)) if punct.as_char() == '=' => {
                     NsState::PrefixValue { prefix }
                 }
@@ -405,13 +415,13 @@ enum NsState {
     },
     Prefix,
     Eq {
-        prefix: Ident,
+        prefix: String,
     },
     PrefixValue {
-        prefix: Ident,
+        prefix: String,
     },
     PrefixPath {
-        prefix: Ident,
+        prefix: String,
         colon1: Option<Punct>,
         colon2: Option<Punct>,
         path: Option<syn::Path>,

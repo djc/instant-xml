@@ -134,7 +134,9 @@ impl NamespaceMeta {
                 (NsState::Prefix, TokenTree::Ident(id)) => NsState::Eq {
                     prefix: id.to_string(),
                 },
-                (NsState::Eq { mut prefix }, TokenTree::Punct(punct)) if punct.as_char() == '-' => {
+                (NsState::Eq { mut prefix }, TokenTree::Punct(punct))
+                    if punct.as_char() == '-' || punct.as_char() == '.' =>
+                {
                     prefix.push(punct.as_char());
                     NsState::Eq { prefix }
                 }

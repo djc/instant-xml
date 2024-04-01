@@ -160,7 +160,7 @@ fn other_namespaces() {
 }
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
-#[xml(ns("URI", dashed-ns = "dashed"))]
+#[xml(ns("URI", da_sh.ed-ns = "dashed"))]
 struct DashedNs {
     #[xml(ns("dashed"))]
     element: String,
@@ -169,7 +169,7 @@ struct DashedNs {
 #[test]
 fn dashed_ns() {
     assert_eq!(
-        from_str("<DashedNs xmlns=\"URI\" xmlns:dashed-ns=\"dashed\"><dashed-ns:element>hello</dashed-ns:element></DashedNs>"),
+        from_str("<DashedNs xmlns=\"URI\" xmlns:da_sh.ed-ns=\"dashed\"><da_sh.ed-ns:element>hello</da_sh.ed-ns:element></DashedNs>"),
         Ok(DashedNs { element: "hello".to_owned() })
     );
 }

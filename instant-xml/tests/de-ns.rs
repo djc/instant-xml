@@ -158,3 +158,18 @@ fn other_namespaces() {
         Err::<StructOtherNamespace, _>(Error::UnknownPrefix("wrong".to_owned()))
     );
 }
+
+#[derive(Debug, Eq, PartialEq, FromXml)]
+#[xml(ns("URI", dashed-ns = "dashed"))]
+struct DashedNs {
+    #[xml(ns("dashed"))]
+    element: String,
+}
+
+#[test]
+fn dashed_ns() {
+    assert_eq!(
+        from_str("<DashedNs xmlns=\"URI\" xmlns:dashed-ns=\"dashed\"><dashed-ns:element>hello</dashed-ns:element></DashedNs>"),
+        Ok(DashedNs { element: "hello".to_owned() })
+    );
+}

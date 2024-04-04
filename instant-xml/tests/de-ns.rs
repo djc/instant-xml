@@ -34,6 +34,12 @@ fn default_namespaces() {
         Ok(NestedDe { flag: true })
     );
 
+    // Default namespace not-nested - with xml:lang
+    assert_eq!(
+        from_str("<NestedDe xml:lang=\"en\" xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe>"),
+        Ok(NestedDe { flag: true })
+    );
+
     // Default namespace not-nested - wrong namespace
     assert_eq!(
         from_str(

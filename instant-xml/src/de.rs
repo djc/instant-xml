@@ -185,6 +185,13 @@ impl<'xml> Context<'xml> {
     }
 
     fn lookup(&self, prefix: &str) -> Option<&'xml str> {
+        // The prefix xml is by definition bound to the namespace
+        // name http://www.w3.org/XML/1998/namespace
+        // See https://www.w3.org/TR/xml-names/#ns-decl
+        if prefix == "xml" {
+            return Some("http://www.w3.org/XML/1998/namespace");
+        }
+
         self.stack
             .iter()
             .rev()

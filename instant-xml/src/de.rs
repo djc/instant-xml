@@ -353,6 +353,7 @@ impl<'xml> Iterator for Context<'xml> {
                     false => return Some(Err(Error::UnexpectedToken(format!("{token:?}")))),
                     true => {}
                 },
+                Ok(Token::Comment { .. }) => continue,
                 Ok(token) => return Some(Err(Error::UnexpectedToken(format!("{token:?}")))),
                 Err(e) => return Some(Err(Error::Parse(e))),
             }

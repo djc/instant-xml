@@ -66,6 +66,8 @@ fn deserialize_scalar_enum(
         variants.extend(quote!(#serialize_as => #ident::#v_ident,));
     }
 
+    let default_namespace = meta.default_namespace();
+
     let generics = meta.xml_generics(BTreeSet::new());
     let (impl_generics, _, _) = generics.split_for_impl();
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -75,10 +77,7 @@ fn deserialize_scalar_enum(
         impl #impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
             #[inline]
             fn matches(id: ::instant_xml::Id<'_>, field: Option<::instant_xml::Id<'_>>) -> bool {
-                match field {
-                    Some(field) => id == field,
-                    None => false,
-                }
+                id == ::instant_xml::Id { ns: #default_namespace, name: id.name }
             }
 
             fn deserialize<'cx>(

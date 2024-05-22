@@ -65,7 +65,7 @@ fn serialize_scalar_enum(
                 &self,
                 field: Option<::instant_xml::Id<'_>>,
                 serializer: &mut instant_xml::Serializer<W>,
-            ) -> Result<(), instant_xml::Error> {
+            ) -> ::std::result::Result<(), instant_xml::Error> {
                 let prefix = match field {
                     Some(id) => {
                         let prefix = serializer.write_start(id.name, #default_namespace)?;
@@ -152,7 +152,7 @@ fn serialize_forward_enum(
                 &self,
                 field: Option<::instant_xml::Id<'_>>,
                 serializer: &mut instant_xml::Serializer<W>,
-            ) -> Result<(), instant_xml::Error> {
+            ) -> ::std::result::Result<(), instant_xml::Error> {
                 match self {
                     #variants
                 }
@@ -225,7 +225,7 @@ fn serialize_struct(
                 &self,
                 field: Option<::instant_xml::Id<'_>>,
                 serializer: &mut instant_xml::Serializer<W>,
-            ) -> Result<(), instant_xml::Error> {
+            ) -> ::std::result::Result<(), instant_xml::Error> {
                 // Start tag
                 let prefix = serializer.write_start(#tag, #default_namespace)?;
 
@@ -312,7 +312,7 @@ fn serialize_inline_struct(
                 &self,
                 field: Option<::instant_xml::Id<'_>>,
                 serializer: &mut instant_xml::Serializer<W>,
-            ) -> Result<(), instant_xml::Error> {
+            ) -> ::std::result::Result<(), instant_xml::Error> {
                 #body
                 Ok(())
             }

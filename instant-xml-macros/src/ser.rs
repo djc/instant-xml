@@ -228,7 +228,6 @@ fn serialize_struct(
             ) -> Result<(), instant_xml::Error> {
                 // Start tag
                 let prefix = serializer.write_start(#tag, #default_namespace)?;
-                debug_assert_eq!(prefix, None);
 
                 // Set up element context, this will also emit namespace declarations
                 #context

@@ -56,6 +56,8 @@ fn serialize_scalar_enum(
         variants.extend(quote!(#ident::#v_ident => #serialize_as,));
     }
 
+    let default_namespace = meta.default_namespace();
+
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     quote!(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {
@@ -66,7 +68,7 @@ fn serialize_scalar_enum(
             ) -> Result<(), instant_xml::Error> {
                 let prefix = match field {
                     Some(id) => {
-                        let prefix = serializer.write_start(id.name, id.ns)?;
+                        let prefix = serializer.write_start(id.name, #default_namespace)?;
                         serializer.end_start()?;
                         Some((prefix, id.name))
                     }

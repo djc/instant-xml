@@ -84,7 +84,7 @@ fn deserialize_scalar_enum(
                 into: &mut Self::Accumulator,
                 field: &'static str,
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
-            ) -> Result<(), ::instant_xml::Error> {
+            ) -> ::std::result::Result<(), ::instant_xml::Error> {
                 use ::instant_xml::Error;
 
                 if into.is_some() {
@@ -186,7 +186,7 @@ fn deserialize_forward_enum(
                 into: &mut Self::Accumulator,
                 field: &'static str,
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
-            ) -> Result<(), ::instant_xml::Error> {
+            ) -> ::std::result::Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
                 use ::instant_xml::{Accumulate, Error, FromXml};
 
@@ -308,7 +308,7 @@ fn deserialize_struct(
                 into: &mut Self::Accumulator,
                 field: &'static str,
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
-            ) -> Result<(), ::instant_xml::Error> {
+            ) -> ::std::result::Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
                 use ::instant_xml::{Accumulate, Error, FromXml, Id, Kind};
 
@@ -495,7 +495,7 @@ fn deserialize_inline_struct(
                 into: &mut Self::Accumulator,
                 _: &'static str,
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
-            ) -> Result<(), ::instant_xml::Error> {
+            ) -> ::std::result::Result<(), ::instant_xml::Error> {
                 use ::instant_xml::Kind;
 
                 let current = deserializer.parent();
@@ -513,7 +513,7 @@ fn deserialize_inline_struct(
         }
 
         impl #xml_impl_generics ::instant_xml::Accumulate<#ident #ty_generics> for #accumulator #xml_ty_generics #where_clause {
-            fn try_done(self, _: &'static str) -> Result<#ident #ty_generics, ::instant_xml::Error> {
+            fn try_done(self, _: &'static str) -> ::std::result::Result<#ident #ty_generics, ::instant_xml::Error> {
                 Ok(#ident {
                     #acc_field_inits
                 })
@@ -739,7 +739,7 @@ fn deserialize_tuple_struct(
                 into: &mut Self::Accumulator,
                 field: &'static str,
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
-            ) -> Result<(), ::instant_xml::Error> {
+            ) -> ::std::result::Result<(), ::instant_xml::Error> {
                 use ::instant_xml::de::Node;
                 use ::instant_xml::{Accumulate, Error, FromXml, Id, Kind};
 
@@ -817,7 +817,7 @@ fn deserialize_unit_struct(input: &syn::DeriveInput, meta: &ContainerMeta) -> To
                 into: &mut Self::Accumulator,
                 field: &'static str,
                 deserializer: &mut ::instant_xml::Deserializer<'cx, 'xml>,
-            ) -> Result<(), ::instant_xml::Error> {
+            ) -> ::std::result::Result<(), ::instant_xml::Error> {
                 deserializer.ignore()?;
                 *into = Some(Self);
                 Ok(())

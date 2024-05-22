@@ -496,7 +496,7 @@ enum DecodeState {
     Entity([u8; 6], usize),
 }
 
-/// Valid character ranges per https://www.w3.org/TR/xml/#NT-Char
+/// Valid character ranges per <https://www.w3.org/TR/xml/#NT-Char>
 fn valid_xml_character(c: &char) -> bool {
     matches!(c, '\u{9}' | '\u{A}' | '\u{D}' | '\u{20}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..='\u{10FFFF}')
 }

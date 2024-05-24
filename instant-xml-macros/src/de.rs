@@ -77,7 +77,13 @@ fn deserialize_scalar_enum(
         impl #impl_generics FromXml<'xml> for #ident #ty_generics #where_clause {
             #[inline]
             fn matches(id: ::instant_xml::Id<'_>, field: Option<::instant_xml::Id<'_>>) -> bool {
-                id == ::instant_xml::Id { ns: #default_namespace, name: id.name }
+                id == ::instant_xml::Id {
+                    ns: #default_namespace,
+                    name: match field {
+                        Some(fid) => fid.name,
+                        None => id.name,
+                    },
+                }
             }
 
             fn deserialize<'cx>(
@@ -99,7 +105,7 @@ fn deserialize_scalar_enum(
                 let value = match cow_str.as_ref() {
                     #variants
                     _ => return Err(Error::UnexpectedValue(
-                        format!("enum variant not found for '{}'", cow_str),
+                        format!("enum variant not found for '{}' in field {}", cow_str, field),
                     )),
                 };
 

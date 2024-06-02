@@ -270,10 +270,10 @@ impl<'xml> FromXml<'xml> for String {
             return Err(Error::DuplicateValue(field));
         }
 
-        match deserializer.take_str()? {
-            Some(value) => *into = Some(value.into_owned()),
-            None => return Ok(()),
-        }
+        *into = Some(match deserializer.take_str()? {
+            Some(value) => value.into_owned(),
+            None => String::new(),
+        });
 
         Ok(())
     }
@@ -300,12 +300,11 @@ impl<'xml, 'a> FromXml<'xml> for Cow<'a, str> {
             return Err(Error::DuplicateValue(field));
         }
 
-        let value = match deserializer.take_str()? {
-            Some(value) => value,
-            None => return Ok(()),
-        };
+        into.inner = Some(match deserializer.take_str()? {
+            Some(value) => value.into_owned().into(),
+            None => "".into(),
+        });
 
-        into.inner = Some(value.into_owned().into());
         Ok(())
     }
 

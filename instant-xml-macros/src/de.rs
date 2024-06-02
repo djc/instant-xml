@@ -234,6 +234,7 @@ fn deserialize_struct(
     let mut declare_values = TokenStream::new();
     let mut return_val = TokenStream::new();
     let mut direct = TokenStream::new();
+    let mut after_loop = TokenStream::new();
 
     let mut borrowed = BTreeSet::new();
     for (index, field) in fields.named.iter().enumerate() {
@@ -263,6 +264,7 @@ fn deserialize_struct(
             field_meta,
             &input.ident,
             &container_meta,
+            &mut after_loop,
         );
 
         if let Err(err) = result {
@@ -361,6 +363,7 @@ fn deserialize_struct(
                         node => return Err(Error::UnexpectedNode(format!("{:?} in {}", node, #ident_str))),
                     }
                 }
+                #after_loop
 
                 *into = Some(Self { #return_val });
                 Ok(())
@@ -401,6 +404,7 @@ fn deserialize_inline_struct(
     let mut declare_values = TokenStream::new();
     let mut return_val = TokenStream::new();
     let mut direct = TokenStream::new();
+    let mut after_loop = TokenStream::new();
 
     let mut borrowed = BTreeSet::new();
     let mut matches = TokenStream::new();
@@ -433,6 +437,7 @@ fn deserialize_inline_struct(
             field_meta,
             &input.ident,
             &meta,
+            &mut after_loop,
         );
 
         let data = match result {
@@ -548,6 +553,7 @@ fn named_field<'a>(
     mut field_meta: FieldMeta,
     type_name: &Ident,
     container_meta: &ContainerMeta,
+    after_loop: &mut TokenStream,
 ) -> Result<FieldData<'a>, syn::Error> {
     let field_name = field.ident.as_ref().unwrap();
     let field_tag = field_meta.tag;
@@ -598,6 +604,15 @@ fn named_field<'a>(
         let mut #val_name = <#no_lifetime_type as FromXml>::Accumulator::default();
     ));
 
+    if field_meta.direct {
+        declare_values.extend(quote!(
+            // We will synthesize an empty text node when processing a direct
+            // element. Without this, we can miscategorize an empty tag as
+            // a missing tag
+            let mut seen_direct = false;
+        ));
+    }
+
     let deserialize_with = field_meta
         .deserialize_with
         .map(|with| {
@@ -630,7 +645,18 @@ fn named_field<'a>(
         } else if field_meta.direct {
             direct.extend(quote!(
                 Node::Text(text) => {
+                    seen_direct = true;
                     let mut nested = deserializer.for_node(Node::Text(text));
+                    <#no_lifetime_type>::deserialize(&mut #val_name, #field_str, &mut nested)?;
+                }
+            ));
+            // We can only enter this FromXml impl if the caller found the opening
+            // tag, so if we don't see the text node before the closing tag that is
+            // implied by terminating the loop, we need to populate the
+            // direct field with the implied empty text node.
+            after_loop.extend(quote!(
+                if !seen_direct {
+                    let mut nested = deserializer.for_node(Node::Text("".into()));
                     <#no_lifetime_type>::deserialize(&mut #val_name, #field_str, &mut nested)?;
                 }
             ));

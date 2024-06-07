@@ -88,7 +88,7 @@ fn deserialize_scalar_enum(
                 use ::instant_xml::Error;
 
                 if into.is_some() {
-                    return Err(Error::DuplicateValue);
+                    return Err(Error::DuplicateValue(field));
                 }
 
                 let cow_str = match deserializer.take_str()? {

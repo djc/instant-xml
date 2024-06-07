@@ -363,11 +363,11 @@ impl<'xml> Iterator for Context<'xml> {
 
 pub fn borrow_cow_str<'a, 'xml: 'a>(
     into: &mut CowStrAccumulator<'xml, 'a>,
-    _: &'static str,
+    field: &'static str,
     deserializer: &mut Deserializer<'_, 'xml>,
 ) -> Result<(), Error> {
     if into.inner.is_some() {
-        return Err(Error::DuplicateValue);
+        return Err(Error::DuplicateValue(field));
     }
 
     match deserializer.take_str()? {
@@ -381,11 +381,11 @@ pub fn borrow_cow_str<'a, 'xml: 'a>(
 
 pub fn borrow_cow_slice_u8<'xml>(
     into: &mut Option<Cow<'xml, [u8]>>,
-    _: &'static str,
+    field: &'static str,
     deserializer: &mut Deserializer<'_, 'xml>,
 ) -> Result<(), Error> {
     if into.is_some() {
-        return Err(Error::DuplicateValue);
+        return Err(Error::DuplicateValue(field));
     }
 
     if let Some(value) = deserializer.take_str()? {

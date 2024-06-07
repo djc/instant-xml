@@ -151,8 +151,8 @@ pub enum Error {
     UnexpectedState(&'static str),
     #[error("expected scalar, found {0}")]
     ExpectedScalar(String),
-    #[error("duplicate value")]
-    DuplicateValue,
+    #[error("duplicate value for {0}")]
+    DuplicateValue(&'static str),
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

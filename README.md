@@ -13,6 +13,8 @@ types. While serde is great for formats like JSON, the underlying structure it p
 great fit for XML, limiting serde-based tools like quick-xml. instant-xml more rigorously maps the
 XML data model (including namespaces) to Rust types while providing a serde-like interface.
 
+This library is used in production at [Instant Domains](https://instantdomains.com/).
+
 ## Features
 
 * Familiar serde-like interface

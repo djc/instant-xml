@@ -7,7 +7,7 @@ workspace = ".."
 license = "Apache-2.0 OR MIT"
 description = "Procedural macros for instant-xml"
 documentation = "https://docs.rs/instant-xml-macros"
-repository = "https://github.com/InstantDomain/instant-xml"
+repository = "https://github.com/djc/instant-xml"
 readme = "../README.md"
 
 [lib]

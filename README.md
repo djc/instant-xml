@@ -4,7 +4,7 @@
 
 [![Documentation](https://docs.rs/instant-xml/badge.svg)](https://docs.rs/instant-xml)
 [![Crates.io](https://img.shields.io/crates/v/instant-xml.svg)](https://crates.io/crates/instant-xml)
-[![Build status](https://github.com/InstantDomain/instant-xml/workflows/CI/badge.svg)](https://github.com/InstantDomain/instant-xml/actions?query=workflow%3ACI)
+[![Build status](https://github.com/djc/instant-xml/workflows/CI/badge.svg)](https://github.com/djc/instant-xml/actions?query=workflow%3ACI)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE-MIT)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE-APACHE)
 

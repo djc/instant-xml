@@ -488,6 +488,16 @@ impl<T: ToXml> ToXml for Option<T> {
     }
 }
 
+impl<T: ToXml + ?Sized> ToXml for Box<T> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        self.as_ref().serialize(field, serializer)
+    }
+}
+
 fn encode(input: &str) -> Result<Cow<'_, str>, Error> {
     let mut result = String::with_capacity(input.len());
     let mut last_end = 0;

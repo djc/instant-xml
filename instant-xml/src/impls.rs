@@ -498,6 +498,32 @@ impl<T: ToXml + ?Sized> ToXml for Box<T> {
     }
 }
 
+impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Box<T> {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        T::matches(id, field)
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let mut value = T::Accumulator::default();
+        T::deserialize(&mut value, field, deserializer)?;
+        *into = Some(Box::new(value.try_done(field)?));
+
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: Kind = T::KIND;
+}
+
 fn encode(input: &str) -> Result<Cow<'_, str>, Error> {
     let mut result = String::with_capacity(input.len());
     let mut last_end = 0;

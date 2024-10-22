@@ -349,10 +349,11 @@ impl<'xml> Iterator for Context<'xml> {
                 Ok(Token::Cdata { text, .. }) => {
                     return Some(Ok(Node::Text(Cow::Borrowed(text.as_str()))));
                 }
-                Ok(Token::Declaration { .. }) => match self.stack.is_empty() {
-                    false => return Some(Err(Error::UnexpectedToken(format!("{token:?}")))),
-                    true => {}
-                },
+                Ok(Token::Declaration { .. }) => {
+                    if !self.stack.is_empty() {
+                        return Some(Err(Error::UnexpectedToken(format!("{token:?}"))));
+                    }
+                }
                 Ok(Token::Comment { .. }) => continue,
                 Ok(token) => return Some(Err(Error::UnexpectedToken(format!("{token:?}")))),
                 Err(e) => return Some(Err(Error::Parse(e))),

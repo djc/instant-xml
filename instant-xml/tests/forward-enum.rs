@@ -4,19 +4,19 @@ use similar_asserts::assert_eq;
 
 use instant_xml::{from_str, to_string, FromXml, ToXml};
 
-#[derive(Debug, Eq, FromXml, PartialEq, ToXml)]
+#[derive(Debug, FromXml, PartialEq, ToXml)]
 #[xml(forward)]
 enum Foo {
     Bar(Bar),
     Baz(Baz),
 }
 
-#[derive(Debug, Eq, FromXml, PartialEq, ToXml)]
+#[derive(Debug, FromXml, PartialEq, ToXml)]
 struct Bar {
     bar: u8,
 }
 
-#[derive(Debug, Eq, FromXml, PartialEq, ToXml)]
+#[derive(Debug, FromXml, PartialEq, ToXml)]
 struct Baz {
     baz: String,
 }

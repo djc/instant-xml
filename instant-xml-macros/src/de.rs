@@ -170,9 +170,9 @@ fn deserialize_forward_enum(
         let v_ident = &variant.ident;
         variants.extend(
             quote!(if <#no_lifetime_type as FromXml>::matches(id, None) {
-                let mut value = None;
+                let mut value = <#no_lifetime_type as FromXml>::Accumulator::default();
                 <#no_lifetime_type as FromXml>::deserialize(&mut value, #field_str, deserializer)?;
-                *into = value.map(#ident::#v_ident);
+                *into = ::instant_xml::Accumulate::try_done(value, #field_str).map(#ident::#v_ident).ok();
             }),
         );
     }

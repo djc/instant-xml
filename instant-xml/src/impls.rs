@@ -132,7 +132,7 @@ pub fn display_to_xml(
 
 struct DisplayToXml<'a, T: fmt::Display>(pub &'a T);
 
-impl<'a, T> ToXml for DisplayToXml<'a, T>
+impl<T> ToXml for DisplayToXml<'_, T>
 where
     T: fmt::Display,
 {
@@ -318,7 +318,7 @@ pub struct CowStrAccumulator<'xml, 'a> {
     marker: PhantomData<&'xml str>,
 }
 
-impl<'xml, 'a> Accumulate<Cow<'a, str>> for CowStrAccumulator<'xml, 'a> {
+impl<'a> Accumulate<Cow<'a, str>> for CowStrAccumulator<'_, 'a> {
     fn try_done(self, field: &'static str) -> Result<Cow<'a, str>, Error> {
         match self.inner {
             Some(inner) => Ok(inner),
@@ -330,7 +330,7 @@ impl<'xml, 'a> Accumulate<Cow<'a, str>> for CowStrAccumulator<'xml, 'a> {
 // The `FromXml` implementation for `Cow<'a, [T]>` always builds a `Cow::Owned`:
 // it is not possible to deserialize into a `Cow::Borrowed` because there's no
 // place to store the originating slice (length only known at run-time).
-impl<'xml, 'a, T: FromXml<'xml>> FromXml<'xml> for Cow<'a, [T]>
+impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Cow<'_, [T]>
 where
     [T]: ToOwned<Owned = Vec<T>>,
 {

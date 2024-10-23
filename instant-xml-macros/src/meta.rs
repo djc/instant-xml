@@ -1,11 +1,18 @@
+mod container;
+pub(crate) use container::{ContainerMeta, Mode};
+
+mod field;
+pub(crate) use field::FieldMeta;
+
+mod variant;
+pub(crate) use variant::VariantMeta;
+
 use std::collections::BTreeMap;
 use std::fmt;
 
 use proc_macro2::{Delimiter, Group, Literal, Punct, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use syn::punctuated::Punctuated;
-
-use super::Mode;
 
 #[derive(Debug, Default)]
 pub(crate) struct NamespaceMeta {

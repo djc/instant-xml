@@ -4,8 +4,9 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::spanned::Spanned;
 
-use super::{discard_lifetimes, meta_items, ContainerMeta, FieldMeta, Mode, VariantMeta};
+use super::{discard_lifetimes, meta_items};
 use crate::case::RenameRule;
+use crate::meta::{ContainerMeta, FieldMeta, Mode, VariantMeta};
 use crate::Namespace;
 
 pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {

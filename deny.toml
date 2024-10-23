@@ -1,6 +1,2 @@
 [licenses]
-allow-osi-fsf-free = "either"
-copyleft = "deny"
-
-[advisories]
-ignore = ["RUSTSEC-2020-0071"]
+allow = ["Apache-2.0", "MIT", "Unicode-DFS-2016"]

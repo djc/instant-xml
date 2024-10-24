@@ -4,9 +4,9 @@ use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
 use syn::spanned::Spanned;
 
-use super::{
-    discard_lifetimes, meta_items, ContainerMeta, FieldMeta, Mode, Namespace, VariantMeta,
-};
+use crate::meta::{ContainerMeta, FieldMeta, Mode, VariantMeta};
+
+use super::{discard_lifetimes, meta_items, Namespace};
 
 pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
     let meta = match ContainerMeta::from_derive(input) {

@@ -5,7 +5,6 @@
 // See https://users.rust-lang.org/t/psa-dealing-with-warning-unused-import-std-ascii-asciiext-in-today-s-nightly/13726
 #[allow(deprecated, unused_imports)]
 use std::ascii::AsciiExt;
-
 use std::fmt::{self, Debug, Display};
 
 use proc_macro2::Ident;
@@ -133,7 +132,7 @@ pub struct ParseError<'a> {
     unknown: &'a str,
 }
 
-impl<'a> Display for ParseError<'a> {
+impl Display for ParseError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("unknown rename rule `rename_all = ")?;
         Debug::fmt(self.unknown, f)?;

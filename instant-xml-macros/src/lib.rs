@@ -3,16 +3,13 @@ extern crate proc_macro;
 use std::collections::BTreeSet;
 use std::mem;
 
-use proc_macro2::{Literal, Span, TokenStream};
-use quote::{quote, ToTokens};
-use syn::spanned::Spanned;
-use syn::{parse_macro_input, DeriveInput, Generics};
+use proc_macro2::Span;
+use syn::parse_macro_input;
 
 mod case;
-use case::RenameRule;
 mod de;
 mod meta;
-use meta::{meta_items, MetaItem, Namespace, NamespaceMeta};
+use meta::{meta_items, Namespace};
 mod ser;
 
 #[proc_macro_derive(ToXml, attributes(xml))]
@@ -24,204 +21,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[proc_macro_derive(FromXml, attributes(xml))]
 pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
-    proc_macro::TokenStream::from(de::from_xml(&ast))
-}
-
-struct ContainerMeta<'input> {
-    input: &'input DeriveInput,
-    ns: NamespaceMeta,
-    rename: Option<Literal>,
-    rename_all: RenameRule,
-    mode: Option<Mode>,
-}
-
-impl<'input> ContainerMeta<'input> {
-    fn from_derive(input: &'input syn::DeriveInput) -> Result<Self, syn::Error> {
-        let mut ns = NamespaceMeta::default();
-        let mut rename = Default::default();
-        let mut rename_all = Default::default();
-        let mut mode = None;
-
-        for (item, span) in meta_items(&input.attrs) {
-            match item {
-                MetaItem::Ns(namespace) => ns = namespace,
-                MetaItem::Rename(lit) => rename = Some(lit),
-                MetaItem::RenameAll(lit) => {
-                    rename_all = match RenameRule::from_str(&lit.to_string()) {
-                        Ok(rule) => rule,
-                        Err(err) => return Err(syn::Error::new(span, err)),
-                    };
-                }
-                MetaItem::Mode(new) => match mode {
-                    None => mode = Some(new),
-                    Some(_) => return Err(syn::Error::new(span, "cannot have two modes")),
-                },
-                _ => {
-                    return Err(syn::Error::new(
-                        span,
-                        "invalid field in container xml attribute",
-                    ))
-                }
-            }
-        }
-
-        Ok(Self {
-            input,
-            ns,
-            rename,
-            rename_all,
-            mode,
-        })
-    }
-
-    fn xml_generics(&self, borrowed: BTreeSet<syn::Lifetime>) -> Generics {
-        let mut xml_generics = self.input.generics.clone();
-        let mut xml = syn::LifetimeParam::new(syn::Lifetime::new("'xml", Span::call_site()));
-        xml.bounds.extend(borrowed);
-        xml_generics.params.push(xml.into());
-
-        for param in xml_generics.type_params_mut() {
-            param
-                .bounds
-                .push(syn::parse_str("::instant_xml::FromXml<'xml>").unwrap());
-        }
-
-        xml_generics
-    }
-
-    fn tag(&self) -> TokenStream {
-        match &self.rename {
-            Some(name) => quote!(#name),
-            None => self.input.ident.to_string().into_token_stream(),
-        }
-    }
-
-    fn default_namespace(&self) -> TokenStream {
-        match &self.ns.uri {
-            Some(ns) => quote!(#ns),
-            None => quote!(""),
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-struct FieldMeta {
-    attribute: bool,
-    borrow: bool,
-    direct: bool,
-    ns: NamespaceMeta,
-    tag: TokenStream,
-    serialize_with: Option<Literal>,
-    deserialize_with: Option<Literal>,
-}
-
-impl FieldMeta {
-    fn from_field(input: &syn::Field, container: &ContainerMeta) -> Result<FieldMeta, syn::Error> {
-        let field_name = input.ident.as_ref().unwrap();
-        let mut meta = FieldMeta {
-            tag: container
-                .rename_all
-                .apply_to_field(field_name)
-                .into_token_stream(),
-            ..Default::default()
-        };
-
-        for (item, span) in meta_items(&input.attrs) {
-            match item {
-                MetaItem::Attribute => meta.attribute = true,
-                MetaItem::Borrow => meta.borrow = true,
-                MetaItem::Direct => meta.direct = true,
-                MetaItem::Ns(ns) => meta.ns = ns,
-                MetaItem::Rename(lit) => meta.tag = quote!(#lit),
-                MetaItem::SerializeWith(lit) => meta.serialize_with = Some(lit),
-                MetaItem::DeserializeWith(lit) => meta.deserialize_with = Some(lit),
-                MetaItem::RenameAll(_) => {
-                    return Err(syn::Error::new(
-                        span,
-                        "attribute 'rename_all' invalid in field xml attribute",
-                    ))
-                }
-                MetaItem::Mode(_) => {
-                    return Err(syn::Error::new(span, "invalid attribute for struct field"));
-                }
-            }
-        }
-
-        Ok(meta)
-    }
-}
-
-#[derive(Debug, Default)]
-struct VariantMeta {
-    serialize_as: TokenStream,
-}
-
-impl VariantMeta {
-    fn from_variant(
-        input: &syn::Variant,
-        container: &ContainerMeta,
-    ) -> Result<VariantMeta, syn::Error> {
-        if !input.fields.is_empty() {
-            return Err(syn::Error::new(
-                input.fields.span(),
-                "only unit enum variants are permitted!",
-            ));
-        }
-
-        let mut rename = None;
-        for (item, span) in meta_items(&input.attrs) {
-            match item {
-                MetaItem::Rename(lit) => rename = Some(lit.to_token_stream()),
-                _ => {
-                    return Err(syn::Error::new(
-                        span,
-                        "only 'rename' attribute is permitted on enum variants",
-                    ))
-                }
-            }
-        }
-
-        let discriminant = match input.discriminant {
-            Some((
-                _,
-                syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Str(ref lit),
-                    ..
-                }),
-            )) => Some(lit.to_token_stream()),
-            Some((
-                _,
-                syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Int(ref lit),
-                    ..
-                }),
-            )) => Some(lit.base10_digits().to_token_stream()),
-            Some((_, ref value)) => {
-                return Err(syn::Error::new(
-                    value.span(),
-                    "invalid field discriminant value!",
-                ))
-            }
-            None => None,
-        };
-
-        if discriminant.is_some() && rename.is_some() {
-            return Err(syn::Error::new(
-                input.span(),
-                "conflicting `rename` attribute and variant discriminant!",
-            ));
-        }
-
-        let serialize_as = match rename.or(discriminant) {
-            Some(lit) => lit.into_token_stream(),
-            None => container
-                .rename_all
-                .apply_to_variant(&input.ident)
-                .to_token_stream(),
-        };
-
-        Ok(VariantMeta { serialize_as })
-    }
+    de::from_xml(&ast).into()
 }
 
 fn discard_lifetimes(
@@ -262,6 +62,7 @@ fn discard_lifetimes(
     }
 }
 
+// IMPROVEMENT: nest in discard_lifetimes function?
 fn discard_path_lifetimes(
     path: &mut syn::TypePath,
     borrowed: &mut BTreeSet<syn::Lifetime>,
@@ -294,13 +95,6 @@ fn discard_path_lifetimes(
                 .for_each(|ty| discard_lifetimes(ty, borrowed, borrow, false)),
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Mode {
-    Forward,
-    Scalar,
-    Transparent,
 }
 
 #[cfg(test)]

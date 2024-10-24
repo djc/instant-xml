@@ -1,6 +1,5 @@
-use similar_asserts::assert_eq;
-
 use instant_xml::{from_str, Error, FromXml};
+use similar_asserts::assert_eq;
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
 struct NestedWrongNamespace {

@@ -1,8 +1,7 @@
 use std::borrow::Cow;
 
-use similar_asserts::assert_eq;
-
 use instant_xml::{from_str, to_string, Error, FromXml, ToXml};
+use similar_asserts::assert_eq;
 
 #[derive(Debug, Eq, FromXml, PartialEq, ToXml)]
 struct Wrapper {

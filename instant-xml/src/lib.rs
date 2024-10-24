@@ -1,8 +1,8 @@
-use std::{borrow::Cow, fmt};
-
-use thiserror::Error;
+use std::borrow::Cow;
+use std::fmt;
 
 pub use macros::{FromXml, ToXml};
+use thiserror::Error;
 
 #[doc(hidden)]
 pub mod de;

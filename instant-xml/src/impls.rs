@@ -1,9 +1,9 @@
+use std::any::type_name;
 use std::borrow::Cow;
-use std::fmt;
+use std::marker::PhantomData;
 use std::net::IpAddr;
-use std::str;
 use std::str::FromStr;
-use std::{any::type_name, marker::PhantomData};
+use std::{fmt, str};
 
 #[cfg(feature = "chrono")]
 use chrono::{DateTime, NaiveDate, Utc};

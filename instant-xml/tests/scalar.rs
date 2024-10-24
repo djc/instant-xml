@@ -1,8 +1,7 @@
 use std::borrow::Cow;
 
-use similar_asserts::assert_eq;
-
 use instant_xml::{from_str, FromXml, ToXml};
+use similar_asserts::assert_eq;
 
 #[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
 #[xml(ns("URI"))]

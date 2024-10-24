@@ -1,6 +1,5 @@
-use similar_asserts::assert_eq;
-
 use instant_xml::{to_string, ToXml};
+use similar_asserts::assert_eq;
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
 #[xml(ns("URI", dar = "BAZ", internal = INTERNAL))]

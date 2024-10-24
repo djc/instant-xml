@@ -5,7 +5,6 @@
 // See https://users.rust-lang.org/t/psa-dealing-with-warning-unused-import-std-ascii-asciiext-in-today-s-nightly/13726
 #[allow(deprecated, unused_imports)]
 use std::ascii::AsciiExt;
-
 use std::fmt::{self, Debug, Display};
 
 use proc_macro2::Ident;

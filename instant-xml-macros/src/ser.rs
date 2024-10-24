@@ -5,7 +5,8 @@ use quote::quote;
 use syn::spanned::Spanned;
 
 use super::{discard_lifetimes, meta_items, ContainerMeta, FieldMeta, Mode, VariantMeta};
-use crate::{case::RenameRule, Namespace};
+use crate::case::RenameRule;
+use crate::Namespace;
 
 pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
     let meta = match ContainerMeta::from_derive(input) {

@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
-use bencher::Bencher;
-use bencher::{benchmark_group, benchmark_main};
+use bencher::{benchmark_group, benchmark_main, Bencher};
 use instant_xml::{from_str, FromXml};
 
 fn decode_short_ascii(bench: &mut Bencher) {

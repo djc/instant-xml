@@ -1,6 +1,5 @@
-use similar_asserts::assert_eq;
-
 use instant_xml::{from_str, to_string, FromXml, ToXml};
+use similar_asserts::assert_eq;
 
 #[derive(Debug, Eq, FromXml, PartialEq, ToXml)]
 struct OneNumber(i32);

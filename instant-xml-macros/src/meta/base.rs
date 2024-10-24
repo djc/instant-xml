@@ -1,16 +1,6 @@
-mod container;
-pub(crate) use container::{ContainerMeta, Mode};
-
-mod field;
-pub(crate) use field::FieldMeta;
-
-mod variant;
-pub(crate) use variant::VariantMeta;
-
-mod namespace;
-pub(crate) use namespace::*;
-
 use proc_macro2::{Delimiter, Literal, Span, TokenTree};
+
+use super::{Mode, NamespaceMeta};
 
 pub(crate) fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
     let list = match attrs.iter().find(|attr| attr.path().is_ident("xml")) {

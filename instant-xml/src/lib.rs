@@ -26,7 +26,7 @@ pub trait ToXml {
     }
 }
 
-impl<'a, T: ToXml + ?Sized> ToXml for &'a T {
+impl<T: ToXml + ?Sized> ToXml for &T {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,

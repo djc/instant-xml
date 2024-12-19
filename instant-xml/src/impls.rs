@@ -354,6 +354,19 @@ where
     const KIND: Kind = Kind::Scalar;
 }
 
+impl<T: ToXml> ToXml for Cow<'_, [T]>
+where
+    [T]: ToOwned,
+{
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        self.as_ref().serialize(field, serializer)
+    }
+}
+
 impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
     #[inline]
     fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {

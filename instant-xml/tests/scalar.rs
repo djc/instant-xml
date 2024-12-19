@@ -1,17 +1,18 @@
 use std::borrow::Cow;
 
+use serde::{Deserialize, Serialize};
 use similar_asserts::assert_eq;
 
 use instant_xml::{from_str, FromXml, ToXml};
 
-#[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Serialize, FromXml, ToXml)]
 #[xml(ns("URI"))]
 struct NestedLifetimes<'a> {
     flag: bool,
     str_type_a: Cow<'a, str>,
 }
 
-#[derive(Debug, PartialEq, FromXml, ToXml)]
+#[derive(Debug, Deserialize, PartialEq, Serialize, FromXml, ToXml)]
 #[xml(ns("URI"))]
 struct StructDeserializerScalars<'a, 'b> {
     bool_type: bool,

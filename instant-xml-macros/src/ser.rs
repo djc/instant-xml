@@ -419,11 +419,17 @@ fn named_field(
         return Ok(());
     } else if field_meta.direct {
         body.extend(quote!(
-            self.#field_name.serialize(None, serializer)?;
+            <#no_lifetime_type as ToXml>::serialize(
+                &self.#field_name, None, serializer
+            )?;
         ));
     } else {
         body.extend(quote!(
-            self.#field_name.serialize(Some(::instant_xml::Id { ns: #ns, name: #tag }), serializer)?;
+            <#no_lifetime_type as ToXml>::serialize(
+                &self.#field_name,
+                Some(::instant_xml::Id { ns: #ns, name: #tag }),
+                serializer,
+            )?;
         ));
     }
 

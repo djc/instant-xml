@@ -475,10 +475,10 @@ fn deserialize_inline_struct(
             deserialize.extend(quote!(if <#field_ty as FromXml<'xml>>::matches(current, None) {
                 match <#field_ty as FromXml>::KIND {
                     Kind::Element => {
-                        <#field_ty>::deserialize(&mut into.#field_name, #field_str, deserializer)?;
+                        <#field_ty as FromXml>::deserialize(&mut into.#field_name, #field_str, deserializer)?;
                     }
                     Kind::Scalar => {
-                        <#field_ty>::deserialize(&mut into.#field_name, #field_str, deserializer)?;
+                        <#field_ty as FromXml>::deserialize(&mut into.#field_name, #field_str, deserializer)?;
                         deserializer.ignore()?;
                     }
                 }
@@ -647,7 +647,7 @@ fn named_field<'a>(
                 Node::Text(text) => {
                     seen_direct = true;
                     let mut nested = deserializer.for_node(Node::Text(text));
-                    <#no_lifetime_type>::deserialize(&mut #val_name, #field_str, &mut nested)?;
+                    <#no_lifetime_type as FromXml>::deserialize(&mut #val_name, #field_str, &mut nested)?;
                 }
             ));
             // We can only enter this FromXml impl if the caller found the opening
@@ -657,7 +657,7 @@ fn named_field<'a>(
             after_loop.extend(quote!(
                 if !seen_direct {
                     let mut nested = deserializer.for_node(Node::Text("".into()));
-                    <#no_lifetime_type>::deserialize(&mut #val_name, #field_str, &mut nested)?;
+                    <#no_lifetime_type as FromXml>::deserialize(&mut #val_name, #field_str, &mut nested)?;
                 }
             ));
         } else {
@@ -665,11 +665,11 @@ fn named_field<'a>(
                 __Elements::#enum_name => match <#no_lifetime_type as FromXml>::KIND {
                     Kind::Element => {
                         let mut nested = deserializer.nested(data);
-                        <#no_lifetime_type>::deserialize(&mut #val_name, #field_str, &mut nested)?;
+                        <#no_lifetime_type as FromXml>::deserialize(&mut #val_name, #field_str, &mut nested)?;
                     }
                     Kind::Scalar => {
                         let mut nested = deserializer.nested(data);
-                        <#no_lifetime_type>::deserialize(&mut #val_name, #field_str, &mut nested)?;
+                        <#no_lifetime_type as FromXml>::deserialize(&mut #val_name, #field_str, &mut nested)?;
                         nested.ignore()?;
                     }
                 },

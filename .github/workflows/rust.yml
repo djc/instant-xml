@@ -14,8 +14,6 @@ jobs:
         include:
           - os: ubuntu-latest
             rust: beta
-          - os: ubuntu-latest
-            rust: 1.61.0
 
     runs-on: ${{ matrix.os }}
 
@@ -30,6 +28,15 @@ jobs:
       - run: cargo test --all-features
         env:
           CARGO_INCREMENTAL: 0 # https://github.com/rust-lang/rust/issues/101518
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.61.0
+      - run: cargo check --all-features --lib
 
   lint:
     runs-on: ubuntu-latest

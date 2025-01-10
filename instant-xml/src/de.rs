@@ -209,12 +209,7 @@ impl<'xml> Iterator for Context<'xml> {
 
         let mut current = None;
         loop {
-            let token = match self.parser.next() {
-                Some(v) => v,
-                None => return None,
-            };
-
-            match token {
+            match self.parser.next()? {
                 Ok(Token::ElementStart { prefix, local, .. }) => {
                     let prefix = prefix.as_str();
                     current = Some(Level {
@@ -349,7 +344,7 @@ impl<'xml> Iterator for Context<'xml> {
                 Ok(Token::Cdata { text, .. }) => {
                     return Some(Ok(Node::Text(Cow::Borrowed(text.as_str()))));
                 }
-                Ok(Token::Declaration { .. }) => {
+                Ok(token @ Token::Declaration { .. }) => {
                     if !self.stack.is_empty() {
                         return Some(Err(Error::UnexpectedToken(format!("{token:?}"))));
                     }

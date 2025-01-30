@@ -6,7 +6,7 @@ use std::str::FromStr;
 use std::{any::type_name, marker::PhantomData};
 
 #[cfg(feature = "chrono")]
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 
 use crate::{Accumulate, Deserializer, Error, FromXml, Id, Kind, Serializer, ToXml};
 
@@ -666,6 +666,68 @@ impl<'xml> FromXml<'xml> for DateTime<Utc> {
     }
 
     type Accumulator = Option<Self>;
+    const KIND: Kind = Kind::Scalar;
+}
+
+#[cfg(feature = "chrono")]
+impl ToXml for NaiveDateTime {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        let prefix = match field {
+            Some(id) => {
+                let prefix = serializer.write_start(id.name, id.ns)?;
+                serializer.end_start()?;
+                Some((prefix, id.name))
+            }
+            None => None,
+        };
+
+        serializer.write_str(&self.format("%Y-%m-%dT%H:%M:%S%.f"))?;
+        if let Some((prefix, name)) = prefix {
+            serializer.write_close(prefix, name)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "chrono")]
+impl<'xml> FromXml<'xml> for NaiveDateTime {
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let value = match deserializer.take_str()? {
+            Some(value) => value,
+            None => return Ok(()),
+        };
+
+        match NaiveDateTime::parse_from_str(value.as_ref(), "%Y-%m-%dT%H:%M:%S%.f") {
+            Ok(dt) => {
+                *into = Some(dt);
+                Ok(())
+            }
+            _ => Err(Error::Other("invalid date/time".into())),
+        }
+    }
+
+    type Accumulator = Option<Self>;
+
     const KIND: Kind = Kind::Scalar;
 }
 

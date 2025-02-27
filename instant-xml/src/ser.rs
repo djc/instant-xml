@@ -223,3 +223,28 @@ enum State {
     Element,
     Scalar,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use similar_asserts::assert_eq;
+
+    /// This test demonstrates that the state machine in the [`Serializer`] does not protect
+    /// library users from incorrectly nesting XML elements.
+    #[test]
+    fn detect_incorrectly_nested_tags() -> Result<(), Error> {
+        let mut s = String::new();
+        let mut ser = Serializer::new(&mut s);
+        let prefix_outer = ser.write_start("outer", "")?;
+        ser.end_start()?;
+        let prefix_inner = ser.write_start("inner", "")?;
+        ser.end_start()?;
+        ser.write_close(prefix_outer, "outer")?;
+        ser.write_close(prefix_inner, "inner")?;
+        // FIXME: This is a Bad Thing(TM) - we should really have a stack of tag names, instead of
+        // relying on the client code to pass us stuff in the correct order.
+        assert_eq!(s, format!("<outer><inner></outer></inner>"));
+        Ok(())
+    }
+}

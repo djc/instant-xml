@@ -15,6 +15,7 @@ pub struct Serializer<'xml, W: fmt::Write + ?Sized> {
     /// defined for a given namespace, we don't update the set the new prefix.
     prefixes: HashMap<&'static str, &'static str>,
     default_ns: &'static str,
+    pending_prefixes: Vec<Prefix>,
     state: State,
 }
 
@@ -24,6 +25,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
             output,
             prefixes: HashMap::new(),
             default_ns: "",
+            pending_prefixes: Vec::new(),
             state: State::Element,
         }
     }
@@ -48,6 +50,10 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
                 None
             }
         };
+
+        while let Some(prefix) = self.pending_prefixes.pop() {
+            self.write_xmlns(prefix)?;
+        }
 
         self.state = State::Attribute;
         Ok(prefix)
@@ -125,7 +131,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
     }
 
     pub fn push<const N: usize>(&mut self, new: Context<N>) -> Result<Context<N>, Error> {
-        if self.state != State::Attribute {
+        if self.state == State::Scalar {
             return Err(Error::UnexpectedState("invalid state for attribute"));
         }
 
@@ -143,9 +149,17 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
                 continue;
             }
 
-            self.output
-                .write_fmt(format_args!(" xmlns:{}=\"{}\"", prefix.prefix, prefix.ns))?;
+            match self.state {
+                State::Attribute => {
+                    self.write_xmlns(prefix)?;
+                }
+                State::Element => self.pending_prefixes.push(prefix),
+                State::Scalar => {}
+            }
 
+            // FIXME: This looks like we intend that the user can rename namespaces? However, we
+            // said above that if `self.prefixes` contains the namespace we'll `continue` and thus
+            // never reach this line, making the only branch we'll ever hit `Entry::Vacant`
             let prev = match self.prefixes.entry(prefix.ns) {
                 Entry::Occupied(mut entry) => mem::replace(entry.get_mut(), prefix.prefix),
                 Entry::Vacant(entry) => {
@@ -162,6 +176,12 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         }
 
         Ok(old)
+    }
+
+    fn write_xmlns(&mut self, prefix: Prefix) -> Result<(), Error> {
+        Ok(self
+            .output
+            .write_fmt(format_args!(" xmlns:{}=\"{}\"", prefix.prefix, prefix.ns))?)
     }
 
     pub fn pop<const N: usize>(&mut self, old: Context<N>) {
@@ -229,6 +249,33 @@ mod tests {
     use super::*;
 
     use similar_asserts::assert_eq;
+
+    #[test]
+    fn early_push_ns() -> Result<(), Error> {
+        static NS: &str = "http://schemas.xmlsoap.org/soap/envelope/";
+        let mut s = String::new();
+        let mut ser = Serializer::new(&mut s);
+        // FIXME: Ideally `push` would push the context onto a stack and we wouldn't force the
+        // client code to pass the old context back to us.
+        let old = ser.push(Context {
+            default_ns: ser.default_ns(),
+            prefixes: [Prefix {
+                prefix: "soap",
+                ns: NS,
+            }],
+        })?;
+        let prefix = ser.write_start("Envelope", NS)?;
+        ser.end_start()?;
+        ser.write_start("test", "")?;
+        ser.end_empty()?;
+        ser.write_close(prefix, "Envelope")?;
+        ser.pop(old);
+        assert_eq!(
+            s,
+            format!("<soap:Envelope xmlns:soap=\"{NS}\"><test /></soap:Envelope>")
+        );
+        Ok(())
+    }
 
     /// This test demonstrates that the state machine in the [`Serializer`] does not protect
     /// library users from incorrectly nesting XML elements.

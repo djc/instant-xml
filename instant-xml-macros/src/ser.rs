@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
 use super::{discard_lifetimes, meta_items, ContainerMeta, FieldMeta, Mode, VariantMeta};
@@ -169,31 +169,29 @@ fn serialize_struct(
     meta: ContainerMeta,
 ) -> proc_macro2::TokenStream {
     let tag = meta.tag();
-    let mut body = TokenStream::new();
-    let mut attributes = TokenStream::new();
-    let mut borrowed = BTreeSet::new();
+    let mut out = StructOutput::default();
     match &data.fields {
         syn::Fields::Named(fields) => {
-            body.extend(quote!(serializer.end_start()?;));
+            out.body.extend(quote!(serializer.end_start()?;));
             for field in &fields.named {
-                if let Err(err) =
-                    named_field(field, &mut body, &mut attributes, &mut borrowed, &meta)
-                {
+                if let Err(err) = out.named_field(field, &meta) {
                     return err.to_compile_error();
                 }
             }
-            body.extend(quote!(serializer.write_close(prefix, #tag)?;));
+            out.body
+                .extend(quote!(serializer.write_close(prefix, #tag)?;));
         }
         syn::Fields::Unnamed(fields) => {
-            body.extend(quote!(serializer.end_start()?;));
+            out.body.extend(quote!(serializer.end_start()?;));
             for (index, field) in fields.unnamed.iter().enumerate() {
-                if let Err(err) = unnamed_field(field, index, &mut body, &mut borrowed) {
+                if let Err(err) = out.unnamed_field(field, index) {
                     return err.to_compile_error();
                 }
             }
-            body.extend(quote!(serializer.write_close(prefix, #tag)?;));
+            out.body
+                .extend(quote!(serializer.write_close(prefix, #tag)?;));
         }
-        syn::Fields::Unit => body.extend(quote!(serializer.end_empty()?;)),
+        syn::Fields::Unit => out.body.extend(quote!(serializer.end_empty()?;)),
     }
 
     let default_namespace = meta.default_namespace();
@@ -234,8 +232,7 @@ fn serialize_struct(
                 let old = serializer.push(new)?;
 
                 // Finalize start element
-                #attributes
-                #body
+                #out
 
                 serializer.pop(old);
                 Ok(())
@@ -266,19 +263,15 @@ fn serialize_inline_struct(
             .to_compile_error();
     }
 
-    let mut body = TokenStream::new();
-    let mut attributes = TokenStream::new();
-    let mut borrowed = BTreeSet::new();
+    let mut out = StructOutput::default();
     match &data.fields {
         syn::Fields::Named(fields) => {
             for field in &fields.named {
-                if let Err(err) =
-                    named_field(field, &mut body, &mut attributes, &mut borrowed, &meta)
-                {
+                if let Err(err) = out.named_field(field, &meta) {
                     return err.to_compile_error();
                 }
 
-                if !attributes.is_empty() {
+                if !out.attributes.is_empty() {
                     return syn::Error::new(
                         input.span(),
                         "no attributes allowed on inline structs",
@@ -289,12 +282,12 @@ fn serialize_inline_struct(
         }
         syn::Fields::Unnamed(fields) => {
             for (index, field) in fields.unnamed.iter().enumerate() {
-                if let Err(err) = unnamed_field(field, index, &mut body, &mut borrowed) {
+                if let Err(err) = out.unnamed_field(field, index) {
                     return err.to_compile_error();
                 }
             }
         }
-        syn::Fields::Unit => body.extend(quote!(serializer.end_empty()?;)),
+        syn::Fields::Unit => out.body.extend(quote!(serializer.end_empty()?;)),
     }
 
     let mut generics = input.generics.clone();
@@ -313,57 +306,68 @@ fn serialize_inline_struct(
                 field: Option<::instant_xml::Id<'_>>,
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> ::std::result::Result<(), instant_xml::Error> {
-                #body
+                #out
                 Ok(())
             }
         };
     )
 }
 
-fn named_field(
-    field: &syn::Field,
-    body: &mut TokenStream,
-    attributes: &mut TokenStream,
-    borrowed: &mut BTreeSet<syn::Lifetime>,
-    meta: &ContainerMeta,
-) -> Result<(), syn::Error> {
-    let field_name = field.ident.as_ref().unwrap();
-    let field_meta = match FieldMeta::from_field(field, meta) {
-        Ok(meta) => meta,
-        Err(err) => {
-            body.extend(err.into_compile_error());
-            return Ok(());
-        }
-    };
+#[derive(Default)]
+struct StructOutput {
+    body: TokenStream,
+    attributes: TokenStream,
+    borrowed: BTreeSet<syn::Lifetime>,
+}
 
-    let tag = field_meta.tag;
-    let default_ns = match &meta.ns.uri {
-        Some(ns) => quote!(#ns),
-        None => quote!(""),
-    };
+impl StructOutput {
+    fn named_field(&mut self, field: &syn::Field, meta: &ContainerMeta) -> Result<(), syn::Error> {
+        let field_name = field.ident.as_ref().unwrap();
+        let field_meta = match FieldMeta::from_field(field, meta) {
+            Ok(meta) => meta,
+            Err(err) => {
+                self.body.extend(err.into_compile_error());
+                return Ok(());
+            }
+        };
 
-    if field_meta.attribute {
-        if field_meta.direct {
-            return Err(syn::Error::new(
-                field.span(),
-                "direct attribute is not supported on attributes",
-            ));
-        }
+        let tag = field_meta.tag;
+        let default_ns = match &meta.ns.uri {
+            Some(ns) => quote!(#ns),
+            None => quote!(""),
+        };
 
-        let (ns, error) = match &field_meta.ns.uri {
-            Some(Namespace::Path(path)) => match path.get_ident() {
-                Some(prefix) => match &meta.ns.prefixes.get(&prefix.to_string()) {
-                    Some(ns) => (quote!(#ns), quote!()),
+        if field_meta.attribute {
+            if field_meta.direct {
+                return Err(syn::Error::new(
+                    field.span(),
+                    "direct attribute is not supported on attributes",
+                ));
+            }
+
+            let (ns, error) = match &field_meta.ns.uri {
+                Some(Namespace::Path(path)) => match path.get_ident() {
+                    Some(prefix) => match &meta.ns.prefixes.get(&prefix.to_string()) {
+                        Some(ns) => (quote!(#ns), quote!()),
+                        None => (
+                            quote!(""),
+                            syn::Error::new(
+                                field_meta.ns.uri.span(),
+                                format!("unknown prefix `{prefix}` (prefix must be defined on the field's type)"),
+                            )
+                            .into_compile_error(),
+                        ),
+                    },
                     None => (
                         quote!(""),
                         syn::Error::new(
                             field_meta.ns.uri.span(),
-                            format!("unknown prefix `{prefix}` (prefix must be defined on the field's type)"),
+                            "attribute namespace must be a prefix identifier",
                         )
                         .into_compile_error(),
                     ),
                 },
-                None => (
+                Some(Namespace::Literal(_)) => (
                     quote!(""),
                     syn::Error::new(
                         field_meta.ns.uri.span(),
@@ -371,90 +375,85 @@ fn named_field(
                     )
                     .into_compile_error(),
                 ),
-            },
-            Some(Namespace::Literal(_)) => (
-                quote!(""),
-                syn::Error::new(
-                    field_meta.ns.uri.span(),
-                    "attribute namespace must be a prefix identifier",
-                )
-                .into_compile_error(),
-            ),
-            None => (default_ns, quote!()),
+                None => (default_ns, quote!()),
+            };
+
+            self.attributes.extend(quote!(
+                #error
+                if self.#field_name.present() {
+                    serializer.write_attr(#tag, #ns, &self.#field_name)?;
+                }
+            ));
+            return Ok(());
+        }
+
+        let ns = match field_meta.ns.uri {
+            Some(ref ns) => quote!(#ns),
+            None => default_ns,
         };
 
-        attributes.extend(quote!(
-            #error
-            if self.#field_name.present() {
-                serializer.write_attr(#tag, #ns, &self.#field_name)?;
+        let mut no_lifetime_type = field.ty.clone();
+        discard_lifetimes(&mut no_lifetime_type, &mut self.borrowed, false, true);
+        if let Some(with) = field_meta.serialize_with {
+            if field_meta.direct {
+                return Err(syn::Error::new(
+                    field.span(),
+                    "direct serialization is not supported with `serialize_with`",
+                ));
             }
-        ));
-        return Ok(());
-    }
 
-    let ns = match field_meta.ns.uri {
-        Some(ref ns) => quote!(#ns),
-        None => default_ns,
-    };
+            let path = with.to_string();
+            let path = syn::parse_str::<syn::Path>(path.trim_matches('"')).map_err(|err| {
+                syn::Error::new(
+                    with.span(),
+                    format!("failed to parse serialize_with as path: {err}"),
+                )
+            })?;
 
-    let mut no_lifetime_type = field.ty.clone();
-    discard_lifetimes(&mut no_lifetime_type, borrowed, false, true);
-    if let Some(with) = field_meta.serialize_with {
-        if field_meta.direct {
-            return Err(syn::Error::new(
-                field.span(),
-                "direct serialization is not supported with `serialize_with`",
+            self.body
+                .extend(quote!(#path(&self.#field_name, serializer)?;));
+            return Ok(());
+        } else if field_meta.direct {
+            self.body.extend(quote!(
+                <#no_lifetime_type as ToXml>::serialize(
+                    &self.#field_name, None, serializer
+                )?;
+            ));
+        } else {
+            self.body.extend(quote!(
+                <#no_lifetime_type as ToXml>::serialize(
+                    &self.#field_name,
+                    Some(::instant_xml::Id { ns: #ns, name: #tag }),
+                    serializer,
+                )?;
             ));
         }
 
-        let path = with.to_string();
-        let path = syn::parse_str::<syn::Path>(path.trim_matches('"')).map_err(|err| {
-            syn::Error::new(
-                with.span(),
-                format!("failed to parse serialize_with as path: {err}"),
-            )
-        })?;
-
-        body.extend(quote!(#path(&self.#field_name, serializer)?;));
-        return Ok(());
-    } else if field_meta.direct {
-        body.extend(quote!(
-            <#no_lifetime_type as ToXml>::serialize(
-                &self.#field_name, None, serializer
-            )?;
-        ));
-    } else {
-        body.extend(quote!(
-            <#no_lifetime_type as ToXml>::serialize(
-                &self.#field_name,
-                Some(::instant_xml::Id { ns: #ns, name: #tag }),
-                serializer,
-            )?;
-        ));
+        Ok(())
     }
 
-    Ok(())
+    fn unnamed_field(&mut self, field: &syn::Field, index: usize) -> Result<(), syn::Error> {
+        if !field.attrs.is_empty() {
+            return Err(syn::Error::new(
+                field.span(),
+                "unnamed fields cannot have attributes",
+            ));
+        }
+
+        let mut no_lifetime_type = field.ty.clone();
+        discard_lifetimes(&mut no_lifetime_type, &mut self.borrowed, false, true);
+        let index = syn::Index::from(index);
+        self.body.extend(quote!(
+            self.#index.serialize(None, serializer)?;
+        ));
+
+        Ok(())
+    }
 }
 
-fn unnamed_field(
-    field: &syn::Field,
-    index: usize,
-    body: &mut TokenStream,
-    borrowed: &mut BTreeSet<syn::Lifetime>,
-) -> Result<(), syn::Error> {
-    if !field.attrs.is_empty() {
-        return Err(syn::Error::new(
-            field.span(),
-            "unnamed fields cannot have attributes",
-        ));
+impl ToTokens for StructOutput {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.attributes.to_tokens(tokens);
+        self.body.to_tokens(tokens);
     }
-
-    let mut no_lifetime_type = field.ty.clone();
-    discard_lifetimes(&mut no_lifetime_type, borrowed, false, true);
-    let index = syn::Index::from(index);
-    body.extend(quote!(
-        self.#index.serialize(None, serializer)?;
-    ));
-
-    Ok(())
 }

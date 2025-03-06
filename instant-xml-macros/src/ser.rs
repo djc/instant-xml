@@ -311,8 +311,30 @@ impl StructOutput {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|err| err.to_compile_error())?;
 
+        let mut direct = None;
+        for (field, field_meta) in &fields {
+            if direct.is_some() {
+                return Err(
+                    syn::Error::new(field.span(), "direct field must be the last")
+                        .into_compile_error(),
+                );
+            }
+
+            if field_meta.direct {
+                direct = Some(field.ident.as_ref().unwrap());
+            }
+        }
+
         if !inline {
-            self.body.extend(quote!(serializer.end_start()?;));
+            self.body.extend(match direct {
+                Some(field) => quote!(
+                    match self.#field.present() {
+                        true => serializer.end_start()?,
+                        false => serializer.end_empty()?,
+                    }
+                ),
+                None => quote!(serializer.end_start()?;),
+            })
         }
 
         for (field, field_meta) in fields {
@@ -331,8 +353,15 @@ impl StructOutput {
 
         if !inline {
             let tag = meta.tag();
-            self.body
-                .extend(quote!(serializer.write_close(prefix, #tag)?;));
+            self.body.extend(match direct {
+                Some(field) => quote!(
+                    match self.#field.present() {
+                        true => serializer.write_close(prefix, #tag)?,
+                        false => (),
+                    }
+                ),
+                None => quote!(serializer.write_close(prefix, #tag)?;),
+            });
         }
 
         Ok(())

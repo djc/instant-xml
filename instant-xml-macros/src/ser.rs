@@ -304,12 +304,19 @@ impl StructOutput {
         inline: bool,
         meta: &ContainerMeta,
     ) -> Result<(), proc_macro2::TokenStream> {
+        let fields = fields
+            .named
+            .iter()
+            .map(|field| FieldMeta::from_field(field, meta).map(|meta| (field, meta)))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| err.to_compile_error())?;
+
         if !inline {
             self.body.extend(quote!(serializer.end_start()?;));
         }
 
-        for field in &fields.named {
-            if let Err(err) = self.named_field(field, meta) {
+        for (field, field_meta) in fields {
+            if let Err(err) = self.named_field(field, field_meta, meta) {
                 return Err(err.to_compile_error());
             }
 
@@ -331,15 +338,13 @@ impl StructOutput {
         Ok(())
     }
 
-    fn named_field(&mut self, field: &syn::Field, meta: &ContainerMeta) -> Result<(), syn::Error> {
+    fn named_field(
+        &mut self,
+        field: &syn::Field,
+        field_meta: FieldMeta,
+        meta: &ContainerMeta,
+    ) -> Result<(), syn::Error> {
         let field_name = field.ident.as_ref().unwrap();
-        let field_meta = match FieldMeta::from_field(field, meta) {
-            Ok(meta) => meta,
-            Err(err) => {
-                self.body.extend(err.into_compile_error());
-                return Ok(());
-            }
-        };
 
         let tag = field_meta.tag;
         let default_ns = match &meta.ns.uri {

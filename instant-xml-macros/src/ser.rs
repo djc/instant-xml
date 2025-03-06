@@ -168,28 +168,17 @@ fn serialize_struct(
     data: &syn::DataStruct,
     meta: ContainerMeta,
 ) -> proc_macro2::TokenStream {
-    let tag = meta.tag();
     let mut out = StructOutput::default();
     match &data.fields {
         syn::Fields::Named(fields) => {
-            out.body.extend(quote!(serializer.end_start()?;));
-            for field in &fields.named {
-                if let Err(err) = out.named_field(field, &meta) {
-                    return err.to_compile_error();
-                }
+            if let Err(err) = out.named_fields(fields, false, &meta) {
+                return err;
             }
-            out.body
-                .extend(quote!(serializer.write_close(prefix, #tag)?;));
         }
         syn::Fields::Unnamed(fields) => {
-            out.body.extend(quote!(serializer.end_start()?;));
-            for (index, field) in fields.unnamed.iter().enumerate() {
-                if let Err(err) = out.unnamed_field(field, index) {
-                    return err.to_compile_error();
-                }
+            if let Err(err) = out.unnamed_fields(fields, false, &meta) {
+                return err;
             }
-            out.body
-                .extend(quote!(serializer.write_close(prefix, #tag)?;));
         }
         syn::Fields::Unit => out.body.extend(quote!(serializer.end_empty()?;)),
     }
@@ -266,25 +255,13 @@ fn serialize_inline_struct(
     let mut out = StructOutput::default();
     match &data.fields {
         syn::Fields::Named(fields) => {
-            for field in &fields.named {
-                if let Err(err) = out.named_field(field, &meta) {
-                    return err.to_compile_error();
-                }
-
-                if !out.attributes.is_empty() {
-                    return syn::Error::new(
-                        input.span(),
-                        "no attributes allowed on inline structs",
-                    )
-                    .to_compile_error();
-                }
+            if let Err(err) = out.named_fields(fields, true, &meta) {
+                return err;
             }
         }
         syn::Fields::Unnamed(fields) => {
-            for (index, field) in fields.unnamed.iter().enumerate() {
-                if let Err(err) = out.unnamed_field(field, index) {
-                    return err.to_compile_error();
-                }
+            if let Err(err) = out.unnamed_fields(fields, true, &meta) {
+                return err;
             }
         }
         syn::Fields::Unit => out.body.extend(quote!(serializer.end_empty()?;)),
@@ -321,6 +298,39 @@ struct StructOutput {
 }
 
 impl StructOutput {
+    fn named_fields(
+        &mut self,
+        fields: &syn::FieldsNamed,
+        inline: bool,
+        meta: &ContainerMeta,
+    ) -> Result<(), proc_macro2::TokenStream> {
+        if !inline {
+            self.body.extend(quote!(serializer.end_start()?;));
+        }
+
+        for field in &fields.named {
+            if let Err(err) = self.named_field(field, meta) {
+                return Err(err.to_compile_error());
+            }
+
+            if inline && !self.attributes.is_empty() {
+                return Err(syn::Error::new(
+                    field.span(),
+                    "no attributes allowed on inline structs",
+                )
+                .to_compile_error());
+            }
+        }
+
+        if !inline {
+            let tag = meta.tag();
+            self.body
+                .extend(quote!(serializer.write_close(prefix, #tag)?;));
+        }
+
+        Ok(())
+    }
+
     fn named_field(&mut self, field: &syn::Field, meta: &ContainerMeta) -> Result<(), syn::Error> {
         let field_name = field.ident.as_ref().unwrap();
         let field_meta = match FieldMeta::from_field(field, meta) {
@@ -427,6 +437,31 @@ impl StructOutput {
                     serializer,
                 )?;
             ));
+        }
+
+        Ok(())
+    }
+
+    fn unnamed_fields(
+        &mut self,
+        fields: &syn::FieldsUnnamed,
+        inline: bool,
+        meta: &ContainerMeta,
+    ) -> Result<(), proc_macro2::TokenStream> {
+        if !inline {
+            self.body.extend(quote!(serializer.end_start()?;));
+        }
+
+        for (index, field) in fields.unnamed.iter().enumerate() {
+            if let Err(err) = self.unnamed_field(field, index) {
+                return Err(err.to_compile_error());
+            }
+        }
+
+        if !inline {
+            let tag = meta.tag();
+            self.body
+                .extend(quote!(serializer.write_close(prefix, #tag)?;));
         }
 
         Ok(())

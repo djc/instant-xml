@@ -13,6 +13,6 @@ struct NoPrefixAttrNs {
 fn no_prefix_attr_ns() {
     assert_eq!(
         to_string(&NoPrefixAttrNs { flag: true }).unwrap(),
-        "<NoPrefixAttrNs xmlns:bar=\"BAR\" bar:flag=\"true\"></NoPrefixAttrNs>"
+        "<NoPrefixAttrNs xmlns:bar=\"BAR\" bar:flag=\"true\" />"
     );
 }

@@ -11,13 +11,13 @@ struct Basic {
 #[test]
 fn basic() {
     assert_eq!(
-        from_str::<Basic>("<Basic flag=\"true\"></Basic>"),
+        from_str::<Basic>("<Basic flag=\"true\" />"),
         Ok(Basic { flag: true })
     );
 
     assert_eq!(
         to_string(&Basic { flag: true }).unwrap(),
-        "<Basic flag=\"true\"></Basic>"
+        "<Basic flag=\"true\" />"
     );
 }
 

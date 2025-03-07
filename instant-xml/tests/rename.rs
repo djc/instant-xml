@@ -18,7 +18,7 @@ fn renamed() {
 
     assert_eq!(
         to_string(&Renamed { flag: true }).unwrap(),
-        "<renamed renamed=\"true\"></renamed>"
+        "<renamed renamed=\"true\" />"
     );
 }
 

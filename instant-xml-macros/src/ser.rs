@@ -311,8 +311,13 @@ impl StructOutput {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|err| err.to_compile_error())?;
 
+        let mut attrs_only = true;
         let mut direct = None;
         for (field, field_meta) in &fields {
+            if !field_meta.attribute {
+                attrs_only = false;
+            }
+
             if direct.is_some() {
                 return Err(
                     syn::Error::new(field.span(), "direct field must be the last")
@@ -326,14 +331,15 @@ impl StructOutput {
         }
 
         if !inline {
-            self.body.extend(match direct {
-                Some(field) => quote!(
+            self.body.extend(match (attrs_only, direct) {
+                (true, _) => quote!(serializer.end_empty()?;),
+                (false, Some(field)) => quote!(
                     match self.#field.present() {
                         true => serializer.end_start()?,
                         false => serializer.end_empty()?,
                     }
                 ),
-                None => quote!(serializer.end_start()?;),
+                (false, None) => quote!(serializer.end_start()?;),
             })
         }
 
@@ -351,7 +357,7 @@ impl StructOutput {
             }
         }
 
-        if !inline {
+        if !inline && !attrs_only {
             let tag = meta.tag();
             self.body.extend(match direct {
                 Some(field) => quote!(

@@ -31,13 +31,13 @@ fn option_borrow() {
     let v = Bar {
         maybe: Some("a".into()),
     };
-    let xml = r#"<Bar maybe="a"></Bar>"#;
+    let xml = r#"<Bar maybe="a" />"#;
 
     assert_eq!(xml, to_string(&v).unwrap());
     assert_eq!(v, from_str(xml).unwrap());
 
     let v = Bar { maybe: None };
-    let xml = r#"<Bar></Bar>"#;
+    let xml = r#"<Bar />"#;
 
     assert_eq!(xml, to_string(&v).unwrap());
     assert_eq!(v, from_str(xml).unwrap());

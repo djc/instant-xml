@@ -32,7 +32,7 @@ fn empty() {
     );
 }
 
-#[derive(ToXml)]
+#[derive(FromXml, ToXml, PartialEq)]
 #[xml(ns(bar = BAR))]
 struct NoPrefixAttrNs {
     #[xml(attribute, ns(BAR))]
@@ -43,8 +43,8 @@ const BAR: &str = "BAR";
 
 #[test]
 fn no_prefix_attr_ns() {
-    assert_eq!(
-        to_string(&NoPrefixAttrNs { flag: true }).unwrap(),
-        "<NoPrefixAttrNs xmlns:bar=\"BAR\" bar:flag=\"true\" />"
-    );
+    let v = NoPrefixAttrNs { flag: true };
+    let xml = "<NoPrefixAttrNs xmlns:bar=\"BAR\" bar:flag=\"true\" />";
+    assert_eq!(to_string(&v).unwrap(), xml);
+    assert_eq!(from_str::<NoPrefixAttrNs>(xml).unwrap(), v);
 }

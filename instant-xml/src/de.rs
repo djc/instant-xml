@@ -18,10 +18,6 @@ pub struct Deserializer<'cx, 'xml> {
 impl<'cx, 'xml> Deserializer<'cx, 'xml> {
     pub(crate) fn new(element: Element<'xml>, context: &'cx mut Context<'xml>) -> Self {
         let level = context.stack.len();
-        if !element.empty {
-            context.stack.push(element.level);
-        }
-
         Self {
             local: element.local,
             prefix: element.prefix,
@@ -113,7 +109,10 @@ impl<'xml> Iterator for Deserializer<'_, 'xml> {
             item => return item,
         };
 
-        if self.context.stack.len() == self.level && local == self.local && prefix == self.prefix {
+        if self.context.stack.len() == self.level - 1
+            && local == self.local
+            && prefix == self.prefix
+        {
             self.done = true;
             return None;
         }
@@ -150,12 +149,9 @@ impl<'xml> Context<'xml> {
     pub(crate) fn element_id(&self, element: &Element<'xml>) -> Result<Id<'xml>, Error> {
         Ok(Id {
             ns: match (element.default_ns, element.prefix) {
-                (_, Some(prefix)) => match element.level.prefixes.get(prefix) {
+                (_, Some(prefix)) => match self.lookup(prefix) {
                     Some(ns) => ns,
-                    None => match self.lookup(prefix) {
-                        Some(ns) => ns,
-                        None => return Err(Error::UnknownPrefix(prefix.to_owned())),
-                    },
+                    None => return Err(Error::UnknownPrefix(prefix.to_owned())),
                 },
                 (Some(ns), None) => ns,
                 (None, None) => self.default_ns(),
@@ -204,15 +200,17 @@ impl<'xml> Iterator for Context<'xml> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(record) = self.records.pop_front() {
+            if let Node::Close { .. } = &record {
+                self.stack.pop();
+            }
             return Some(Ok(record));
         }
 
-        let mut current = None;
         loop {
             match self.parser.next()? {
                 Ok(Token::ElementStart { prefix, local, .. }) => {
                     let prefix = prefix.as_str();
-                    current = Some(Level {
+                    self.stack.push(Level {
                         local: local.as_str(),
                         prefix: match prefix.is_empty() {
                             true => None,
@@ -224,7 +222,7 @@ impl<'xml> Iterator for Context<'xml> {
                 }
                 Ok(Token::ElementEnd { end, .. }) => match end {
                     ElementEnd::Open => {
-                        let level = match current {
+                        let level = match self.stack.last() {
                             Some(level) => level,
                             None => {
                                 return Some(Err(Error::UnexpectedState(
@@ -237,8 +235,6 @@ impl<'xml> Iterator for Context<'xml> {
                             local: level.local,
                             prefix: level.prefix,
                             default_ns: level.default_ns,
-                            level,
-                            empty: false,
                         };
 
                         return Some(Ok(Node::Open(element)));
@@ -271,7 +267,7 @@ impl<'xml> Iterator for Context<'xml> {
                         }
                     }
                     ElementEnd::Empty => {
-                        let level = match current {
+                        let level = match self.stack.last() {
                             Some(level) => level,
                             None => {
                                 return Some(Err(Error::UnexpectedState(
@@ -289,8 +285,6 @@ impl<'xml> Iterator for Context<'xml> {
                             local: level.local,
                             prefix: level.prefix,
                             default_ns: level.default_ns,
-                            level,
-                            empty: true,
                         };
 
                         return Some(Ok(Node::Open(element)));
@@ -303,7 +297,7 @@ impl<'xml> Iterator for Context<'xml> {
                     ..
                 }) => {
                     if prefix.is_empty() && local.as_str() == "xmlns" {
-                        match &mut current {
+                        match self.stack.last_mut() {
                             Some(level) => level.default_ns = Some(value.as_str()),
                             None => {
                                 return Some(Err(Error::UnexpectedState(
@@ -312,7 +306,7 @@ impl<'xml> Iterator for Context<'xml> {
                             }
                         }
                     } else if prefix.as_str() == "xmlns" {
-                        match &mut current {
+                        match self.stack.last_mut() {
                             Some(level) => {
                                 level.prefixes.insert(local.as_str(), value.as_str());
                             }
@@ -514,8 +508,6 @@ pub struct Element<'xml> {
     local: &'xml str,
     default_ns: Option<&'xml str>,
     prefix: Option<&'xml str>,
-    level: Level<'xml>,
-    empty: bool,
 }
 
 #[derive(Debug)]

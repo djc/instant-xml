@@ -33,11 +33,13 @@ fn empty() {
 }
 
 #[derive(ToXml)]
-#[xml(ns(bar = "BAR"))]
+#[xml(ns(bar = BAR))]
 struct NoPrefixAttrNs {
-    #[xml(attribute, ns(bar))]
+    #[xml(attribute, ns(BAR))]
     flag: bool,
 }
+
+const BAR: &str = "BAR";
 
 #[test]
 fn no_prefix_attr_ns() {

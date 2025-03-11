@@ -397,17 +397,7 @@ impl StructOutput {
 
             let (ns, error) = match &field_meta.ns.uri {
                 Some(Namespace::Path(path)) => match path.get_ident() {
-                    Some(prefix) => match &meta.ns.prefixes.get(&prefix.to_string()) {
-                        Some(ns) => (quote!(#ns), quote!()),
-                        None => (
-                            quote!(""),
-                            syn::Error::new(
-                                field_meta.ns.uri.span(),
-                                format!("unknown prefix `{prefix}` (prefix must be defined on the field's type)"),
-                            )
-                            .into_compile_error(),
-                        ),
-                    },
+                    Some(path) => (quote!(#path), quote!()),
                     None => (
                         quote!(""),
                         syn::Error::new(

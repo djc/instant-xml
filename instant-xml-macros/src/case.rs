@@ -15,9 +15,10 @@ use proc_macro2::Span;
 use self::RenameRule::*;
 
 /// The different possible ways to change case of fields in a struct, or variants in an enum.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 pub enum RenameRule {
     /// Don't apply a default rename rule.
+    #[default]
     None,
     /// Rename direct children to "lowercase" style.
     LowerCase,
@@ -38,12 +39,6 @@ pub enum RenameRule {
     KebabCase,
     /// Rename direct children to "SCREAMING-KEBAB-CASE" style.
     ScreamingKebabCase,
-}
-
-impl Default for RenameRule {
-    fn default() -> Self {
-        None
-    }
 }
 
 const RENAME_RULES: &[(&str, RenameRule)] = &[

@@ -34,5 +34,5 @@ We'd love to hear your feedback!
 ## Thanks
 
 Thanks to [@rsdy](https://github.com/rsdy) and [@choinskib](https://github.com/choinskib) for
-their work on this library, and thanks (of course) to [@dtolnay](https://github.com/dtolnay/) for
+their work on this library, and thanks (of course) to [@erickt](https://github.com/erickt/) for
 creating serde.

@@ -483,7 +483,7 @@ fn deserialize_inline_struct(
 
     // Attributes
     let ident = &input.ident;
-    let accumulator = Ident::new(&format!("__{}Accumulator", ident), Span::call_site());
+    let accumulator = Ident::new(&format!("__{ident}Accumulator"), Span::call_site());
     let generics = meta.xml_generics(borrowed);
 
     let (xml_impl_generics, xml_ty_generics, _) = generics.split_for_impl();

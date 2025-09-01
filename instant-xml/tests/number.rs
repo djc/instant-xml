@@ -34,6 +34,5 @@ fn deserialize_spaced_numbers_fields() {
         f_64: 104568.568932_f64,
     };
     let xml = r#"<Number><i_8>  -1 </i_8><i_16>-32456 </i_16><i_32>-6034568 </i_32><i_64>-1245789630056 </i_64><i_size>-125698389 </i_size><u_8>9 </u_8><u_16>64469   </u_16><u_32>6034568 </u_32><u_64> 99245789630056 </u_64><u_size>125698389 </u_size><f_32>    -12.5683   </f_32><f_64>  104568.568932 </f_64></Number>"#;
-    // assert_eq!(xml, to_string(&v).unwrap());
     assert_eq!(v, from_str(xml).unwrap());
 }

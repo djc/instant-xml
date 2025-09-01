@@ -201,7 +201,6 @@ macro_rules! from_xml_for_number {
                 match <$typ>::from_str(value.as_ref().trim()) {
                     Ok(value) => {
                         *into = Some(value);
-                        // Ok(())
                     }
                     Err(_) => {
                         return Err(Error::UnexpectedValue(format!(

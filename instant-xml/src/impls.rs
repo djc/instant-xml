@@ -193,10 +193,18 @@ macro_rules! from_xml_for_number {
                     return Err(Error::DuplicateValue(field));
                 }
 
-                let mut value = None;
-                FromXmlStr::<Self>::deserialize(&mut value, field, deserializer)?;
-                if let Some(value) = value {
-                    *into = Some(value.0);
+                let Some(value) = deserializer.take_str()? else {
+                    return Ok(());
+                };
+
+                match <$typ>::from_str(value.as_ref().trim()) {
+                    Ok(value) => *into = Some(value),
+                    Err(_) => {
+                        return Err(Error::UnexpectedValue(format!(
+                            "unable to parse number {} from `{value}` for {field}",
+                            type_name::<$typ>()
+                        )))
+                    }
                 }
 
                 Ok(())

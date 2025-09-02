@@ -2,7 +2,7 @@
 name = "instant-xml"
 version = "0.6.0"
 edition = "2021"
-rust-version = "1.62"
+rust-version = "1.65"
 workspace = ".."
 license = "Apache-2.0 OR MIT"
 description = "A more rigorous way to map XML to Rust types"

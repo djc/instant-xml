@@ -125,6 +125,7 @@ pub(crate) struct Context<'xml> {
     parser: Tokenizer<'xml>,
     stack: Vec<Level<'xml>>,
     records: VecDeque<Node<'xml>>,
+    all_namespaces: BTreeMap<String, String>,
 }
 
 impl<'xml> Context<'xml> {
@@ -133,6 +134,7 @@ impl<'xml> Context<'xml> {
             parser: Tokenizer::from(input),
             stack: Vec::new(),
             records: VecDeque::new(),
+            all_namespaces: BTreeMap::new(),
         };
 
         let root = match new.next() {
@@ -158,6 +160,10 @@ impl<'xml> Context<'xml> {
             },
             name: element.local,
         })
+    }
+
+    pub(crate) fn namespaces(&self) -> BTreeMap<String, String> {
+        self.all_namespaces.clone()
     }
 
     fn attribute_id(&self, attr: &Attribute<'xml>) -> Result<Id<'xml>, Error> {
@@ -298,7 +304,12 @@ impl<'xml> Iterator for Context<'xml> {
                 }) => {
                     if prefix.is_empty() && local.as_str() == "xmlns" {
                         match self.stack.last_mut() {
-                            Some(level) => level.default_ns = Some(value.as_str()),
+                            Some(level) => {
+                                level.default_ns = Some(value.as_str());
+                                //default namespace is empty string (for now?)
+                                self.all_namespaces
+                                    .insert("".to_string(), value.as_str().to_string());
+                            }
                             None => {
                                 return Some(Err(Error::UnexpectedState(
                                     "attribute without element context",
@@ -309,6 +320,8 @@ impl<'xml> Iterator for Context<'xml> {
                         match self.stack.last_mut() {
                             Some(level) => {
                                 level.prefixes.insert(local.as_str(), value.as_str());
+                                self.all_namespaces
+                                    .insert(local.as_str().to_string(), value.as_str().to_string());
                             }
                             None => {
                                 return Some(Err(Error::UnexpectedState(

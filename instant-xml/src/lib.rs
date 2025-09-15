@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt};
+use std::{borrow::Cow, collections::BTreeMap, fmt};
 
 use thiserror::Error;
 
@@ -165,4 +165,36 @@ pub enum Kind {
 pub struct Id<'a> {
     pub ns: &'a str,
     pub name: &'a str,
+}
+
+pub fn from_str_with_namespaces<'xml, T: FromXml<'xml>>(
+    input: &'xml str,
+) -> Result<(T, BTreeMap<String, String>), Error> {
+    let (mut context, root) = Context::new(input)?;
+    let id = context.element_id(&root)?;
+
+    if !T::matches(id, None) {
+        return Err(Error::UnexpectedValue(match id.ns.is_empty() {
+            true => format!("unexpected root element {:?}", id.name),
+            false => format!(
+                "unexpected root element {:?} in namespace {:?}",
+                id.name, id.ns
+            ),
+        }));
+    }
+
+    let mut value = T::Accumulator::default();
+    T::deserialize(
+        &mut value,
+        "<root element>",
+        &mut Deserializer::new(root, &mut context),
+    )?;
+    let result = value.try_done("<root element>")?;
+    let mut namespaces = context.namespaces();
+    namespaces.insert(
+        "xml".to_string(),
+        "http://www.w3.org/XML/1998/namespace".to_string(),
+    );
+
+    Ok((result, namespaces))
 }

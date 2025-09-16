@@ -1,4 +1,6 @@
-use std::{borrow::Cow, collections::BTreeMap, fmt};
+#[cfg(feature = "namespace-tracking")]
+use std::collections::BTreeMap;
+use std::{borrow::Cow, fmt};
 
 use thiserror::Error;
 
@@ -82,6 +84,27 @@ impl<T> Accumulate<Option<T>> for Option<T> {
 }
 
 pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
+    let (result, _) = from_str_internal(input)?;
+    Ok(result)
+}
+
+#[cfg(feature = "namespace-tracking")]
+pub fn from_str_with_namespaces<'xml, T: FromXml<'xml>>(
+    input: &'xml str,
+) -> Result<(T, BTreeMap<String, String>), Error> {
+    let (result, context) = from_str_internal(input)?;
+    let mut namespaces = context.namespaces();
+    namespaces.insert(
+        "xml".to_string(),
+        "http://www.w3.org/XML/1998/namespace".to_string(),
+    );
+
+    Ok((result, namespaces))
+}
+
+fn from_str_internal<'xml, T: FromXml<'xml>>(
+    input: &'xml str,
+) -> Result<(T, Context<'xml>), Error> {
     let (mut context, root) = Context::new(input)?;
     let id = context.element_id(&root)?;
 
@@ -101,7 +124,9 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
         "<root element>",
         &mut Deserializer::new(root, &mut context),
     )?;
-    value.try_done("<root element>")
+    let deserialized = value.try_done("<root element>")?;
+
+    Ok((deserialized, context))
 }
 
 pub fn to_string(value: &(impl ToXml + ?Sized)) -> Result<String, Error> {
@@ -165,36 +190,4 @@ pub enum Kind {
 pub struct Id<'a> {
     pub ns: &'a str,
     pub name: &'a str,
-}
-
-pub fn from_str_with_namespaces<'xml, T: FromXml<'xml>>(
-    input: &'xml str,
-) -> Result<(T, BTreeMap<String, String>), Error> {
-    let (mut context, root) = Context::new(input)?;
-    let id = context.element_id(&root)?;
-
-    if !T::matches(id, None) {
-        return Err(Error::UnexpectedValue(match id.ns.is_empty() {
-            true => format!("unexpected root element {:?}", id.name),
-            false => format!(
-                "unexpected root element {:?} in namespace {:?}",
-                id.name, id.ns
-            ),
-        }));
-    }
-
-    let mut value = T::Accumulator::default();
-    T::deserialize(
-        &mut value,
-        "<root element>",
-        &mut Deserializer::new(root, &mut context),
-    )?;
-    let result = value.try_done("<root element>")?;
-    let mut namespaces = context.namespaces();
-    namespaces.insert(
-        "xml".to_string(),
-        "http://www.w3.org/XML/1998/namespace".to_string(),
-    );
-
-    Ok((result, namespaces))
 }

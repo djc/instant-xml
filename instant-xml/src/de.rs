@@ -125,6 +125,7 @@ pub(crate) struct Context<'xml> {
     parser: Tokenizer<'xml>,
     stack: Vec<Level<'xml>>,
     records: VecDeque<Node<'xml>>,
+    #[cfg(feature = "namespace-tracking")]
     all_namespaces: BTreeMap<String, String>,
 }
 
@@ -134,6 +135,7 @@ impl<'xml> Context<'xml> {
             parser: Tokenizer::from(input),
             stack: Vec::new(),
             records: VecDeque::new(),
+            #[cfg(feature = "namespace-tracking")]
             all_namespaces: BTreeMap::new(),
         };
 
@@ -162,6 +164,7 @@ impl<'xml> Context<'xml> {
         })
     }
 
+    #[cfg(feature = "namespace-tracking")]
     pub(crate) fn namespaces(&self) -> BTreeMap<String, String> {
         self.all_namespaces.clone()
     }
@@ -307,6 +310,7 @@ impl<'xml> Iterator for Context<'xml> {
                             Some(level) => {
                                 level.default_ns = Some(value.as_str());
                                 //default namespace is empty string (for now?)
+                                #[cfg(feature = "namespace-tracking")]
                                 self.all_namespaces
                                     .insert("".to_string(), value.as_str().to_string());
                             }
@@ -316,10 +320,11 @@ impl<'xml> Iterator for Context<'xml> {
                                 )))
                             }
                         }
-                    } else if prefix.as_str() == "xmlns" {
+                    } else if prefix.as_str() == "xmlns" || prefix.as_str() == "xml" {
                         match self.stack.last_mut() {
                             Some(level) => {
                                 level.prefixes.insert(local.as_str(), value.as_str());
+                                #[cfg(feature = "namespace-tracking")]
                                 self.all_namespaces
                                     .insert(local.as_str().to_string(), value.as_str().to_string());
                             }

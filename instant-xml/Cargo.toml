@@ -10,6 +10,10 @@ documentation = "https://docs.rs/instant-xml"
 repository = "https://github.com/djc/instant-xml"
 readme = "../README.md"
 
+[features]
+default = []
+namespace-tracking = []
+
 [dependencies]
 chrono = { version = "0.4.23", optional = true }
 macros = { package = "instant-xml-macros", version = "0.6", path = "../instant-xml-macros" }

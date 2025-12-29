@@ -12,6 +12,9 @@ use crate::{Accumulate, Deserializer, Error, FromXml, Id, Kind, Serializer, ToXm
 
 // Deserializer
 
+/// Deserialize a value from a string using FromStr
+///
+/// Helper function for deserializing types that implement `FromStr`.
 pub fn from_xml_str<T: FromStr>(
     into: &mut Option<T>,
     field: &'static str,
@@ -122,6 +125,9 @@ impl<'xml> FromXml<'xml> for bool {
 
 // Serializer
 
+/// Serialize a value to XML using Display
+///
+/// Helper function for serializing types that implement `Display`.
 pub fn display_to_xml(
     value: &impl fmt::Display,
     field: Option<Id<'_>>,
@@ -320,6 +326,7 @@ impl<'xml, 'a> FromXml<'xml> for Cow<'a, str> {
     const KIND: Kind = Kind::Scalar;
 }
 
+/// Accumulator for deserializing `Cow<str>` values
 #[derive(Default)]
 pub struct CowStrAccumulator<'xml, 'a> {
     pub(crate) inner: Option<Cow<'a, str>>,
@@ -394,12 +401,14 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
     const KIND: Kind = <T>::KIND;
 }
 
+/// Accumulator for deserializing `Option<T>` values
 pub struct OptionAccumulator<T, A: Accumulate<T>> {
     value: A,
     marker: PhantomData<T>,
 }
 
 impl<T, A: Accumulate<T>> OptionAccumulator<T, A> {
+    /// Get a mutable reference to the inner accumulator
     pub fn get_mut(&mut self) -> &mut A {
         &mut self.value
     }

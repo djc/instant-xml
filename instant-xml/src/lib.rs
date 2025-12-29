@@ -293,13 +293,18 @@ pub use impls::{display_to_xml, from_xml_str, OptionAccumulator};
 pub mod ser;
 pub use ser::Serializer;
 
+/// Serialize a type to XML
 pub trait ToXml {
+    /// Serialize this value to XML using the provided serializer
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error>;
 
+    /// Check if this value should be serialized
+    ///
+    /// Returns `false` for absent optional values, `true` otherwise.
     fn present(&self) -> bool {
         true
     }
@@ -315,21 +320,29 @@ impl<T: ToXml + ?Sized> ToXml for &T {
     }
 }
 
+/// Deserialize a type from XML
 pub trait FromXml<'xml>: Sized {
+    /// Check if an element or attribute matches this type
     fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool;
 
+    /// Deserialize from XML into an accumulator
     fn deserialize<'cx>(
         into: &mut Self::Accumulator,
         field: &'static str,
         deserializer: &mut Deserializer<'cx, 'xml>,
     ) -> Result<(), Error>;
 
+    /// The accumulator type used during deserialization
     type Accumulator: Accumulate<Self>;
+    /// The kind of XML node this type represents
     const KIND: Kind;
 }
 
+/// Accumulate values during deserialization
+///
 /// A type implementing `Accumulate<T>` is used to accumulate a value of type `T`.
 pub trait Accumulate<T>: Default {
+    /// Convert the accumulator into the final value, or return an error
     fn try_done(self, field: &'static str) -> Result<T, Error>;
 }
 
@@ -360,6 +373,7 @@ impl<T> Accumulate<Option<T>> for Option<T> {
     }
 }
 
+/// Deserialize a type from an XML string
 pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     let (mut context, root) = Context::new(input)?;
     let id = context.element_id(&root)?;
@@ -383,12 +397,14 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     value.try_done("<root element>")
 }
 
+/// Serialize a value to an XML string
 pub fn to_string(value: &(impl ToXml + ?Sized)) -> Result<String, Error> {
     let mut output = String::new();
     to_writer(value, &mut output)?;
     Ok(output)
 }
 
+/// Serialize a value to an XML writer
 pub fn to_writer(
     value: &(impl ToXml + ?Sized),
     output: &mut (impl fmt::Write + ?Sized),
@@ -396,52 +412,75 @@ pub fn to_writer(
     value.serialize(None, &mut Serializer::new(output))
 }
 
+/// Marker trait for types that can be deserialized with any lifetime
 pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}
 
 impl<T> FromXmlOwned for T where T: for<'xml> FromXml<'xml> {}
 
+/// Errors that can occur during XML serialization and deserialization
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum Error {
+    /// Error formatting output
     #[error("format: {0}")]
     Format(#[from] fmt::Error),
+    /// Invalid XML entity encountered
     #[error("invalid entity: {0}")]
     InvalidEntity(String),
+    /// Error parsing XML
     #[error("parse: {0}")]
     Parse(#[from] xmlparser::Error),
+    /// Other error
     #[error("other: {0}")]
     Other(std::string::String),
+    /// Unexpected end of XML stream
     #[error("unexpected end of stream")]
     UnexpectedEndOfStream,
+    /// Unexpected value encountered
     #[error("unexpected value: '{0}'")]
     UnexpectedValue(String),
+    /// Unexpected XML tag
     #[error("unexpected tag: {0}")]
     UnexpectedTag(String),
+    /// Expected tag but none found
     #[error("missing tag")]
     MissingTag,
+    /// Required field has no value
     #[error("missing value: {0}")]
     MissingValue(&'static str),
+    /// Unexpected XML token
     #[error("unexpected token: {0}")]
     UnexpectedToken(String),
+    /// Unknown namespace prefix
     #[error("unknown prefix: {0}")]
     UnknownPrefix(String),
+    /// Unexpected XML node type
     #[error("unexpected node: {0}")]
     UnexpectedNode(String),
+    /// Internal state error
     #[error("unexpected state: {0}")]
     UnexpectedState(&'static str),
+    /// Expected a scalar value but found an element
     #[error("expected scalar, found {0}")]
     ExpectedScalar(String),
+    /// Field value appears more than once
     #[error("duplicate value for {0}")]
     DuplicateValue(&'static str),
 }
 
+/// The kind of XML node a type represents
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Kind {
+    /// A scalar value (text content or attribute)
     Scalar,
+    /// An XML element
     Element,
 }
 
+/// Identifier for an XML element or attribute with namespace
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Id<'a> {
+    /// The namespace URI
     pub ns: &'a str,
+    /// The local name
     pub name: &'a str,
 }

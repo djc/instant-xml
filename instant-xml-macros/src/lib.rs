@@ -1,3 +1,8 @@
+//! Derive macros for instant-xml
+//!
+//! This crate provides the [`ToXml`] and [`FromXml`] derive macros for XML serialization
+//! and deserialization. See the instant-xml crate for usage examples.
+
 extern crate proc_macro;
 
 use std::collections::BTreeSet;
@@ -15,12 +20,20 @@ mod meta;
 use meta::{meta_items, MetaItem, Namespace, NamespaceMeta};
 mod ser;
 
+/// Derives XML serialization for a struct or enum
+///
+/// This macro supports `#[xml(...)]` attributes for configuring serialization behavior.
+/// See the instant-xml crate-level documentation for more details.
 #[proc_macro_derive(ToXml, attributes(xml))]
 pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
     ser::to_xml(&ast).into()
 }
 
+/// Derives XML deserialization for a struct or enum
+///
+/// This macro supports `#[xml(...)]` attributes for configuring deserialization behavior.
+/// See the instant-xml crate-level documentation for more details.
 #[proc_macro_derive(FromXml, attributes(xml))]
 pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);

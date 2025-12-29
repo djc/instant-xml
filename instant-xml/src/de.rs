@@ -7,6 +7,7 @@ use xmlparser::{ElementEnd, Token, Tokenizer};
 use crate::impls::CowStrAccumulator;
 use crate::{Error, Id};
 
+/// XML deserializer for iterating over nodes in an element
 pub struct Deserializer<'cx, 'xml> {
     pub(crate) local: &'xml str,
     prefix: Option<&'xml str>,
@@ -27,6 +28,9 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
+    /// Extract a string value from the current node
+    ///
+    /// Consumes a text node or attribute value, returning the content as a string.
     pub fn take_str(&mut self) -> Result<Option<Cow<'xml, str>>, Error> {
         loop {
             match self.next() {
@@ -40,6 +44,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
+    /// Create a nested deserializer for a child element
     pub fn nested<'a>(&'a mut self, element: Element<'xml>) -> Deserializer<'a, 'xml>
     where
         'cx: 'a,
@@ -47,6 +52,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         Deserializer::new(element, self.context)
     }
 
+    /// Skip all remaining nodes in the current element
     pub fn ignore(&mut self) -> Result<(), Error> {
         loop {
             match self.next() {
@@ -61,6 +67,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
+    /// Create a deserializer that will yield the given node first
     pub fn for_node<'a>(&'a mut self, node: Node<'xml>) -> Deserializer<'a, 'xml>
     where
         'cx: 'a,
@@ -75,6 +82,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
+    /// Get the identifier of the parent element
     pub fn parent(&self) -> Id<'xml> {
         Id {
             ns: match self.prefix {
@@ -85,11 +93,13 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
+    /// Get the identifier of an element (name and namespace)
     #[inline]
     pub fn element_id(&self, element: &Element<'xml>) -> Result<Id<'xml>, Error> {
         self.context.element_id(element)
     }
 
+    /// Get the identifier of an attribute (name and namespace)
     #[inline]
     pub fn attribute_id(&self, attr: &Attribute<'xml>) -> Result<Id<'xml>, Error> {
         self.context.attribute_id(attr)
@@ -351,6 +361,9 @@ impl<'xml> Iterator for Context<'xml> {
     }
 }
 
+/// Deserialize a borrowed `Cow<str>` value
+///
+/// Helper function for deserializing `Cow<str>` with zero-copy borrowing from the input.
 pub fn borrow_cow_str<'a, 'xml: 'a>(
     into: &mut CowStrAccumulator<'xml, 'a>,
     field: &'static str,
@@ -369,6 +382,9 @@ pub fn borrow_cow_str<'a, 'xml: 'a>(
     Ok(())
 }
 
+/// Deserialize a borrowed `Cow<[u8]>` value
+///
+/// Helper function for deserializing `Cow<[u8]>` with zero-copy borrowing from the input.
 pub fn borrow_cow_slice_u8<'xml>(
     into: &mut Option<Cow<'xml, [u8]>>,
     field: &'static str,
@@ -491,18 +507,27 @@ fn valid_xml_character(c: &char) -> bool {
     matches!(c, '\u{9}' | '\u{A}' | '\u{D}' | '\u{20}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..='\u{10FFFF}')
 }
 
+/// An XML node during deserialization
 #[derive(Debug)]
 pub enum Node<'xml> {
+    /// An attribute name (value follows in a separate AttributeValue node)
     Attribute(Attribute<'xml>),
+    /// The value of the preceding Attribute node
     AttributeValue(Cow<'xml, str>),
+    /// Closing tag for an element
     Close {
+        /// The namespace prefix, if any
         prefix: Option<&'xml str>,
+        /// The local name
         local: &'xml str,
     },
+    /// Text content
     Text(Cow<'xml, str>),
+    /// Opening tag for an element
     Open(Element<'xml>),
 }
 
+/// An XML element during deserialization
 #[derive(Debug)]
 pub struct Element<'xml> {
     local: &'xml str,
@@ -518,10 +543,14 @@ struct Level<'xml> {
     prefixes: BTreeMap<&'xml str, &'xml str>,
 }
 
+/// An XML attribute during deserialization
 #[derive(Debug)]
 pub struct Attribute<'xml> {
+    /// The namespace prefix, if any
     pub prefix: Option<&'xml str>,
+    /// The local name
     pub local: &'xml str,
+    /// The attribute value
     pub value: Cow<'xml, str>,
 }
 

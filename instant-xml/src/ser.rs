@@ -6,19 +6,21 @@ use std::mem;
 use super::Error;
 use crate::ToXml;
 
+/// XML serializer for writing structured XML output
 pub struct Serializer<'xml, W: fmt::Write + ?Sized> {
     output: &'xml mut W,
     /// Map namespace keys to prefixes.
     ///
-    /// The prefix map is updated using `Context` types that are held on the
-    /// stack in the relevant `ToXml` implementation. If a prefix is already
-    /// defined for a given namespace, we don't update the set the new prefix.
+    /// The prefix map is updated using `Context` types that are held on the stack in the relevant
+    /// `ToXml` implementation. If a prefix is already defined for a given namespace, we don't
+    /// update the set with the new prefix.
     prefixes: HashMap<&'static str, &'static str>,
     default_ns: &'static str,
     state: State,
 }
 
 impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
+    /// Create a new serializer writing to the given output
     pub fn new(output: &'xml mut W) -> Self {
         Self {
             output,
@@ -28,6 +30,9 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         }
     }
 
+    /// Write the opening tag for an element
+    ///
+    /// Returns the namespace prefix if one was used.
     pub fn write_start(&mut self, name: &str, ns: &str) -> Result<Option<&'static str>, Error> {
         if self.state != State::Element {
             return Err(Error::UnexpectedState("invalid state for element start"));
@@ -53,6 +58,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         Ok(prefix)
     }
 
+    /// Write an attribute with the given name and value
     pub fn write_attr<V: ToXml + ?Sized>(
         &mut self,
         name: &str,
@@ -81,6 +87,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         Ok(())
     }
 
+    /// Write a string value (text content or attribute value)
     pub fn write_str<V: fmt::Display + ?Sized>(&mut self, value: &V) -> Result<(), Error> {
         if !matches!(self.state, State::Element | State::Scalar) {
             return Err(Error::UnexpectedState("invalid state for scalar"));
@@ -91,6 +98,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         Ok(())
     }
 
+    /// Complete the opening tag and transition to element content
     pub fn end_start(&mut self) -> Result<(), Error> {
         if self.state != State::Attribute {
             return Err(Error::UnexpectedState("invalid state for element end"));
@@ -101,6 +109,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         Ok(())
     }
 
+    /// Close an empty element (self-closing tag)
     pub fn end_empty(&mut self) -> Result<(), Error> {
         if self.state != State::Attribute {
             return Err(Error::UnexpectedState("invalid state for element end"));
@@ -111,6 +120,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         Ok(())
     }
 
+    /// Write the closing tag for an element
     pub fn write_close(&mut self, prefix: Option<&str>, name: &str) -> Result<(), Error> {
         if self.state != State::Element {
             return Err(Error::UnexpectedState("invalid state for close element"));
@@ -124,6 +134,9 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         Ok(())
     }
 
+    /// Push a namespace context onto the stack
+    ///
+    /// Returns the previous context to be restored later with `pop`.
     pub fn push<const N: usize>(&mut self, new: Context<N>) -> Result<Context<N>, Error> {
         if self.state != State::Attribute {
             return Err(Error::UnexpectedState("invalid state for attribute"));
@@ -164,6 +177,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         Ok(old)
     }
 
+    /// Pop a namespace context from the stack, restoring the previous context
     pub fn pop<const N: usize>(&mut self, old: Context<N>) {
         let _ = mem::replace(&mut self.default_ns, old.default_ns);
         for prefix in old.prefixes.into_iter() {
@@ -187,18 +201,23 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         }
     }
 
+    /// Get the prefix for a namespace URI, if any
     pub fn prefix(&self, ns: &str) -> Option<&'static str> {
         self.prefixes.get(ns).copied()
     }
 
+    /// Get the current default namespace URI
     pub fn default_ns(&self) -> &'static str {
         self.default_ns
     }
 }
 
+/// Namespace context for serialization
 #[derive(Debug)]
 pub struct Context<const N: usize> {
+    /// The default namespace URI
     pub default_ns: &'static str,
+    /// Array of namespace prefix mappings
     pub prefixes: [Prefix; N],
 }
 
@@ -211,9 +230,12 @@ impl<const N: usize> Default for Context<N> {
     }
 }
 
+/// A namespace prefix mapping
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Prefix {
+    /// The namespace prefix
     pub prefix: &'static str,
+    /// The namespace URI
     pub ns: &'static str,
 }
 

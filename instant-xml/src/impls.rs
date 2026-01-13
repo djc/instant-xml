@@ -873,6 +873,49 @@ impl<'xml> FromXml<'xml> for IpAddr {
     const KIND: Kind = Kind::Scalar;
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct CData<T>(pub T);
+
+impl<'xml, T: FromXml<'xml>> FromXml<'xml> for CData<T> {
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        T::matches(id, field)
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let mut accumulator = T::Accumulator::default();
+        T::deserialize(&mut accumulator, field, deserializer)?;
+        *into = Some(CData(accumulator.try_done(field)?));
+        Ok(())
+    }
+
+    type Accumulator = Option<CData<T>>;
+    const KIND: Kind = Kind::Scalar;
+}
+
+impl<T: fmt::Display> ToXml for CData<T> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<W>,
+    ) -> Result<(), Error> {
+        DisplayToXml(self).serialize(field, serializer)
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for CData<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<![CDATA[{}]]>", self.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

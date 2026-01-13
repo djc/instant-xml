@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, to_string, FromXml, ToXml};
+use instant_xml::{from_str, to_string, CData, FromXml, ToXml};
 
 #[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
 #[xml(ns("URI"))]
@@ -78,5 +78,32 @@ fn simple_cdata() {
         })
         .unwrap(),
         "<SimpleCData><foo>&lt;foo&gt;</foo></SimpleCData>",
+    );
+}
+
+#[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
+struct SerializeCData<'a> {
+    #[xml(borrow)]
+    foo: CData<Cow<'a, str>>,
+}
+
+#[test]
+fn serialize_cdata() {
+    assert_eq!(
+        from_str::<SerializeCData>(
+            "<SerializeCData><foo><![CDATA[<fo&amp;o>]]></foo></SerializeCData>"
+        )
+        .unwrap(),
+        SerializeCData {
+            foo: CData(Cow::Borrowed("<fo&amp;o>")),
+        }
+    );
+
+    assert_eq!(
+        to_string(&SerializeCData {
+            foo: CData(Cow::Borrowed("<foo>")),
+        })
+        .unwrap(),
+        "<SerializeCData><foo><![CDATA[<foo>]]></foo></SerializeCData>",
     );
 }

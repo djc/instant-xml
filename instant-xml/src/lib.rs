@@ -292,6 +292,8 @@ pub use impls::{display_to_xml, from_xml_str, OptionAccumulator};
 #[doc(hidden)]
 pub mod ser;
 pub use ser::Serializer;
+mod any_element;
+pub use any_element::{AnyAttribute, AnyElement};
 
 /// Serialize a type to XML
 pub trait ToXml {

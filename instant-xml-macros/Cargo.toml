@@ -2,7 +2,7 @@
 name = "instant-xml-macros"
 version = "0.6.1"
 edition = "2021"
-rust-version = "1.68"
+rust-version = "1.71"
 workspace = ".."
 license = "Apache-2.0 OR MIT"
 description = "Procedural macros for instant-xml"

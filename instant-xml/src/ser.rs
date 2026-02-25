@@ -33,7 +33,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
     /// Write the opening tag for an element
     ///
     /// Returns the namespace prefix if one was used.
-    pub fn write_start(&mut self, name: &str, ns: &str) -> Result<Option<&'static str>, Error> {
+    pub fn write_start(&mut self, name: &str, ns: &str) -> Result<Element, Error> {
         if self.state != State::Element {
             return Err(Error::UnexpectedState("invalid state for element start"));
         }
@@ -55,7 +55,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         };
 
         self.state = State::Attribute;
-        Ok(prefix)
+        Ok(Element { prefix })
     }
 
     /// Write an attribute with the given name and value
@@ -210,6 +210,12 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
     pub fn default_ns(&self) -> &'static str {
         self.default_ns
     }
+}
+
+/// An element being serialized, used for tracking namespace context
+#[non_exhaustive]
+pub struct Element {
+    pub prefix: Option<&'static str>,
 }
 
 /// Namespace context for serialization

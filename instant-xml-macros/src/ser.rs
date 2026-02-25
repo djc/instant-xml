@@ -66,18 +66,18 @@ fn serialize_scalar_enum(
                 field: Option<::instant_xml::Id<'_>>,
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> ::std::result::Result<(), instant_xml::Error> {
-                let prefix = match field {
+                let cx = match field {
                     Some(id) => {
-                        let prefix = serializer.write_start(id.name, #default_namespace)?;
+                        let element = serializer.write_start(id.name, #default_namespace)?;
                         serializer.end_start()?;
-                        Some((prefix, id.name))
+                        Some((element, id.name))
                     }
                     None => None,
                 };
 
                 serializer.write_str(match self { #variants })?;
-                if let Some((prefix, name)) = prefix {
-                    serializer.write_close(prefix, name)?;
+                if let Some((element, name)) = cx {
+                    serializer.write_close(element.prefix, name)?;
                 }
 
                 Ok(())
@@ -214,7 +214,7 @@ fn serialize_struct(
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> ::std::result::Result<(), instant_xml::Error> {
                 // Start tag
-                let prefix = serializer.write_start(#tag, #default_namespace)?;
+                let element = serializer.write_start(#tag, #default_namespace)?;
 
                 // Set up element context, this will also emit namespace declarations
                 #context
@@ -362,11 +362,11 @@ impl StructOutput {
             self.body.extend(match direct {
                 Some(field) => quote!(
                     match self.#field.present() {
-                        true => serializer.write_close(prefix, #tag)?,
+                        true => serializer.write_close(element.prefix, #tag)?,
                         false => (),
                     }
                 ),
-                None => quote!(serializer.write_close(prefix, #tag)?;),
+                None => quote!(serializer.write_close(element.prefix, #tag)?;),
             });
         }
 
@@ -491,7 +491,7 @@ impl StructOutput {
         if !inline {
             let tag = meta.tag();
             self.body
-                .extend(quote!(serializer.write_close(prefix, #tag)?;));
+                .extend(quote!(serializer.write_close(element.prefix, #tag)?;));
         }
 
         Ok(())

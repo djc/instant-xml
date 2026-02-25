@@ -53,6 +53,10 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
             }
             (false, Some(prefix)) => {
                 self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
+                if let Some(cx) = &cx {
+                    self.output
+                        .write_fmt(format_args!(" xmlns=\"{}\"", cx.default_ns))?;
+                }
                 Some(*prefix)
             }
             _ => {

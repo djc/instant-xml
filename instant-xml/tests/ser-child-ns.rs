@@ -76,5 +76,5 @@ fn test_didl() {
             }),
         },
     };
-    assert_eq!(to_string(&didl).unwrap(), "<DIDL-Lite xmlns=\"DIDL\" xmlns:upnp=\"UPNP\"><item><upnp:albumArtURI>http://art</upnp:albumArtURI></item></DIDL-Lite>");
+    assert_eq!(to_string(&didl).unwrap(), "<DIDL-Lite xmlns=\"DIDL\" xmlns:upnp=\"UPNP\"><item><upnp:albumArtURI xmlns=\"UPNP\">http://art</upnp:albumArtURI></item></DIDL-Lite>");
 }

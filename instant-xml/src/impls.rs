@@ -147,18 +147,18 @@ where
         field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        let prefix = match field {
+        let cx = match field {
             Some(id) => {
-                let prefix = serializer.write_start(id.name, id.ns)?;
+                let element = serializer.write_start(id.name, id.ns)?;
                 serializer.end_start()?;
-                Some((prefix, id.name))
+                Some((element, id.name))
             }
             None => None,
         };
 
         serializer.write_str(self.0)?;
-        if let Some((prefix, name)) = prefix {
-            serializer.write_close(prefix, name)?;
+        if let Some((element, name)) = cx {
+            serializer.write_close(element.prefix, name)?;
         }
 
         Ok(())
@@ -631,18 +631,18 @@ impl ToXml for DateTime<Utc> {
         field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        let prefix = match field {
+        let cx = match field {
             Some(id) => {
-                let prefix = serializer.write_start(id.name, id.ns)?;
+                let element = serializer.write_start(id.name, id.ns)?;
                 serializer.end_start()?;
-                Some((prefix, id.name))
+                Some((element, id.name))
             }
             None => None,
         };
 
         serializer.write_str(&self.to_rfc3339())?;
-        if let Some((prefix, name)) = prefix {
-            serializer.write_close(prefix, name)?;
+        if let Some((element, name)) = cx {
+            serializer.write_close(element.prefix, name)?;
         }
 
         Ok(())
@@ -693,18 +693,18 @@ impl ToXml for NaiveDateTime {
         field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        let prefix = match field {
+        let cx = match field {
             Some(id) => {
-                let prefix = serializer.write_start(id.name, id.ns)?;
+                let element = serializer.write_start(id.name, id.ns)?;
                 serializer.end_start()?;
-                Some((prefix, id.name))
+                Some((element, id.name))
             }
             None => None,
         };
 
         serializer.write_str(&self.format("%Y-%m-%dT%H:%M:%S%.f"))?;
-        if let Some((prefix, name)) = prefix {
-            serializer.write_close(prefix, name)?;
+        if let Some((element, name)) = cx {
+            serializer.write_close(element.prefix, name)?;
         }
 
         Ok(())
@@ -755,18 +755,18 @@ impl ToXml for NaiveDate {
         field: Option<Id<'_>>,
         serializer: &mut Serializer<W>,
     ) -> Result<(), Error> {
-        let prefix = match field {
+        let cx = match field {
             Some(id) => {
-                let prefix = serializer.write_start(id.name, id.ns)?;
+                let element = serializer.write_start(id.name, id.ns)?;
                 serializer.end_start()?;
-                Some((prefix, id.name))
+                Some((element, id.name))
             }
             None => None,
         };
 
         serializer.write_str(&self)?;
-        if let Some((prefix, name)) = prefix {
-            serializer.write_close(prefix, name)?;
+        if let Some((element, name)) = cx {
+            serializer.write_close(element.prefix, name)?;
         }
 
         Ok(())

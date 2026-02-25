@@ -66,18 +66,18 @@ fn serialize_scalar_enum(
                 field: Option<::instant_xml::Id<'_>>,
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> ::std::result::Result<(), instant_xml::Error> {
-                let cx = match field {
+                let element = match field {
                     Some(id) => {
                         let element = serializer.write_start(id.name, #default_namespace)?;
                         serializer.end_start()?;
-                        Some((element, id.name))
+                        Some(element)
                     }
                     None => None,
                 };
 
                 serializer.write_str(match self { #variants })?;
-                if let Some((element, name)) = cx {
-                    serializer.write_close(element.prefix, name)?;
+                if let Some(element) = element {
+                    serializer.write_close(element)?;
                 }
 
                 Ok(())
@@ -176,7 +176,7 @@ fn serialize_struct(
             }
         }
         syn::Fields::Unnamed(fields) => {
-            if let Err(err) = out.unnamed_fields(fields, false, &meta) {
+            if let Err(err) = out.unnamed_fields(fields, false) {
                 return err;
             }
         }
@@ -260,7 +260,7 @@ fn serialize_inline_struct(
             }
         }
         syn::Fields::Unnamed(fields) => {
-            if let Err(err) = out.unnamed_fields(fields, true, &meta) {
+            if let Err(err) = out.unnamed_fields(fields, true) {
                 return err;
             }
         }
@@ -358,15 +358,14 @@ impl StructOutput {
         }
 
         if !inline && !attrs_only {
-            let tag = meta.tag();
             self.body.extend(match direct {
                 Some(field) => quote!(
                     match self.#field.present() {
-                        true => serializer.write_close(element.prefix, #tag)?,
+                        true => serializer.write_close(element)?,
                         false => (),
                     }
                 ),
-                None => quote!(serializer.write_close(element.prefix, #tag)?;),
+                None => quote!(serializer.write_close(element)?;),
             });
         }
 
@@ -476,7 +475,6 @@ impl StructOutput {
         &mut self,
         fields: &syn::FieldsUnnamed,
         inline: bool,
-        meta: &ContainerMeta,
     ) -> Result<(), proc_macro2::TokenStream> {
         if !inline {
             self.body.extend(quote!(serializer.end_start()?;));
@@ -489,9 +487,7 @@ impl StructOutput {
         }
 
         if !inline {
-            let tag = meta.tag();
-            self.body
-                .extend(quote!(serializer.write_close(element.prefix, #tag)?;));
+            self.body.extend(quote!(serializer.write_close(element)?;));
         }
 
         Ok(())

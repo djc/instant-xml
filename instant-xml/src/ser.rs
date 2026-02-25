@@ -33,7 +33,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
     /// Write the opening tag for an element
     ///
     /// Returns the namespace prefix if one was used.
-    pub fn write_start(&mut self, name: &str, ns: &str) -> Result<Element, Error> {
+    pub fn write_start<'a>(&mut self, name: &'a str, ns: &str) -> Result<Element<'a>, Error> {
         if self.state != State::Element {
             return Err(Error::UnexpectedState("invalid state for element start"));
         }
@@ -55,7 +55,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         };
 
         self.state = State::Attribute;
-        Ok(Element { prefix })
+        Ok(Element { prefix, name })
     }
 
     /// Write an attribute with the given name and value
@@ -121,14 +121,16 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
     }
 
     /// Write the closing tag for an element
-    pub fn write_close(&mut self, prefix: Option<&str>, name: &str) -> Result<(), Error> {
+    pub fn write_close(&mut self, element: Element<'_>) -> Result<(), Error> {
         if self.state != State::Element {
             return Err(Error::UnexpectedState("invalid state for close element"));
         }
 
-        match prefix {
-            Some(prefix) => self.output.write_fmt(format_args!("</{prefix}:{name}>"))?,
-            None => self.output.write_fmt(format_args!("</{name}>"))?,
+        match element.prefix {
+            Some(prefix) => self
+                .output
+                .write_fmt(format_args!("</{prefix}:{}>", element.name))?,
+            None => self.output.write_fmt(format_args!("</{}>", element.name))?,
         }
 
         Ok(())
@@ -214,8 +216,10 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
 
 /// An element being serialized, used for tracking namespace context
 #[non_exhaustive]
-pub struct Element {
+pub struct Element<'a> {
     pub prefix: Option<&'static str>,
+    /// Local name of the element
+    pub name: &'a str,
 }
 
 /// Namespace context for serialization

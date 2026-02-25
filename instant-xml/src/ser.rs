@@ -33,7 +33,15 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
     /// Write the opening tag for an element
     ///
     /// Returns the namespace prefix if one was used.
-    pub fn write_start<'a>(&mut self, name: &'a str, ns: &str) -> Result<Element<'a>, Error> {
+    ///
+    /// The `cx` parameter can be used to specify namespace declarations for the element. When
+    /// passing in `None`, you'll probably need to specify `None::<Context<0>>`.
+    pub fn write_start<'a, const N: usize>(
+        &mut self,
+        name: &'a str,
+        ns: &str,
+        cx: Option<Context<N>>,
+    ) -> Result<Element<'a, N>, Error> {
         if self.state != State::Element {
             return Err(Error::UnexpectedState("invalid state for element start"));
         }
@@ -55,7 +63,51 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         };
 
         self.state = State::Attribute;
-        Ok(Element { prefix, name })
+        let Some(cx) = cx else {
+            return Ok(Element {
+                prefix,
+                name,
+                parent: None,
+            });
+        };
+
+        let mut old = Context::default();
+        let prev = mem::replace(&mut self.default_ns, cx.default_ns);
+        let _ = mem::replace(&mut old.default_ns, prev);
+
+        let mut used = 0;
+        for prefix in cx.prefixes.into_iter() {
+            if prefix.prefix.is_empty() {
+                continue;
+            }
+
+            if self.prefixes.contains_key(prefix.ns) {
+                continue;
+            }
+
+            self.output
+                .write_fmt(format_args!(" xmlns:{}=\"{}\"", prefix.prefix, prefix.ns))?;
+
+            let prev = match self.prefixes.entry(prefix.ns) {
+                Entry::Occupied(mut entry) => mem::replace(entry.get_mut(), prefix.prefix),
+                Entry::Vacant(entry) => {
+                    entry.insert(prefix.prefix);
+                    ""
+                }
+            };
+
+            old.prefixes[used] = Prefix {
+                ns: prefix.ns,
+                prefix: prev,
+            };
+            used += 1;
+        }
+
+        Ok(Element {
+            prefix,
+            name,
+            parent: Some(old),
+        })
     }
 
     /// Write an attribute with the given name and value
@@ -121,7 +173,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
     }
 
     /// Write the closing tag for an element
-    pub fn write_close(&mut self, element: Element<'_>) -> Result<(), Error> {
+    pub fn write_close<const N: usize>(&mut self, element: Element<'_, N>) -> Result<(), Error> {
         if self.state != State::Element {
             return Err(Error::UnexpectedState("invalid state for close element"));
         }
@@ -133,54 +185,10 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
             None => self.output.write_fmt(format_args!("</{}>", element.name))?,
         }
 
-        Ok(())
-    }
+        let Some(old) = element.parent else {
+            return Ok(());
+        };
 
-    /// Push a namespace context onto the stack
-    ///
-    /// Returns the previous context to be restored later with `pop`.
-    pub fn push<const N: usize>(&mut self, new: Context<N>) -> Result<Context<N>, Error> {
-        if self.state != State::Attribute {
-            return Err(Error::UnexpectedState("invalid state for attribute"));
-        }
-
-        let mut old = Context::default();
-        let prev = mem::replace(&mut self.default_ns, new.default_ns);
-        let _ = mem::replace(&mut old.default_ns, prev);
-
-        let mut used = 0;
-        for prefix in new.prefixes.into_iter() {
-            if prefix.prefix.is_empty() {
-                continue;
-            }
-
-            if self.prefixes.contains_key(prefix.ns) {
-                continue;
-            }
-
-            self.output
-                .write_fmt(format_args!(" xmlns:{}=\"{}\"", prefix.prefix, prefix.ns))?;
-
-            let prev = match self.prefixes.entry(prefix.ns) {
-                Entry::Occupied(mut entry) => mem::replace(entry.get_mut(), prefix.prefix),
-                Entry::Vacant(entry) => {
-                    entry.insert(prefix.prefix);
-                    ""
-                }
-            };
-
-            old.prefixes[used] = Prefix {
-                ns: prefix.ns,
-                prefix: prev,
-            };
-            used += 1;
-        }
-
-        Ok(old)
-    }
-
-    /// Pop a namespace context from the stack, restoring the previous context
-    pub fn pop<const N: usize>(&mut self, old: Context<N>) {
         let _ = mem::replace(&mut self.default_ns, old.default_ns);
         for prefix in old.prefixes.into_iter() {
             if prefix.ns.is_empty() && prefix.prefix.is_empty() {
@@ -201,6 +209,8 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
                 }
             }
         }
+
+        Ok(())
     }
 
     /// Get the prefix for a namespace URI, if any
@@ -216,10 +226,13 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
 
 /// An element being serialized, used for tracking namespace context
 #[non_exhaustive]
-pub struct Element<'a> {
+pub struct Element<'a, const N: usize> {
+    /// Prefix of the element, if any
     pub prefix: Option<&'static str>,
     /// Local name of the element
     pub name: &'a str,
+    /// Namespace context of the parent element, if any
+    pub parent: Option<Context<N>>,
 }
 
 /// Namespace context for serialization

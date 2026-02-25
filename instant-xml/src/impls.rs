@@ -8,6 +8,7 @@ use std::{any::type_name, marker::PhantomData};
 #[cfg(feature = "chrono")]
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 
+use crate::ser::Context;
 use crate::{Accumulate, Deserializer, Error, FromXml, Id, Kind, Serializer, ToXml};
 
 // Deserializer
@@ -149,7 +150,7 @@ where
     ) -> Result<(), Error> {
         let element = match field {
             Some(id) => {
-                let element = serializer.write_start(id.name, id.ns)?;
+                let element = serializer.write_start(id.name, id.ns, None::<Context<0>>)?;
                 serializer.end_start()?;
                 Some(element)
             }
@@ -633,7 +634,7 @@ impl ToXml for DateTime<Utc> {
     ) -> Result<(), Error> {
         let element = match field {
             Some(id) => {
-                let element = serializer.write_start(id.name, id.ns)?;
+                let element = serializer.write_start(id.name, id.ns, None::<Context<0>>)?;
                 serializer.end_start()?;
                 Some(element)
             }
@@ -695,7 +696,7 @@ impl ToXml for NaiveDateTime {
     ) -> Result<(), Error> {
         let element = match field {
             Some(id) => {
-                let element = serializer.write_start(id.name, id.ns)?;
+                let element = serializer.write_start(id.name, id.ns, None::<Context<0>>)?;
                 serializer.end_start()?;
                 Some(element)
             }
@@ -757,7 +758,7 @@ impl ToXml for NaiveDate {
     ) -> Result<(), Error> {
         let element = match field {
             Some(id) => {
-                let element = serializer.write_start(id.name, id.ns)?;
+                let element = serializer.write_start(id.name, id.ns, None::<Context<0>>)?;
                 serializer.end_start()?;
                 Some(element)
             }

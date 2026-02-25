@@ -68,7 +68,7 @@ fn serialize_scalar_enum(
             ) -> ::std::result::Result<(), instant_xml::Error> {
                 let element = match field {
                     Some(id) => {
-                        let element = serializer.write_start(id.name, #default_namespace)?;
+                        let element = serializer.write_start(id.name, #default_namespace, None::<::instant_xml::ser::Context<0>>)?;
                         serializer.end_start()?;
                         Some(element)
                     }
@@ -214,16 +214,11 @@ fn serialize_struct(
                 serializer: &mut instant_xml::Serializer<W>,
             ) -> ::std::result::Result<(), instant_xml::Error> {
                 // Start tag
-                let element = serializer.write_start(#tag, #default_namespace)?;
-
-                // Set up element context, this will also emit namespace declarations
                 #context
-                let old = serializer.push(new)?;
+                let element = serializer.write_start(#tag, #default_namespace, Some(new))?;
 
                 // Finalize start element
                 #out
-
-                serializer.pop(old);
                 Ok(())
             }
         };

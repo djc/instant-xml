@@ -65,8 +65,15 @@
 //!
 //! - **`ns("uri")` or `ns("uri", prefix = "namespace")`** - configures XML namespaces
 //!
-//!   Namespace URIs can be string literals or paths to constants. Prefixes may contain
-//!   dashes and dots: `#[xml(ns(my-ns.v1 = "uri"))]`.
+//!   The first positional argument sets the namespace for the element. If the parent's namespace
+//!   differs and no ancestors set a prefix for this namespace, a `xmlns="uri"` declaration is
+//!   emitted on the element. If a prefix is declared for the namespace, it is used. Fields
+//!   without their own `ns(...)` inherit the type's namespace.
+//!
+//!   Additional `prefix = "uri"` entries declare prefix mappings that are emitted as
+//!   `xmlns:prefix="uri"` on the element. These prefixes can then be referenced by
+//!   fields and child elements. Namespace URIs can be string literals or paths to constants.
+//!   Prefix names may contain dashes and dots: `#[xml(ns(my-ns.v1 = "uri"))]`.
 //!
 //!   ```
 //!   # use instant_xml::{ToXml, to_string};
@@ -87,6 +94,10 @@
 //!
 //!   const XSI: &'static str = "http://www.w3.org/2001/XMLSchema-instance";
 //!   ```
+//!
+//!   When a child struct has a different default namespace than its parent, a new `xmlns="..."` is
+//!   emitted on the child element. Prefix declarations from the parent are inherited and not
+//!   redeclared.
 //!
 //! - **`transparent`** *(structs only)* - inlines fields without wrapper element
 //!
@@ -194,8 +205,46 @@
 //!
 //! - **`rename = "name"`** - renames the field's element or attribute name
 //!
-//! - **`ns("uri")`** - sets namespace for this specific field. Like the container-level
-//!   attribute, this supports both string literals and constant paths.
+//! - **`ns("uri")`** - sets namespace for this specific field
+//!
+//!   Like the container-level attribute, this supports both string literals and constant
+//!   paths. How the namespace is serialized depends on whether it matches a prefix
+//!   declared on the container:
+//!
+//!   - If the URI matches a declared prefix, the field is serialized with that prefix
+//!     (`<bar:field>`).
+//!   - If the URI does not match any declared prefix, a `xmlns="uri"` is emitted
+//!     directly on the field's element.
+//!   - Fields without `ns(...)` inherit the container's namespace.
+//!
+//!   For `attribute` fields, the namespace must reference a URI that has a declared
+//!   prefix (XML attributes cannot use unprefixed default namespaces).
+//!
+//!   ```
+//!   # use instant_xml::{ToXml, to_string};
+//!   const BAZ: &str = "http://baz.example.com";
+//!
+//!   #[derive(ToXml)]
+//!   #[xml(ns("http://example.com", bar = BAZ))]
+//!   struct Example {
+//!       plain: bool,                // inherits default ns "http://example.com"
+//!       #[xml(ns(BAZ))]
+//!       prefixed: String,           // matches prefix "bar", serialized as <bar:prefixed>
+//!       #[xml(ns("http://other"))]
+//!       direct: i32,                // no matching prefix, emits xmlns="http://other"
+//!   }
+//!
+//!   assert_eq!(
+//!       to_string(&Example { plain: true, prefixed: "val".into(), direct: 1 }).unwrap(),
+//!       concat!(
+//!           r#"<Example xmlns="http://example.com" xmlns:bar="http://baz.example.com">"#,
+//!           "<plain>true</plain>",
+//!           "<bar:prefixed>val</bar:prefixed>",
+//!           r#"<direct xmlns="http://other">1</direct>"#,
+//!           "</Example>",
+//!       ),
+//!   );
+//!   ```
 //!
 //! - **`serialize_with = "path"`** - custom serialization function with signature:
 //!

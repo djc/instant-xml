@@ -64,6 +64,10 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
                 }
                 Some(*prefix)
             }
+            (false, Some(prefix), true) => {
+                self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
+                Some(*prefix)
+            }
             _ => {
                 self.output
                     .write_fmt(format_args!("<{name} xmlns=\"{ns}\""))?;

@@ -41,17 +41,22 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         name: &'a str,
         ns: &str,
         cx: Option<Context<N>>,
+        force_prefix: bool,
     ) -> Result<Element<'a, N>, Error> {
         if self.state != State::Element {
             return Err(Error::UnexpectedState("invalid state for element start"));
         }
 
-        let prefix = match (ns == self.default_ns, self.prefixes.get(ns)) {
-            (true, _) => {
+        let prefix = match (ns == self.default_ns, self.prefixes.get(ns), force_prefix) {
+            (true, _, false) => {
                 self.output.write_fmt(format_args!("<{name}"))?;
                 None
             }
-            (false, Some(prefix)) => {
+            (true, Some(prefix), true) => {
+                self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
+                Some(*prefix)
+            }
+            (false, Some(prefix), false) => {
                 self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
                 if let Some(cx) = &cx {
                     self.output

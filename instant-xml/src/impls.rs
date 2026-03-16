@@ -150,7 +150,7 @@ where
     ) -> Result<(), Error> {
         let element = match field {
             Some(id) => {
-                let element = serializer.write_start(id.name, id.ns, None::<Context<0>>)?;
+                let element = serializer.write_start(id.name, id.ns, None::<Context<0>>, false)?;
                 serializer.end_start()?;
                 Some(element)
             }

@@ -206,6 +206,7 @@ fn serialize_struct(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let tag = meta.tag();
     let ident = &input.ident;
+    let force_prefix = meta.force_prefix;
     quote!(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {
             fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
@@ -215,7 +216,7 @@ fn serialize_struct(
             ) -> ::std::result::Result<(), instant_xml::Error> {
                 // Start tag
                 #context
-                let element = serializer.write_start(#tag, #default_namespace, Some(new), false)?;
+                let element = serializer.write_start(#tag, #default_namespace, Some(new), #force_prefix)?;
 
                 // Finalize start element
                 #out

@@ -48,24 +48,36 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         }
 
         let prefix = match (ns == self.default_ns, self.prefixes.get(ns), force_prefix) {
-            (true, _, false) => {
+            (true, None, false) => {
+                //no prefix case
                 self.output.write_fmt(format_args!("<{name}"))?;
                 None
             }
-            (true, Some(prefix), true) => {
-                self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
-                Some(*prefix)
-            }
-            (false, Some(prefix), false) => {
-                self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
+            (true, Some(_), false) => {
+                // when the ns == default ns and force-prefix is false, we ignore prefix
+                self.output.write_fmt(format_args!("<{name}"))?;
                 if let Some(cx) = &cx {
+                    // we still requalify the ns here because its not the default_ns
                     self.output
                         .write_fmt(format_args!(" xmlns=\"{}\"", cx.default_ns))?;
                 }
+                None
+            }
+            (true, Some(prefix), true) => {
+                // force prefix always - when forcing prefix we dont requalify the namespace
+                self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
                 Some(*prefix)
             }
-            (false, Some(prefix), true) => {
+            (false, Some(prefix), force_prefix) => {
+                // new ns different from the default ns
                 self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
+                if let Some(cx) = &cx {
+                    // only write the ns as default if not force prefix
+                    if !force_prefix {
+                        self.output
+                            .write_fmt(format_args!(" xmlns=\"{}\"", cx.default_ns))?;
+                    }
+                }
                 Some(*prefix)
             }
             _ => {

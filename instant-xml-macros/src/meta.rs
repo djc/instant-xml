@@ -321,6 +321,9 @@ pub(crate) fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
                     MetaState::SerializeWith
                 } else if id == "deserialize_with" {
                     MetaState::DeserializeWith
+                } else if id == "force_prefix" {
+                    items.push((MetaItem::ForcePrefix, span));
+                    MetaState::Comma
                 } else {
                     panic!("unexpected key in xml attribute");
                 }
@@ -494,4 +497,5 @@ pub(crate) enum MetaItem {
     RenameAll(Literal),
     SerializeWith(Literal),
     DeserializeWith(Literal),
+    ForcePrefix,
 }

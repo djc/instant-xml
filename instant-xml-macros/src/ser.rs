@@ -208,7 +208,7 @@ fn serialize_struct(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let tag = meta.tag();
     let ident = &input.ident;
-    
+
     quote!(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {
             fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
@@ -249,7 +249,11 @@ fn serialize_inline_struct(
         return syn::Error::new(rename.span(), "inline structs cannot be renamed")
             .to_compile_error();
     } else if meta.force_prefix {
-        return syn::Error::new(input.span(), "inline structs cannot have force_prefix declaration").to_compile_error();
+        return syn::Error::new(
+            input.span(),
+            "inline structs cannot have force_prefix declaration",
+        )
+        .to_compile_error();
     }
 
     let mut out = StructOutput::default();

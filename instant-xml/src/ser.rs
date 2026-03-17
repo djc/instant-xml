@@ -41,11 +41,12 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         name: &'a str,
         ns: &str,
         cx: Option<Context<N>>,
-        force_prefix: bool,
     ) -> Result<Element<'a, N>, Error> {
         if self.state != State::Element {
             return Err(Error::UnexpectedState("invalid state for element start"));
         }
+
+        let force_prefix = cx.as_ref().map_or(false, |cx| cx.force_prefix);
 
         let prefix = match (ns == self.default_ns, self.prefixes.get(ns), force_prefix) {
             (true, None, false) => {
@@ -262,11 +263,14 @@ pub struct Element<'a, const N: usize> {
 
 /// Namespace context for serialization
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct Context<const N: usize> {
     /// The default namespace URI
     pub default_ns: &'static str,
     /// Array of namespace prefix mappings
     pub prefixes: [Prefix; N],
+    /// Force prefix to be included always
+    pub force_prefix: bool,
 }
 
 impl<const N: usize> Default for Context<N> {
@@ -274,6 +278,7 @@ impl<const N: usize> Default for Context<N> {
         Self {
             default_ns: Default::default(),
             prefixes: [Prefix { prefix: "", ns: "" }; N],
+            force_prefix: false,
         }
     }
 }

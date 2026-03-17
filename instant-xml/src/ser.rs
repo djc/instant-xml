@@ -46,7 +46,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
             return Err(Error::UnexpectedState("invalid state for element start"));
         }
 
-        let force_prefix = cx.as_ref().map_or(false, |cx| cx.force_prefix);
+        let force_prefix = cx.as_ref().is_some_and(|cx| cx.force_prefix);
 
         let prefix = match (ns == self.default_ns, self.prefixes.get(ns), force_prefix) {
             (true, None, false) => {

@@ -168,6 +168,9 @@
 //!   let msg = Message::Request(Request {});
 //!   assert_eq!(to_string(&msg).unwrap(), "<Request />");
 //!   ```
+//!   
+//! -**`force_prefix`** *(structs only)* - Always serialize a namespace prefix if one is set for this element's namespace.
+//! Does not affect deserialization.
 //!
 //! ## Field attributes
 //!

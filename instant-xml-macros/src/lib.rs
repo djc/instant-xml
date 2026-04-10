@@ -46,6 +46,7 @@ struct ContainerMeta<'input> {
     rename: Option<Literal>,
     rename_all: RenameRule,
     mode: Option<Mode>,
+    force_prefix: bool,
 }
 
 impl<'input> ContainerMeta<'input> {
@@ -54,6 +55,7 @@ impl<'input> ContainerMeta<'input> {
         let mut rename = Default::default();
         let mut rename_all = Default::default();
         let mut mode = None;
+        let mut force_prefix = false;
 
         for (item, span) in meta_items(&input.attrs) {
             match item {
@@ -69,6 +71,16 @@ impl<'input> ContainerMeta<'input> {
                     None => mode = Some(new),
                     Some(_) => return Err(syn::Error::new(span, "cannot have two modes")),
                 },
+                MetaItem::ForcePrefix => {
+                    if matches!(input.data, syn::Data::Enum(_)) {
+                        return Err(syn::Error::new(
+                            input.span(),
+                            "force_prefix is not allowed on enums",
+                        ));
+                    } else {
+                        force_prefix = true;
+                    }
+                }
                 _ => {
                     return Err(syn::Error::new(
                         span,
@@ -84,6 +96,7 @@ impl<'input> ContainerMeta<'input> {
             rename,
             rename_all,
             mode,
+            force_prefix,
         })
     }
 
@@ -156,6 +169,12 @@ impl FieldMeta {
                 }
                 MetaItem::Mode(_) => {
                     return Err(syn::Error::new(span, "invalid attribute for struct field"));
+                }
+                MetaItem::ForcePrefix => {
+                    return Err(syn::Error::new(
+                        span,
+                        "attribute 'force_prefix' invalid in field xml attribute",
+                    ))
                 }
             }
         }

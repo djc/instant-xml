@@ -184,10 +184,12 @@ fn serialize_struct(
     }
 
     let default_namespace = meta.default_namespace();
+    let force_prefix = meta.force_prefix;
     let cx_len = meta.ns.prefixes.len();
     let mut context = quote!(
         let mut new = ::instant_xml::ser::Context::<#cx_len>::default();
         new.default_ns = #default_namespace;
+        new.force_prefix = #force_prefix;
     );
 
     for (i, (prefix, ns)) in meta.ns.prefixes.iter().enumerate() {
@@ -206,6 +208,7 @@ fn serialize_struct(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let tag = meta.tag();
     let ident = &input.ident;
+
     quote!(
         impl #impl_generics ToXml for #ident #ty_generics #where_clause {
             fn serialize<W: ::core::fmt::Write + ?::core::marker::Sized>(
@@ -245,6 +248,12 @@ fn serialize_inline_struct(
     } else if let Some(rename) = meta.rename {
         return syn::Error::new(rename.span(), "inline structs cannot be renamed")
             .to_compile_error();
+    } else if meta.force_prefix {
+        return syn::Error::new(
+            input.span(),
+            "inline structs cannot have force_prefix declaration",
+        )
+        .to_compile_error();
     }
 
     let mut out = StructOutput::default();

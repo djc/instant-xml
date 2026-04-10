@@ -46,17 +46,39 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
             return Err(Error::UnexpectedState("invalid state for element start"));
         }
 
-        let prefix = match (ns == self.default_ns, self.prefixes.get(ns)) {
-            (true, _) => {
+        let force_prefix = cx.as_ref().is_some_and(|cx| cx.force_prefix);
+
+        let prefix = match (ns == self.default_ns, self.prefixes.get(ns), force_prefix) {
+            // Ns != default ns
+            (false, Some(prefix), force_prefix) => {
+                self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
+                if let Some(cx) = &cx {
+                    // Only write the ns as default if not force prefix
+                    if !force_prefix {
+                        self.output
+                            .write_fmt(format_args!(" xmlns=\"{}\"", cx.default_ns))?;
+                    }
+                }
+                Some(*prefix)
+            }
+            // No prefix case
+            (true, None, _) => {
                 self.output.write_fmt(format_args!("<{name}"))?;
                 None
             }
-            (false, Some(prefix)) => {
-                self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
+            // If ns == default ns and force-prefix is false, we ignore prefix
+            (true, Some(_), false) => {
+                self.output.write_fmt(format_args!("<{name}"))?;
+                // Still requalify the ns here because its not the previous default_ns
                 if let Some(cx) = &cx {
                     self.output
                         .write_fmt(format_args!(" xmlns=\"{}\"", cx.default_ns))?;
                 }
+                None
+            }
+            // Force prefix always - when forcing prefix we dont requalify the namespace
+            (true, Some(prefix), true) => {
+                self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
                 Some(*prefix)
             }
             _ => {
@@ -241,11 +263,14 @@ pub struct Element<'a, const N: usize> {
 
 /// Namespace context for serialization
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct Context<const N: usize> {
     /// The default namespace URI
     pub default_ns: &'static str,
     /// Array of namespace prefix mappings
     pub prefixes: [Prefix; N],
+    /// Force prefix to be included always
+    pub force_prefix: bool,
 }
 
 impl<const N: usize> Default for Context<N> {
@@ -253,6 +278,7 @@ impl<const N: usize> Default for Context<N> {
         Self {
             default_ns: Default::default(),
             prefixes: [Prefix { prefix: "", ns: "" }; N],
+            force_prefix: false,
         }
     }
 }

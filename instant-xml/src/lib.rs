@@ -168,7 +168,7 @@
 //!   let msg = Message::Request(Request {});
 //!   assert_eq!(to_string(&msg).unwrap(), "<Request />");
 //!   ```
-//!   
+//!
 //! -**`force_prefix`** *(structs only)* - Always serialize a namespace prefix if one is set for this element's namespace.
 //! Does not affect deserialization.
 //!
@@ -353,7 +353,7 @@ pub trait ToXml {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error>;
 
     /// Check if this value should be serialized
@@ -368,7 +368,7 @@ impl<T: ToXml + ?Sized> ToXml for &T {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         (*self).serialize(field, serializer)
     }
@@ -406,23 +406,23 @@ impl<T> Accumulate<T> for Option<T> {
     }
 }
 
-impl<T> Accumulate<Vec<T>> for Vec<T> {
-    fn try_done(self, _: &'static str) -> Result<Vec<T>, Error> {
+impl<T> Accumulate<Self> for Vec<T> {
+    fn try_done(self, _: &'static str) -> Result<Self, Error> {
         Ok(self)
     }
 }
 
 impl<'a, T> Accumulate<Cow<'a, [T]>> for Vec<T>
 where
-    [T]: ToOwned<Owned = Vec<T>>,
+    [T]: ToOwned<Owned = Self>,
 {
     fn try_done(self, _: &'static str) -> Result<Cow<'a, [T]>, Error> {
         Ok(Cow::Owned(self))
     }
 }
 
-impl<T> Accumulate<Option<T>> for Option<T> {
-    fn try_done(self, _: &'static str) -> Result<Option<T>, Error> {
+impl<T> Accumulate<Self> for Option<T> {
+    fn try_done(self, _: &'static str) -> Result<Self, Error> {
         Ok(self)
     }
 }
@@ -485,7 +485,7 @@ pub enum Error {
     Parse(#[from] xmlparser::Error),
     /// Other error
     #[error("other: {0}")]
-    Other(std::string::String),
+    Other(String),
     /// Unexpected end of XML stream
     #[error("unexpected end of stream")]
     UnexpectedEndOfStream,

@@ -7,7 +7,7 @@ use syn::spanned::Spanned;
 use super::{discard_lifetimes, meta_items, ContainerMeta, FieldMeta, Mode, VariantMeta};
 use crate::{case::RenameRule, Namespace};
 
-pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
+pub(crate) fn to_xml(input: &syn::DeriveInput) -> TokenStream {
     let meta = match ContainerMeta::from_derive(input) {
         Ok(meta) => meta,
         Err(e) => return e.to_compile_error(),
@@ -40,7 +40,7 @@ pub fn to_xml(input: &syn::DeriveInput) -> proc_macro2::TokenStream {
 fn serialize_scalar_enum(
     input: &syn::DeriveInput,
     data: &syn::DataEnum,
-    meta: ContainerMeta,
+    meta: ContainerMeta<'_>,
 ) -> TokenStream {
     let ident = &input.ident;
     let mut variants = TokenStream::new();
@@ -89,7 +89,7 @@ fn serialize_scalar_enum(
 fn serialize_forward_enum(
     input: &syn::DeriveInput,
     data: &syn::DataEnum,
-    meta: ContainerMeta,
+    meta: ContainerMeta<'_>,
 ) -> TokenStream {
     if meta.rename_all != RenameRule::None {
         return syn::Error::new(
@@ -166,8 +166,8 @@ fn serialize_forward_enum(
 fn serialize_struct(
     input: &syn::DeriveInput,
     data: &syn::DataStruct,
-    meta: ContainerMeta,
-) -> proc_macro2::TokenStream {
+    meta: ContainerMeta<'_>,
+) -> TokenStream {
     let mut out = StructOutput::default();
     match &data.fields {
         syn::Fields::Named(fields) => {
@@ -231,8 +231,8 @@ fn serialize_struct(
 fn serialize_inline_struct(
     input: &syn::DeriveInput,
     data: &syn::DataStruct,
-    meta: ContainerMeta,
-) -> proc_macro2::TokenStream {
+    meta: ContainerMeta<'_>,
+) -> TokenStream {
     if !meta.ns.prefixes.is_empty() {
         return syn::Error::new(
             input.span(),
@@ -306,8 +306,8 @@ impl StructOutput {
         &mut self,
         fields: &syn::FieldsNamed,
         inline: bool,
-        meta: &ContainerMeta,
-    ) -> Result<(), proc_macro2::TokenStream> {
+        meta: &ContainerMeta<'_>,
+    ) -> Result<(), TokenStream> {
         let fields = fields
             .named
             .iter()
@@ -380,7 +380,7 @@ impl StructOutput {
         &mut self,
         field: &syn::Field,
         field_meta: FieldMeta,
-        meta: &ContainerMeta,
+        meta: &ContainerMeta<'_>,
     ) -> Result<(), syn::Error> {
         let field_name = field.ident.as_ref().unwrap();
 
@@ -479,7 +479,7 @@ impl StructOutput {
         &mut self,
         fields: &syn::FieldsUnnamed,
         inline: bool,
-    ) -> Result<(), proc_macro2::TokenStream> {
+    ) -> Result<(), TokenStream> {
         if !inline {
             self.body.extend(quote!(serializer.end_start()?;));
         }

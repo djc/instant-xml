@@ -25,9 +25,8 @@ pub fn from_xml_str<T: FromStr>(
         return Err(Error::DuplicateValue(field));
     }
 
-    let value = match deserializer.take_str()? {
-        Some(value) => value,
-        None => return Ok(()),
+    let Some(value) = deserializer.take_str()? else {
+        return Ok(());
     };
 
     match T::from_str(value.as_ref()) {
@@ -62,14 +61,13 @@ impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
             return Err(Error::DuplicateValue(field));
         }
 
-        let value = match deserializer.take_str()? {
-            Some(value) => value,
-            None => return Ok(()),
+        let Some(value) = deserializer.take_str()? else {
+            return Ok(());
         };
 
         match T::from_str(value.as_ref()) {
             Ok(value) => {
-                *into = Some(FromXmlStr(value));
+                *into = Some(Self(value));
                 Ok(())
             }
             Err(_) => Err(Error::UnexpectedValue(format!(
@@ -79,7 +77,7 @@ impl<'xml, T: FromStr> FromXml<'xml> for FromXmlStr<T> {
         }
     }
 
-    type Accumulator = Option<FromXmlStr<T>>;
+    type Accumulator = Option<Self>;
     const KIND: Kind = Kind::Scalar;
 }
 
@@ -101,9 +99,8 @@ impl<'xml> FromXml<'xml> for bool {
             return Err(Error::DuplicateValue(field));
         }
 
-        let value = match deserializer.take_str()? {
-            Some(value) => value,
-            None => return Ok(()),
+        let Some(value) = deserializer.take_str()? else {
+            return Ok(());
         };
 
         let value = match value.as_ref() {
@@ -120,7 +117,7 @@ impl<'xml> FromXml<'xml> for bool {
         Ok(())
     }
 
-    type Accumulator = Option<bool>;
+    type Accumulator = Option<Self>;
     const KIND: Kind = Kind::Scalar;
 }
 
@@ -132,7 +129,7 @@ impl<'xml> FromXml<'xml> for bool {
 pub fn display_to_xml(
     value: &impl fmt::Display,
     field: Option<Id<'_>>,
-    serializer: &mut Serializer<impl fmt::Write + ?Sized>,
+    serializer: &mut Serializer<'_, impl fmt::Write + ?Sized>,
 ) -> Result<(), Error> {
     DisplayToXml(value).serialize(field, serializer)
 }
@@ -146,7 +143,7 @@ where
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         let element = match field {
             Some(id) => {
@@ -172,7 +169,7 @@ macro_rules! to_xml_for_number {
             fn serialize<W: fmt::Write + ?Sized>(
                 &self,
                 field: Option<Id<'_>>,
-                serializer: &mut Serializer<W>,
+                serializer: &mut Serializer<'_, W>,
             ) -> Result<(), Error> {
                 DisplayToXml(self).serialize(field, serializer)
             }
@@ -287,13 +284,13 @@ impl<'xml> FromXml<'xml> for String {
 
         *into = Some(match deserializer.take_str()? {
             Some(value) => value.into_owned(),
-            None => String::new(),
+            None => Self::new(),
         });
 
         Ok(())
     }
 
-    type Accumulator = Option<String>;
+    type Accumulator = Option<Self>;
     const KIND: Kind = Kind::Scalar;
 }
 
@@ -328,6 +325,7 @@ impl<'xml, 'a> FromXml<'xml> for Cow<'a, str> {
 }
 
 /// Accumulator for deserializing `Cow<str>` values
+#[allow(unnameable_types)]
 #[derive(Default)]
 pub struct CowStrAccumulator<'xml, 'a> {
     pub(crate) inner: Option<Cow<'a, str>>,
@@ -377,7 +375,7 @@ where
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         self.as_ref().serialize(field, serializer)
     }
@@ -450,7 +448,7 @@ impl ToXml for bool {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         let value = match self {
             true => "true",
@@ -465,7 +463,7 @@ impl ToXml for String {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         DisplayToXml(&encode(self)?).serialize(field, serializer)
     }
@@ -475,7 +473,7 @@ impl ToXml for char {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         let mut tmp = [0u8; 4];
         DisplayToXml(&encode(&*self.encode_utf8(&mut tmp))?).serialize(field, serializer)
@@ -486,7 +484,7 @@ impl ToXml for str {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         DisplayToXml(&encode(self)?).serialize(field, serializer)
     }
@@ -496,7 +494,7 @@ impl ToXml for Cow<'_, str> {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         DisplayToXml(&encode(self)?).serialize(field, serializer)
     }
@@ -506,7 +504,7 @@ impl<T: ToXml> ToXml for Option<T> {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         match self {
             Some(v) => v.serialize(field, serializer),
@@ -523,7 +521,7 @@ impl<T: ToXml + ?Sized> ToXml for Box<T> {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         self.as_ref().serialize(field, serializer)
     }
@@ -546,7 +544,7 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Box<T> {
 
         let mut value = T::Accumulator::default();
         T::deserialize(&mut value, field, deserializer)?;
-        *into = Some(Box::new(value.try_done(field)?));
+        *into = Some(Self::new(value.try_done(field)?));
 
         Ok(())
     }
@@ -597,7 +595,7 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Vec<T> {
         Ok(())
     }
 
-    type Accumulator = Vec<T>;
+    type Accumulator = Self;
     const KIND: Kind = T::KIND;
 }
 
@@ -605,7 +603,7 @@ impl<T: ToXml> ToXml for Vec<T> {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         self.as_slice().serialize(field, serializer)
     }
@@ -615,7 +613,7 @@ impl<T: ToXml> ToXml for [T] {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         for i in self {
             i.serialize(field, serializer)?;
@@ -630,7 +628,7 @@ impl ToXml for DateTime<Utc> {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         let element = match field {
             Some(id) => {
@@ -669,9 +667,8 @@ impl<'xml> FromXml<'xml> for DateTime<Utc> {
             return Err(Error::DuplicateValue(field));
         }
 
-        let value = match deserializer.take_str()? {
-            Some(value) => value,
-            None => return Ok(()),
+        let Some(value) = deserializer.take_str()? else {
+            return Ok(());
         };
 
         match DateTime::parse_from_rfc3339(value.as_ref()) {
@@ -692,7 +689,7 @@ impl ToXml for NaiveDateTime {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         let element = match field {
             Some(id) => {
@@ -730,12 +727,11 @@ impl<'xml> FromXml<'xml> for NaiveDateTime {
             return Err(Error::DuplicateValue(field));
         }
 
-        let value = match deserializer.take_str()? {
-            Some(value) => value,
-            None => return Ok(()),
+        let Some(value) = deserializer.take_str()? else {
+            return Ok(());
         };
 
-        match NaiveDateTime::parse_from_str(value.as_ref(), "%Y-%m-%dT%H:%M:%S%.f") {
+        match Self::parse_from_str(value.as_ref(), "%Y-%m-%dT%H:%M:%S%.f") {
             Ok(dt) => {
                 *into = Some(dt);
                 Ok(())
@@ -754,7 +750,7 @@ impl ToXml for NaiveDate {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         let element = match field {
             Some(id) => {
@@ -793,12 +789,11 @@ impl<'xml> FromXml<'xml> for NaiveDate {
             return Err(Error::DuplicateValue(field));
         }
 
-        let value = match deserializer.take_str()? {
-            Some(value) => value,
-            None => return Ok(()),
+        let Some(value) = deserializer.take_str()? else {
+            return Ok(());
         };
 
-        match NaiveDate::parse_from_str(value.as_ref(), "%Y-%m-%d") {
+        match Self::parse_from_str(value.as_ref(), "%Y-%m-%d") {
             Ok(d) => {
                 *into = Some(d);
                 Ok(())
@@ -837,7 +832,7 @@ impl ToXml for IpAddr {
     fn serialize<W: fmt::Write + ?Sized>(
         &self,
         field: Option<Id<'_>>,
-        serializer: &mut Serializer<W>,
+        serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         DisplayToXml(self).serialize(field, serializer)
     }

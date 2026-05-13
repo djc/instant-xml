@@ -15,7 +15,7 @@ pub(crate) struct NamespaceMeta {
 
 impl NamespaceMeta {
     fn from_tokens(group: Group) -> Self {
-        let mut new = NamespaceMeta::default();
+        let mut new = Self::default();
         let mut state = NsState::Start;
         for tree in group.stream() {
             state = match (state, tree) {
@@ -268,8 +268,7 @@ impl NamespaceMeta {
                 colon2: None,
                 path: Some(path),
             } => {
-                new.prefixes
-                    .insert(prefix.to_string(), Namespace::Path(path));
+                new.prefixes.insert(prefix, Namespace::Path(path));
             }
             state => panic!("invalid ns end state in xml attribute ({})", state.name()),
         }
@@ -395,17 +394,17 @@ enum MetaState {
 impl MetaState {
     fn name(&self) -> &'static str {
         match self {
-            MetaState::Start => "Start",
-            MetaState::Comma => "Comma",
-            MetaState::Ns => "Ns",
-            MetaState::Rename => "Rename",
-            MetaState::RenameValue => "RenameValue",
-            MetaState::RenameAll => "RenameAll",
-            MetaState::RenameAllValue => "RenameAllValue",
-            MetaState::SerializeWith => "SerializeWith",
-            MetaState::SerializeWithValue => "SerializeWithValue",
-            MetaState::DeserializeWith => "DeserializeWith",
-            MetaState::DeserializeWithValue => "DeserializeWithValue",
+            Self::Start => "Start",
+            Self::Comma => "Comma",
+            Self::Ns => "Ns",
+            Self::Rename => "Rename",
+            Self::RenameValue => "RenameValue",
+            Self::RenameAll => "RenameAll",
+            Self::RenameAllValue => "RenameAllValue",
+            Self::SerializeWith => "SerializeWith",
+            Self::SerializeWithValue => "SerializeWithValue",
+            Self::DeserializeWith => "DeserializeWith",
+            Self::DeserializeWithValue => "DeserializeWithValue",
         }
     }
 }
@@ -436,9 +435,9 @@ enum NsState {
 impl NsState {
     fn name(&self) -> &'static str {
         match self {
-            NsState::Start => "Start",
-            NsState::Comma => "Comma",
-            NsState::Path {
+            Self::Start => "Start",
+            Self::Comma => "Comma",
+            Self::Path {
                 colon1,
                 colon2,
                 path,
@@ -452,10 +451,10 @@ impl NsState {
                 (Some(_), None, Some(_)) => "Path [101]",
                 (Some(_), Some(_), Some(_)) => "Path [111]",
             },
-            NsState::Prefix => "Prefix",
-            NsState::Eq { .. } => "Eq",
-            NsState::PrefixValue { .. } => "PrefixValue",
-            NsState::PrefixPath { .. } => "PrefixPath",
+            Self::Prefix => "Prefix",
+            Self::Eq { .. } => "Eq",
+            Self::PrefixValue { .. } => "PrefixValue",
+            Self::PrefixPath { .. } => "PrefixPath",
         }
     }
 }
@@ -468,8 +467,8 @@ pub(crate) enum Namespace {
 impl ToTokens for Namespace {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            Namespace::Path(path) => path.to_tokens(tokens),
-            Namespace::Literal(lit) => lit.to_tokens(tokens),
+            Self::Path(path) => path.to_tokens(tokens),
+            Self::Literal(lit) => lit.to_tokens(tokens),
         }
     }
 }

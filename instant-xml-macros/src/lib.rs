@@ -3,8 +3,6 @@
 //! This crate provides the [`ToXml`] and [`FromXml`] derive macros for XML serialization
 //! and deserialization. See the instant-xml crate for usage examples.
 
-extern crate proc_macro;
-
 use std::collections::BTreeSet;
 use std::mem;
 
@@ -26,7 +24,7 @@ mod ser;
 /// See the instant-xml crate-level documentation for more details.
 #[proc_macro_derive(ToXml, attributes(xml))]
 pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let ast = parse_macro_input!(input as syn::DeriveInput);
+    let ast = parse_macro_input!(input as DeriveInput);
     ser::to_xml(&ast).into()
 }
 
@@ -36,7 +34,7 @@ pub fn to_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// See the instant-xml crate-level documentation for more details.
 #[proc_macro_derive(FromXml, attributes(xml))]
 pub fn from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let ast = parse_macro_input!(input as syn::DeriveInput);
+    let ast = parse_macro_input!(input as DeriveInput);
     proc_macro::TokenStream::from(de::from_xml(&ast))
 }
 
@@ -50,7 +48,7 @@ struct ContainerMeta<'input> {
 }
 
 impl<'input> ContainerMeta<'input> {
-    fn from_derive(input: &'input syn::DeriveInput) -> Result<Self, syn::Error> {
+    fn from_derive(input: &'input DeriveInput) -> Result<Self, syn::Error> {
         let mut ns = NamespaceMeta::default();
         let mut rename = Default::default();
         let mut rename_all = Default::default();
@@ -142,9 +140,9 @@ struct FieldMeta {
 }
 
 impl FieldMeta {
-    fn from_field(input: &syn::Field, container: &ContainerMeta) -> Result<FieldMeta, syn::Error> {
+    fn from_field(input: &syn::Field, container: &ContainerMeta<'_>) -> Result<Self, syn::Error> {
         let field_name = input.ident.as_ref().unwrap();
-        let mut meta = FieldMeta {
+        let mut meta = Self {
             tag: container
                 .rename_all
                 .apply_to_field(field_name)
@@ -191,8 +189,8 @@ struct VariantMeta {
 impl VariantMeta {
     fn from_variant(
         input: &syn::Variant,
-        container: &ContainerMeta,
-    ) -> Result<VariantMeta, syn::Error> {
+        container: &ContainerMeta<'_>,
+    ) -> Result<Self, syn::Error> {
         if !input.fields.is_empty() {
             return Err(syn::Error::new(
                 input.fields.span(),
@@ -252,7 +250,7 @@ impl VariantMeta {
                 .to_token_stream(),
         };
 
-        Ok(VariantMeta { serialize_as })
+        Ok(Self { serialize_as })
     }
 }
 

@@ -50,7 +50,7 @@ pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
 fn deserialize_scalar_enum(
     input: &syn::DeriveInput,
     data: &syn::DataEnum,
-    meta: ContainerMeta,
+    meta: ContainerMeta<'_>,
 ) -> TokenStream {
     let ident = &input.ident;
     let mut variants = TokenStream::new();
@@ -122,7 +122,7 @@ fn deserialize_scalar_enum(
 fn deserialize_forward_enum(
     input: &syn::DeriveInput,
     data: &syn::DataEnum,
-    meta: ContainerMeta,
+    meta: ContainerMeta<'_>,
 ) -> TokenStream {
     if data.variants.is_empty() {
         return syn::Error::new(input.span(), "empty enum is not supported").to_compile_error();
@@ -217,7 +217,7 @@ fn deserialize_forward_enum(
 fn deserialize_struct(
     input: &syn::DeriveInput,
     fields: &syn::FieldsNamed,
-    container_meta: ContainerMeta,
+    container_meta: ContainerMeta<'_>,
 ) -> TokenStream {
     let mut namespaces_map = quote!(let mut namespaces_map = std::collections::HashMap::new(););
     for (k, v) in container_meta.ns.prefixes.iter() {
@@ -375,7 +375,7 @@ fn deserialize_struct(
 fn deserialize_inline_struct(
     input: &syn::DeriveInput,
     fields: &syn::FieldsNamed,
-    meta: ContainerMeta,
+    meta: ContainerMeta<'_>,
 ) -> TokenStream {
     if !meta.ns.prefixes.is_empty() {
         return syn::Error::new(
@@ -547,7 +547,7 @@ fn named_field<'a>(
     direct: &mut TokenStream,
     mut field_meta: FieldMeta,
     type_name: &Ident,
-    container_meta: &ContainerMeta,
+    container_meta: &ContainerMeta<'_>,
 ) -> Result<FieldData<'a>, syn::Error> {
     let field_name = field.ident.as_ref().unwrap();
     let field_tag = field_meta.tag;
@@ -719,7 +719,7 @@ struct FieldData<'a> {
 fn deserialize_tuple_struct(
     input: &syn::DeriveInput,
     fields: &syn::FieldsUnnamed,
-    container_meta: ContainerMeta,
+    container_meta: ContainerMeta<'_>,
 ) -> TokenStream {
     let mut namespaces_map = quote!(let mut namespaces_map = std::collections::HashMap::new(););
     for (k, v) in container_meta.ns.prefixes.iter() {
@@ -828,7 +828,7 @@ fn unnamed_field(
     ));
 }
 
-fn deserialize_unit_struct(input: &syn::DeriveInput, meta: &ContainerMeta) -> TokenStream {
+fn deserialize_unit_struct(input: &syn::DeriveInput, meta: &ContainerMeta<'_>) -> TokenStream {
     let ident = &input.ident;
     let name = meta.tag();
     let default_namespace = meta.default_namespace();
@@ -868,11 +868,8 @@ fn is_cow(ty: &syn::Type, elem: fn(&syn::Type) -> bool) -> bool {
         }
     };
 
-    let seg = match path.segments.last() {
-        Some(seg) => seg,
-        None => {
-            return false;
-        }
+    let Some(seg) = path.segments.last() else {
+        return false;
     };
 
     let args = match &seg.arguments {
@@ -915,7 +912,7 @@ fn is_primitive_path(path: &syn::Path, primitive: &str) -> bool {
         && path.segments[0].arguments.is_empty()
 }
 
-pub fn ungroup(mut ty: &syn::Type) -> &syn::Type {
+fn ungroup(mut ty: &syn::Type) -> &syn::Type {
     while let syn::Type::Group(group) = ty {
         ty = &group.elem;
     }

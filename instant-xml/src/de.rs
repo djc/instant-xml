@@ -232,13 +232,10 @@ impl<'xml> Iterator for Context<'xml> {
                 }
                 Ok(Token::ElementEnd { end, .. }) => match end {
                     ElementEnd::Open => {
-                        let level = match self.stack.last() {
-                            Some(level) => level,
-                            None => {
-                                return Some(Err(Error::UnexpectedState(
-                                    "opening element with no parent",
-                                )))
-                            }
+                        let Some(level) = self.stack.last() else {
+                            return Some(Err(Error::UnexpectedState(
+                                "opening element with no parent",
+                            )));
                         };
 
                         let element = Element {
@@ -250,13 +247,10 @@ impl<'xml> Iterator for Context<'xml> {
                         return Some(Ok(Node::Open(element)));
                     }
                     ElementEnd::Close(prefix, v) => {
-                        let level = match self.stack.pop() {
-                            Some(level) => level,
-                            None => {
-                                return Some(Err(Error::UnexpectedState(
-                                    "closing element without parent",
-                                )))
-                            }
+                        let Some(level) = self.stack.pop() else {
+                            return Some(Err(Error::UnexpectedState(
+                                "closing element without parent",
+                            )));
                         };
 
                         let prefix = match prefix.is_empty() {
@@ -264,26 +258,19 @@ impl<'xml> Iterator for Context<'xml> {
                             false => Some(prefix.as_str()),
                         };
 
-                        match v.as_str() == level.local && prefix == level.prefix {
-                            true => {
-                                return Some(Ok(Node::Close {
-                                    prefix,
-                                    local: level.local,
-                                }))
-                            }
-                            false => {
-                                return Some(Err(Error::UnexpectedState("close element mismatch")))
-                            }
-                        }
+                        return Some(match v.as_str() == level.local && prefix == level.prefix {
+                            true => Ok(Node::Close {
+                                prefix,
+                                local: level.local,
+                            }),
+                            false => Err(Error::UnexpectedState("close element mismatch")),
+                        });
                     }
                     ElementEnd::Empty => {
-                        let level = match self.stack.last() {
-                            Some(level) => level,
-                            None => {
-                                return Some(Err(Error::UnexpectedState(
-                                    "opening element with no parent",
-                                )))
-                            }
+                        let Some(level) = self.stack.last() else {
+                            return Some(Err(Error::UnexpectedState(
+                                "opening element with no parent",
+                            )));
                         };
 
                         self.records.push_back(Node::Close {
@@ -595,10 +582,10 @@ mod tests {
     }
 
     fn decode_ok(input: &str, expected: &'static str) {
-        assert_eq!(super::decode(input).unwrap(), expected, "{input:?}");
+        assert_eq!(decode(input).unwrap(), expected, "{input:?}");
     }
 
     fn decode_err(input: &str) {
-        assert!(super::decode(input).is_err(), "{input:?}");
+        assert!(decode(input).is_err(), "{input:?}");
     }
 }

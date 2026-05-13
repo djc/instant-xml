@@ -1,3 +1,5 @@
+//! XML deserialization support code
+
 use std::borrow::Cow;
 use std::collections::{BTreeMap, VecDeque};
 use std::str::{self, FromStr};

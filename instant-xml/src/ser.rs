@@ -1,3 +1,5 @@
+//! XML serialization support code
+
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{self};

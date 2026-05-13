@@ -7,7 +7,7 @@ use instant_xml::{from_str, FromXml};
 fn decode_short_ascii(bench: &mut Bencher) {
     let xml = "<Element><inner>foobar</inner></Element>";
     bench.iter(|| {
-        from_str::<Element>(xml).unwrap();
+        from_str::<Element<'_>>(xml).unwrap();
     })
 }
 
@@ -22,14 +22,14 @@ fn decode_longer_ascii(bench: &mut Bencher) {
     xml.push_str("</inner></Element>");
 
     bench.iter(|| {
-        from_str::<Element>(&xml).unwrap();
+        from_str::<Element<'_>>(&xml).unwrap();
     })
 }
 
 fn decode_short_escaped(bench: &mut Bencher) {
     let xml = "<Element><inner>foo &amp; bar</inner></Element>";
     bench.iter(|| {
-        from_str::<Element>(xml).unwrap();
+        from_str::<Element<'_>>(xml).unwrap();
     })
 }
 
@@ -45,7 +45,7 @@ fn decode_longer_escaped(bench: &mut Bencher) {
     xml.push_str("</inner></Element>");
 
     bench.iter(|| {
-        from_str::<Element>(&xml).unwrap();
+        from_str::<Element<'_>>(&xml).unwrap();
     })
 }
 

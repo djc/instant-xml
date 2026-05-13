@@ -69,7 +69,7 @@ pub struct AnyElement<'xml> {
     /// Text content of this element, if any.
     pub text: Option<Cow<'xml, str>>,
     /// Nested child elements.
-    pub children: Vec<AnyElement<'xml>>,
+    pub children: Vec<Self>,
 }
 
 impl<'a> AnyElement<'a> {

@@ -16,7 +16,7 @@ use self::RenameRule::*;
 
 /// The different possible ways to change case of fields in a struct, or variants in an enum.
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
-pub enum RenameRule {
+pub(crate) enum RenameRule {
     /// Don't apply a default rename rule.
     #[default]
     None,
@@ -53,7 +53,7 @@ const RENAME_RULES: &[(&str, RenameRule)] = &[
 ];
 
 impl RenameRule {
-    pub fn from_str(rename_all_str: &str) -> Result<Self, ParseError<'_>> {
+    pub(crate) fn from_str(rename_all_str: &str) -> Result<Self, ParseError<'_>> {
         for (name, rule) in RENAME_RULES {
             if rename_all_str == *name {
                 return Ok(*rule);
@@ -65,7 +65,7 @@ impl RenameRule {
     }
 
     /// Apply a renaming rule to an enum variant, returning the version expected in the source.
-    pub fn apply_to_variant(&self, ident: &Ident) -> String {
+    pub(crate) fn apply_to_variant(&self, ident: &Ident) -> String {
         let variant = ident.to_string();
         match *self {
             None | PascalCase => variant,
@@ -89,7 +89,7 @@ impl RenameRule {
     }
 
     /// Apply a renaming rule to a struct field, returning the version expected in the source.
-    pub fn apply_to_field(&self, ident: &Ident) -> String {
+    pub(crate) fn apply_to_field(&self, ident: &Ident) -> String {
         let mut field = ident.to_string();
         if field.starts_with("r#") {
             field = field[2..].to_string();
@@ -124,12 +124,12 @@ impl RenameRule {
     }
 }
 
-pub struct ParseError<'a> {
+pub(crate) struct ParseError<'a> {
     unknown: &'a str,
 }
 
 impl Display for ParseError<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("unknown rename rule `rename_all = ")?;
         Debug::fmt(self.unknown, f)?;
         f.write_str("`, expected one of ")?;

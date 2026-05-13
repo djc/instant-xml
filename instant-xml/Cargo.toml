@@ -24,3 +24,6 @@ similar-asserts = "2.0.0"
 [[bench]]
 name = "decode"
 harness = false
+
+[lints]
+workspace = true

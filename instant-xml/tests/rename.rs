@@ -26,7 +26,7 @@ fn renamed() {
 fn rename_all_struct() {
     #[derive(Debug, PartialEq, Eq, ToXml, FromXml)]
     #[xml(rename_all = "UPPERCASE")]
-    pub struct TestStruct {
+    struct TestStruct {
         field_1: String,
         #[xml(attribute)]
         field_2: bool,
@@ -46,14 +46,14 @@ fn rename_all_struct() {
 fn rename_all_enum_variant() {
     #[derive(Debug, PartialEq, Eq, ToXml, FromXml)]
     #[xml(scalar, rename_all = "snake_case")]
-    pub enum TestEnum {
+    enum TestEnum {
         SnakeCased,
         ThisToo,
     }
 
     #[derive(Debug, PartialEq, Eq, ToXml, FromXml)]
     #[xml(rename_all = "UPPERCASE")]
-    pub struct TestStruct {
+    struct TestStruct {
         field_1: TestEnum,
         #[xml(attribute)]
         field_2: TestEnum,

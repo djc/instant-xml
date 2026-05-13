@@ -25,7 +25,7 @@ fn escape_back() {
     );
 
     // Borrowed
-    let escape_back = from_str::<StructSpecialEntities>(
+    let escape_back = from_str::<StructSpecialEntities<'_>>(
         "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><cow>str</cow></StructSpecialEntities>"
     )
     .unwrap();
@@ -35,7 +35,7 @@ fn escape_back() {
     }
 
     // Owned
-    let escape_back = from_str::<StructSpecialEntities>(
+    let escape_back = from_str::<StructSpecialEntities<'_>>(
             "<StructSpecialEntities xmlns=\"URI\"><string>&lt;&gt;&amp;&quot;&apos;adsad&quot;</string><cow>str&amp;</cow></StructSpecialEntities>"
         )
         .unwrap();
@@ -65,7 +65,7 @@ struct SimpleCData<'a> {
 #[test]
 fn simple_cdata() {
     assert_eq!(
-        from_str::<SimpleCData>("<SimpleCData><foo><![CDATA[<fo&amp;o>]]></foo></SimpleCData>")
+        from_str::<SimpleCData<'_>>("<SimpleCData><foo><![CDATA[<fo&amp;o>]]></foo></SimpleCData>")
             .unwrap(),
         SimpleCData {
             foo: Cow::Borrowed("<fo&amp;o>")

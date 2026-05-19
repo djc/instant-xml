@@ -18,6 +18,11 @@ pub struct Serializer<'xml, W: fmt::Write + ?Sized> {
     /// update the set with the new prefix.
     prefixes: HashMap<&'static str, &'static str>,
     default_ns: &'static str,
+    /// Default namespace for attributes.
+    ///
+    /// This might be different from the default namespace for child elements in case of
+    /// `force_prefix`.
+    attribute_ns: Option<&'static str>,
     state: State,
 }
 
@@ -28,6 +33,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
             output,
             prefixes: HashMap::new(),
             default_ns: "",
+            attribute_ns: None,
             state: State::Element,
         }
     }
@@ -50,47 +56,51 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
 
         let force_prefix = cx.as_ref().is_some_and(|cx| cx.force_prefix);
 
-        let prefix = match (ns == self.default_ns, self.prefixes.get(ns), force_prefix) {
-            // Ns != default ns
-            (false, Some(prefix), force_prefix) => {
-                self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
-                if let Some(cx) = &cx {
-                    // Only write the ns as default if not force prefix
-                    if !force_prefix {
+        let (prefix, update_default_ns) =
+            match (ns == self.default_ns, self.prefixes.get(ns), force_prefix) {
+                // Ns != default ns, force prefix: use prefix, don't change default ns
+                (false, Some(prefix), true) => {
+                    self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
+                    (Some(*prefix), false)
+                }
+                // Ns != default ns, no force prefix: use prefix and set new default ns
+                (false, Some(prefix), false) => {
+                    self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
+                    if let Some(cx) = &cx {
                         self.output
                             .write_fmt(format_args!(" xmlns=\"{}\"", cx.default_ns))?;
                     }
+                    (Some(*prefix), true)
                 }
-                Some(*prefix)
-            }
-            // No prefix case
-            (true, None, _) => {
-                self.output.write_fmt(format_args!("<{name}"))?;
-                None
-            }
-            // If ns == default ns and force-prefix is false, we ignore prefix
-            (true, Some(_), false) => {
-                self.output.write_fmt(format_args!("<{name}"))?;
-                // Still requalify the ns here because its not the previous default_ns
-                if let Some(cx) = &cx {
+                // No prefix case
+                (true, None, _) => {
+                    self.output.write_fmt(format_args!("<{name}"))?;
+                    (None, false)
+                }
+                // If ns == default ns and force-prefix is false, we ignore prefix
+                (true, Some(_), false) => {
+                    self.output.write_fmt(format_args!("<{name}"))?;
+                    // Still requalify the ns here because its not the previous default_ns
+                    if let Some(cx) = &cx {
+                        self.output
+                            .write_fmt(format_args!(" xmlns=\"{}\"", cx.default_ns))?;
+                    }
+                    (None, true)
+                }
+                // Force prefix always - when forcing prefix we dont requalify the namespace
+                (true, Some(prefix), true) => {
+                    self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
+                    (Some(*prefix), false)
+                }
+                _ => {
                     self.output
-                        .write_fmt(format_args!(" xmlns=\"{}\"", cx.default_ns))?;
+                        .write_fmt(format_args!("<{name} xmlns=\"{ns}\""))?;
+                    (None, true)
                 }
-                None
-            }
-            // Force prefix always - when forcing prefix we dont requalify the namespace
-            (true, Some(prefix), true) => {
-                self.output.write_fmt(format_args!("<{prefix}:{name}"))?;
-                Some(*prefix)
-            }
-            _ => {
-                self.output
-                    .write_fmt(format_args!("<{name} xmlns=\"{ns}\""))?;
-                None
-            }
-        };
+            };
 
         self.state = State::Attribute;
+        self.attribute_ns = cx.as_ref().map(|cx| cx.default_ns);
         let Some(cx) = cx else {
             return Ok(Element {
                 prefix,
@@ -100,7 +110,10 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         };
 
         let mut old = Context::default();
-        let prev = mem::replace(&mut self.default_ns, cx.default_ns);
+        let prev = match update_default_ns {
+            true => mem::replace(&mut self.default_ns, cx.default_ns),
+            false => self.default_ns,
+        };
         let _ = mem::replace(&mut old.default_ns, prev);
 
         let mut used = 0;
@@ -149,7 +162,8 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
             return Err(Error::UnexpectedState("invalid state for attribute"));
         }
 
-        match ns == self.default_ns {
+        let attr_ns = self.attribute_ns.unwrap_or(self.default_ns);
+        match ns == attr_ns {
             true => self.output.write_fmt(format_args!(" {name}=\""))?,
             false => {
                 let prefix = self
@@ -185,6 +199,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         }
 
         self.output.write_char('>')?;
+        self.attribute_ns = None;
         self.state = State::Element;
         Ok(())
     }
@@ -196,6 +211,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         }
 
         self.output.write_str(" />")?;
+        self.attribute_ns = None;
         self.state = State::Element;
         Ok(())
     }

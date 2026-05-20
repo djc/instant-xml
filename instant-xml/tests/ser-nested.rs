@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::{to_string, ToXml};
+use instant_xml::{from_str, to_string, FromXml, ToXml};
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
 #[xml(ns("URI", dar = "BAZ", internal = INTERNAL))]
@@ -47,3 +47,36 @@ fn struct_with_custom_field() {
         "<StructWithCustomField xmlns=\"URI\" xmlns:bar=\"BAZ\" xmlns:foo=\"BAR\" int_attribute=\"42\"><bar:flag_direct_namespace_same_the_same_as_prefix>true</bar:flag_direct_namespace_same_the_same_as_prefix><flag_direct_namespace xmlns=\"DIFFERENT\">true</flag_direct_namespace><Nested xmlns:internal=\"INTERNAL\"><internal:flag_internal_prefix>false</internal:flag_internal_prefix></Nested></StructWithCustomField>"
     );
 }
+
+// Handle uUnprefixed attributes on a child element whose namespace differs from the parent's
+// should serialize without a prefix (attributes default to no namespace per XML spec).
+#[derive(Debug, Eq, PartialEq, ToXml, FromXml)]
+#[xml(ns(NS_PARENT, ch = NS_CHILD))]
+struct Parent {
+    #[xml(attribute)]
+    id: u32,
+    child: Child,
+}
+
+#[derive(Debug, Eq, PartialEq, ToXml, FromXml)]
+#[xml(ns(NS_CHILD))]
+struct Child {
+    #[xml(attribute)]
+    name: String,
+}
+
+#[test]
+fn attr_no_ns_nested_different_ns() {
+    let v = Parent {
+        id: 1,
+        child: Child {
+            name: "test".into(),
+        },
+    };
+    let xml = r#"<Parent xmlns="urn:parent" xmlns:ch="urn:child" id="1"><ch:Child xmlns="urn:child" name="test" /></Parent>"#;
+    assert_eq!(to_string(&v).unwrap(), xml);
+    assert_eq!(from_str::<Parent>(xml).unwrap(), v);
+}
+
+const NS_PARENT: &str = "urn:parent";
+const NS_CHILD: &str = "urn:child";

@@ -163,7 +163,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         }
 
         let attr_ns = self.attribute_ns.unwrap_or(self.default_ns);
-        match ns == attr_ns {
+        match ns.is_empty() || ns == attr_ns {
             true => self.output.write_fmt(format_args!(" {name}=\""))?,
             false => {
                 let prefix = self

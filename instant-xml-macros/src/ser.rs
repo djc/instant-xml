@@ -418,7 +418,7 @@ impl StructOutput {
                     )
                     .into_compile_error(),
                 ),
-                None => (default_ns, quote!()),
+                None => (quote!(""), quote!()),
             };
 
             self.attributes.extend(quote!(

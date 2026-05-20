@@ -95,6 +95,10 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
+    pub fn namespace(&self, prefix: &str) -> Option<&'xml str> {
+        self.context.lookup(prefix)
+    }
+
     /// Get the identifier of an element (name and namespace)
     #[inline]
     pub fn element_id(&self, element: &Element<'xml>) -> Result<Id<'xml>, Error> {

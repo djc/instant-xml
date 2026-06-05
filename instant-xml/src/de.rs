@@ -399,6 +399,10 @@ pub fn borrow_cow_slice_u8<'xml>(
 }
 
 fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
+    if !input.as_bytes().contains(&b'&') {
+        return Ok(Cow::Borrowed(input));
+    }
+
     let mut result = String::with_capacity(input.len());
     let (mut state, mut last_end) = (DecodeState::Normal, 0);
     for (i, &b) in input.as_bytes().iter().enumerate() {

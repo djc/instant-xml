@@ -399,11 +399,7 @@ pub fn borrow_cow_slice_u8<'xml>(
 }
 
 fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
-    if !input.as_bytes().contains(&b'&') {
-        return Ok(Cow::Borrowed(input));
-    }
-
-    let mut result = String::with_capacity(input.len());
+    let mut result = String::new();
     let (mut state, mut last_end) = (DecodeState::Normal, 0);
     for (i, &b) in input.as_bytes().iter().enumerate() {
         // use a state machine to find entities
@@ -451,6 +447,10 @@ fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
                 };
 
                 let start = i - (len + 1); // current position - (length of entity characters + 1 for '&')
+                if result.capacity() == 0 {
+                    result.reserve(input.len());
+                }
+
                 if last_end < start {
                     // Unwrap should be safe: `last_end` and `start` must be at character boundaries.
                     result.push_str(input.get(last_end..start).unwrap());

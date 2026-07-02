@@ -453,7 +453,7 @@ fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
     for (i, &b) in input.as_bytes().iter().enumerate() {
         // use a state machine to find entities
         state = match (state, b) {
-            (DecodeState::Normal, b'&') => DecodeState::Entity([0; 6], 0),
+            (DecodeState::Normal, b'&') => DecodeState::Entity([0; MAX_ENTITY_LEN], 0),
             (DecodeState::Normal, _) => DecodeState::Normal,
             (DecodeState::Entity(chars, len), b';') => {
                 let decoded = match &chars[..len] {
@@ -510,8 +510,8 @@ fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
                 DecodeState::Normal
             }
             (DecodeState::Entity(mut chars, len), b) => {
-                if len >= 6 {
-                    let mut bytes = Vec::with_capacity(7);
+                if len >= MAX_ENTITY_LEN {
+                    let mut bytes = Vec::with_capacity(MAX_ENTITY_LEN + 1);
                     bytes.extend(&chars[..len]);
                     bytes.push(b);
                     return Err(Error::InvalidEntity(
@@ -545,8 +545,14 @@ fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
 #[derive(Debug)]
 enum DecodeState {
     Normal,
-    Entity([u8; 6], usize),
+    Entity([u8; MAX_ENTITY_LEN], usize),
 }
+
+/// Buffer size for the characters of an entity between `&` and `;`.
+///
+/// Must fit the longest reference we accept: the widest numeric character references are
+/// `#x10FFFF` and `#1114111` (the maximum Unicode scalar value), both 8 bytes.
+const MAX_ENTITY_LEN: usize = 8;
 
 /// Valid character ranges per <https://www.w3.org/TR/xml/#NT-Char>
 fn valid_xml_character(c: &char) -> bool {
@@ -684,6 +690,9 @@ mod tests {
         decode_ok("foo &#xc4; bar", "foo Ä bar");
         decode_ok("foo &#x00c4; bar", "foo Ä bar");
         decode_ok("foo &#x10de; bar", "foo პ bar");
+        // Widest numeric references: the maximum Unicode scalar value
+        decode_ok("&#x10FFFF;", "\u{10FFFF}");
+        decode_ok("&#1114111;", "\u{10FFFF}");
 
         decode_err("&");
         decode_err("&#");

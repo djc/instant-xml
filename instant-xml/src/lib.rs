@@ -425,23 +425,10 @@ impl<T> Accumulate<Self> for Option<T> {
 }
 
 /// Deserialize a type from an XML string
+///
+/// This is a convenience function that creates a `Deserializer` and calls `deserialize()`.
 pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
-    let mut deserializer = Deserializer::new(input)?;
-
-    let id = deserializer.parent();
-    if !T::matches(id, None) {
-        return Err(Error::UnexpectedValue(match id.ns.is_empty() {
-            true => format!("unexpected root element {:?}", id.name),
-            false => format!(
-                "unexpected root element {:?} in namespace {:?}",
-                id.name, id.ns
-            ),
-        }));
-    }
-
-    let mut value = T::Accumulator::default();
-    T::deserialize(&mut value, "<root element>", &mut deserializer)?;
-    value.try_done("<root element>")
+    Deserializer::new(input)?.deserialize()
 }
 
 /// Serialize a value to an XML string

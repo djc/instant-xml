@@ -337,8 +337,8 @@ pub use macros::{FromXml, ToXml};
 
 pub mod de;
 mod impls;
-use de::Context;
 pub use de::Deserializer;
+use de::{Context, Mut};
 pub use impls::{display_to_xml, from_xml_str, OptionAccumulator};
 pub mod ser;
 pub use ser::Serializer;
@@ -427,7 +427,7 @@ impl<T> Accumulate<Self> for Option<T> {
 
 /// Deserialize a type from an XML string
 pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
-    let (mut context, root) = Context::new(input)?;
+    let (context, root) = Context::new(input)?;
     let id = context.element_id(&root)?;
 
     if !T::matches(id, None) {
@@ -444,7 +444,7 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     T::deserialize(
         &mut value,
         "<root element>",
-        &mut Deserializer::with_context(root, &mut context),
+        &mut Deserializer::with_context(root, Mut::Owned(context)),
     )?;
     value.try_done("<root element>")
 }

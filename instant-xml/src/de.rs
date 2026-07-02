@@ -2,6 +2,7 @@
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, VecDeque};
+use std::ops::{Deref, DerefMut};
 use std::str::{self, FromStr};
 
 use xmlparser::{ElementEnd, Token, Tokenizer};
@@ -15,7 +16,7 @@ pub struct Deserializer<'cx, 'xml> {
     prefix: Option<&'xml str>,
     level: usize,
     done: bool,
-    context: &'cx mut Context<'xml>,
+    context: Mut<'cx, Context<'xml>>,
 }
 
 impl<'cx, 'xml> Deserializer<'cx, 'xml> {
@@ -24,10 +25,10 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
     where
         'cx: 'a,
     {
-        Deserializer::with_context(element, self.context)
+        Deserializer::with_context(element, self.context.borrow())
     }
 
-    pub(crate) fn with_context(element: Element<'xml>, context: &'cx mut Context<'xml>) -> Self {
+    pub(crate) fn with_context(element: Element<'xml>, context: Mut<'cx, Context<'xml>>) -> Self {
         let level = context.stack.len();
         Self {
             local: element.local,
@@ -64,7 +65,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
             prefix: self.prefix,
             level: self.level,
             done: self.done,
-            context: self.context,
+            context: self.context.borrow(),
         }
     }
 
@@ -549,6 +550,40 @@ pub struct Attribute<'xml> {
     pub local: &'xml str,
     /// The attribute value
     pub value: Cow<'xml, str>,
+}
+
+pub(crate) enum Mut<'a, T> {
+    Ref(&'a mut T),
+    Owned(T),
+}
+
+impl<'a, T> Mut<'a, T> {
+    fn borrow<'b>(&'b mut self) -> Mut<'b, T> {
+        match self {
+            Mut::Ref(r) => Mut::Ref(r),
+            Mut::Owned(ref mut o) => Mut::Ref(o),
+        }
+    }
+}
+
+impl<T> Deref for Mut<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Mut::Ref(r) => r,
+            Mut::Owned(o) => o,
+        }
+    }
+}
+
+impl<T> DerefMut for Mut<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Mut::Ref(r) => r,
+            Mut::Owned(o) => o,
+        }
+    }
 }
 
 #[cfg(test)]

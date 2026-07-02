@@ -53,6 +53,12 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
+    /// Override default limits for this deserializer
+    pub fn with_limits(mut self, limits: Limits) -> Self {
+        self.context.limits = limits;
+        self
+    }
+
     /// Deserialize a value of type `T` from the deserializer's XML input
     pub fn deserialize<T: FromXml<'xml>>(&mut self) -> Result<T, Error> {
         let id = self.context.element_id(&self.parent)?;
@@ -173,6 +179,7 @@ struct Context<'xml> {
     parser: Tokenizer<'xml>,
     stack: Vec<Level<'xml>>,
     records: VecDeque<Node<'xml>>,
+    limits: Limits,
 }
 
 impl<'xml> Context<'xml> {
@@ -181,6 +188,7 @@ impl<'xml> Context<'xml> {
             parser: Tokenizer::from(input),
             stack: Vec::new(),
             records: VecDeque::new(),
+            limits: Limits::default(),
         }
     }
 
@@ -247,6 +255,12 @@ impl<'xml> Iterator for Context<'xml> {
         loop {
             match self.parser.next()? {
                 Ok(Token::ElementStart { prefix, local, .. }) => {
+                    if self.stack.len() >= self.limits.max_levels {
+                        return Some(Err(Error::Other(
+                            "maximum number of nested element levels exceeded".to_owned(),
+                        )));
+                    }
+
                     let prefix = prefix.as_str();
                     self.stack.push(Level {
                         local: local.as_str(),
@@ -333,6 +347,13 @@ impl<'xml> Iterator for Context<'xml> {
                     } else if prefix.as_str() == "xmlns" {
                         match self.stack.last_mut() {
                             Some(level) => {
+                                if level.prefixes.len() >= self.limits.max_ns_declarations {
+                                    return Some(Err(Error::Other(
+                                        "maximum number of namespace declarations exceeded"
+                                            .to_owned(),
+                                    )));
+                                }
+
                                 level.prefixes.insert(local.as_str(), value.as_str());
                             }
                             None => {
@@ -342,6 +363,12 @@ impl<'xml> Iterator for Context<'xml> {
                             }
                         }
                     } else {
+                        if self.records.len() >= self.limits.max_attributes {
+                            return Some(Err(Error::Other(
+                                "maximum number of attributes exceeded".to_owned(),
+                            )));
+                        }
+
                         let value = match decode(value.as_str()) {
                             Ok(value) => value,
                             Err(e) => return Some(Err(e)),
@@ -544,6 +571,27 @@ pub enum Node<'xml> {
     Text(Cow<'xml, str>),
     /// Opening tag for an element
     Open(Element<'xml>),
+}
+
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug)]
+pub struct Limits {
+    /// Maximum number of attributes allowed per element
+    pub max_attributes: usize,
+    /// Maximum number of nested element levels allowed
+    pub max_levels: usize,
+    /// Maximum number of namespace declarations allowed per element
+    pub max_ns_declarations: usize,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            max_attributes: 64,
+            max_levels: 32,
+            max_ns_declarations: 32,
+        }
+    }
 }
 
 /// An XML element during deserialization

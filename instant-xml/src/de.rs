@@ -19,6 +19,14 @@ pub struct Deserializer<'cx, 'xml> {
 }
 
 impl<'cx, 'xml> Deserializer<'cx, 'xml> {
+    /// Create a nested deserializer for a child element
+    pub fn nested<'a>(&'a mut self, element: Element<'xml>) -> Deserializer<'a, 'xml>
+    where
+        'cx: 'a,
+    {
+        Deserializer::new(element, self.context)
+    }
+
     pub(crate) fn new(element: Element<'xml>, context: &'cx mut Context<'xml>) -> Self {
         let level = context.stack.len();
         Self {
@@ -28,14 +36,6 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
             done: false,
             context,
         }
-    }
-
-    /// Create a nested deserializer for a child element
-    pub fn nested<'a>(&'a mut self, element: Element<'xml>) -> Deserializer<'a, 'xml>
-    where
-        'cx: 'a,
-    {
-        Deserializer::new(element, self.context)
     }
 
     /// Skip all remaining nodes in the current element

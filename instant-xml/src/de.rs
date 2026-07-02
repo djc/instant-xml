@@ -8,7 +8,7 @@ use std::str::{self, FromStr};
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
 use crate::impls::CowStrAccumulator;
-use crate::{Error, Id};
+use crate::{Accumulate, Error, FromXml, Id};
 
 /// XML deserializer for iterating over nodes in an element
 pub struct Deserializer<'cx, 'xml> {
@@ -51,6 +51,24 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
             done: false,
             context,
         }
+    }
+
+    /// Deserialize a value of type `T` from the deserializer's XML input
+    pub fn deserialize<T: FromXml<'xml>>(&mut self) -> Result<T, Error> {
+        let id = self.context.element_id(&self.parent)?;
+        if !T::matches(id, None) {
+            return Err(Error::UnexpectedValue(match id.ns.is_empty() {
+                true => format!("unexpected root element {:?}", id.name),
+                false => format!(
+                    "unexpected root element {:?} in namespace {:?}",
+                    id.name, id.ns
+                ),
+            }));
+        }
+
+        let mut value = T::Accumulator::default();
+        T::deserialize(&mut value, "<root element>", self)?;
+        value.try_done("<root element>")
     }
 
     /// Skip all remaining nodes in the current element

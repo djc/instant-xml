@@ -444,7 +444,7 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     T::deserialize(
         &mut value,
         "<root element>",
-        &mut Deserializer::new(root, &mut context),
+        &mut Deserializer::with_context(root, &mut context),
     )?;
     value.try_done("<root element>")
 }

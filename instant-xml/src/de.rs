@@ -24,10 +24,10 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
     where
         'cx: 'a,
     {
-        Deserializer::new(element, self.context)
+        Deserializer::with_context(element, self.context)
     }
 
-    pub(crate) fn new(element: Element<'xml>, context: &'cx mut Context<'xml>) -> Self {
+    pub(crate) fn with_context(element: Element<'xml>, context: &'cx mut Context<'xml>) -> Self {
         let level = context.stack.len();
         Self {
             local: element.local,

@@ -145,22 +145,12 @@ pub(crate) struct Context<'xml> {
 }
 
 impl<'xml> Context<'xml> {
-    pub(crate) fn new(input: &'xml str) -> Result<(Self, Element<'xml>), Error> {
-        let mut new = Self {
+    pub(crate) fn new(input: &'xml str) -> Self {
+        Self {
             parser: Tokenizer::from(input),
             stack: Vec::new(),
             records: VecDeque::new(),
-        };
-
-        let root = match new.next() {
-            Some(result) => match result? {
-                Node::Open(element) => element,
-                _ => return Err(Error::UnexpectedState("first node does not open element")),
-            },
-            None => return Err(Error::UnexpectedEndOfStream),
-        };
-
-        Ok((new, root))
+        }
     }
 
     pub(crate) fn element_id(&self, element: &Element<'xml>) -> Result<Id<'xml>, Error> {

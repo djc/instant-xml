@@ -30,22 +30,6 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
-    /// Extract a string value from the current node
-    ///
-    /// Consumes a text node or attribute value, returning the content as a string.
-    pub fn take_str(&mut self) -> Result<Option<Cow<'xml, str>>, Error> {
-        loop {
-            match self.next() {
-                Some(Ok(Node::AttributeValue(s))) => return Ok(Some(s)),
-                Some(Ok(Node::Text(s))) => return Ok(Some(s)),
-                Some(Ok(Node::Attribute(_))) => continue,
-                Some(Ok(node)) => return Err(Error::ExpectedScalar(format!("{node:?}"))),
-                Some(Err(e)) => return Err(e),
-                None => return Ok(None),
-            }
-        }
-    }
-
     /// Create a nested deserializer for a child element
     pub fn nested<'a>(&'a mut self, element: Element<'xml>) -> Deserializer<'a, 'xml>
     where
@@ -81,6 +65,22 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
             level: self.level,
             done: self.done,
             context: self.context,
+        }
+    }
+
+    /// Extract a string value from the current node
+    ///
+    /// Consumes a text node or attribute value, returning the content as a string.
+    pub fn take_str(&mut self) -> Result<Option<Cow<'xml, str>>, Error> {
+        loop {
+            match self.next() {
+                Some(Ok(Node::AttributeValue(s))) => return Ok(Some(s)),
+                Some(Ok(Node::Text(s))) => return Ok(Some(s)),
+                Some(Ok(Node::Attribute(_))) => continue,
+                Some(Ok(node)) => return Err(Error::ExpectedScalar(format!("{node:?}"))),
+                Some(Err(e)) => return Err(e),
+                None => return Ok(None),
+            }
         }
     }
 

@@ -12,8 +12,7 @@ use crate::{Error, Id};
 
 /// XML deserializer for iterating over nodes in an element
 pub struct Deserializer<'cx, 'xml> {
-    pub(crate) local: &'xml str,
-    prefix: Option<&'xml str>,
+    pub(crate) parent: Element<'xml>,
     level: usize,
     done: bool,
     context: Mut<'cx, Context<'xml>>,
@@ -28,11 +27,10 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         Deserializer::with_context(element, self.context.borrow())
     }
 
-    pub(crate) fn with_context(element: Element<'xml>, context: Mut<'cx, Context<'xml>>) -> Self {
+    pub(crate) fn with_context(parent: Element<'xml>, context: Mut<'cx, Context<'xml>>) -> Self {
         let level = context.stack.len();
         Self {
-            local: element.local,
-            prefix: element.prefix,
+            parent,
             level,
             done: false,
             context,
@@ -61,8 +59,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
     {
         self.context.records.push_front(node);
         Deserializer {
-            local: self.local,
-            prefix: self.prefix,
+            parent: self.parent,
             level: self.level,
             done: self.done,
             context: self.context.borrow(),
@@ -88,11 +85,11 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
     /// Get the identifier of the parent element
     pub fn parent(&self) -> Id<'xml> {
         Id {
-            ns: match self.prefix {
+            ns: match self.parent.prefix {
                 Some(ns) => self.context.lookup(ns).unwrap(),
                 None => self.context.default_ns(),
             },
-            name: self.local,
+            name: self.parent.local,
         }
     }
 
@@ -127,8 +124,8 @@ impl<'xml> Iterator for Deserializer<'_, 'xml> {
         };
 
         if self.context.stack.len() == self.level - 1
-            && local == self.local
-            && prefix == self.prefix
+            && local == self.parent.local
+            && prefix == self.parent.prefix
         {
             self.done = true;
             return None;
@@ -516,7 +513,7 @@ pub enum Node<'xml> {
 }
 
 /// An XML element during deserialization
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Element<'xml> {
     local: &'xml str,
     default_ns: Option<&'xml str>,

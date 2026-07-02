@@ -12,13 +12,29 @@ use crate::{Error, Id};
 
 /// XML deserializer for iterating over nodes in an element
 pub struct Deserializer<'cx, 'xml> {
-    pub(crate) parent: Element<'xml>,
+    parent: Element<'xml>,
     level: usize,
     done: bool,
     context: Mut<'cx, Context<'xml>>,
 }
 
 impl<'cx, 'xml> Deserializer<'cx, 'xml> {
+    /// Create a new `Deserializer` from the given XML input string
+    ///
+    /// Errors if the input is empty or does not start with an opening element.
+    pub fn new(input: &'xml str) -> Result<Self, Error> {
+        let mut context = Mut::Owned(Context::new(input));
+        let parent = match context.next() {
+            Some(result) => match result? {
+                Node::Open(element) => element,
+                _ => return Err(Error::UnexpectedState("first node does not open element")),
+            },
+            None => return Err(Error::UnexpectedEndOfStream),
+        };
+
+        Ok(Self::with_context(parent, context))
+    }
+
     /// Create a nested deserializer for a child element
     pub fn nested<'a>(&'a mut self, element: Element<'xml>) -> Deserializer<'a, 'xml>
     where
@@ -27,7 +43,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         Deserializer::with_context(element, self.context.borrow())
     }
 
-    pub(crate) fn with_context(parent: Element<'xml>, context: Mut<'cx, Context<'xml>>) -> Self {
+    fn with_context(parent: Element<'xml>, context: Mut<'cx, Context<'xml>>) -> Self {
         let level = context.stack.len();
         Self {
             parent,
@@ -135,14 +151,14 @@ impl<'xml> Iterator for Deserializer<'_, 'xml> {
     }
 }
 
-pub(crate) struct Context<'xml> {
+struct Context<'xml> {
     parser: Tokenizer<'xml>,
     stack: Vec<Level<'xml>>,
     records: VecDeque<Node<'xml>>,
 }
 
 impl<'xml> Context<'xml> {
-    pub(crate) fn new(input: &'xml str) -> Self {
+    fn new(input: &'xml str) -> Self {
         Self {
             parser: Tokenizer::from(input),
             stack: Vec::new(),
@@ -150,7 +166,7 @@ impl<'xml> Context<'xml> {
         }
     }
 
-    pub(crate) fn element_id(&self, element: &Element<'xml>) -> Result<Id<'xml>, Error> {
+    fn element_id(&self, element: &Element<'xml>) -> Result<Id<'xml>, Error> {
         Ok(Id {
             ns: match (element.default_ns, element.prefix) {
                 (_, Some(prefix)) => match self.lookup(prefix) {
@@ -539,7 +555,7 @@ pub struct Attribute<'xml> {
     pub value: Cow<'xml, str>,
 }
 
-pub(crate) enum Mut<'a, T> {
+enum Mut<'a, T> {
     Ref(&'a mut T),
     Owned(T),
 }

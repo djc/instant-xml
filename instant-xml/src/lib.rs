@@ -338,7 +338,6 @@ pub use macros::{FromXml, ToXml};
 pub mod de;
 mod impls;
 pub use de::Deserializer;
-use de::{Context, Mut, Node};
 pub use impls::{display_to_xml, from_xml_str, OptionAccumulator};
 pub mod ser;
 pub use ser::Serializer;
@@ -427,16 +426,9 @@ impl<T> Accumulate<Self> for Option<T> {
 
 /// Deserialize a type from an XML string
 pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
-    let mut context = Context::new(input);
-    let root = match context.next() {
-        Some(result) => match result? {
-            Node::Open(element) => element,
-            _ => return Err(Error::UnexpectedState("first node does not open element")),
-        },
-        None => return Err(Error::UnexpectedEndOfStream),
-    };
+    let mut deserializer = Deserializer::new(input)?;
 
-    let id = context.element_id(&root)?;
+    let id = deserializer.parent();
     if !T::matches(id, None) {
         return Err(Error::UnexpectedValue(match id.ns.is_empty() {
             true => format!("unexpected root element {:?}", id.name),
@@ -448,11 +440,7 @@ pub fn from_str<'xml, T: FromXml<'xml>>(input: &'xml str) -> Result<T, Error> {
     }
 
     let mut value = T::Accumulator::default();
-    T::deserialize(
-        &mut value,
-        "<root element>",
-        &mut Deserializer::with_context(root, Mut::Owned(context)),
-    )?;
+    T::deserialize(&mut value, "<root element>", &mut deserializer)?;
     value.try_done("<root element>")
 }
 

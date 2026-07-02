@@ -51,6 +51,14 @@ jobs:
         env:
           CARGO_INCREMENTAL: 0 # https://github.com/rust-lang/rust/issues/101518
 
+  semver-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+
   audit:
     runs-on: ubuntu-latest
     steps:

@@ -9,7 +9,7 @@ use std::mem;
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
-use syn::{parse_macro_input, DeriveInput, Generics};
+use syn::{parse_macro_input, DeriveInput, GenericParam, Generics};
 
 mod case;
 use case::RenameRule;
@@ -102,7 +102,7 @@ impl<'input> ContainerMeta<'input> {
         let mut xml_generics = self.input.generics.clone();
         let mut xml = syn::LifetimeParam::new(syn::Lifetime::new("'xml", Span::call_site()));
         xml.bounds.extend(borrowed);
-        xml_generics.params.push(xml.into());
+        xml_generics.params.push(GenericParam::Lifetime(xml));
 
         for param in xml_generics.type_params_mut() {
             param
@@ -321,7 +321,7 @@ fn discard_path_lifetimes(
             syn::PathArguments::Parenthesized(args) => args
                 .inputs
                 .iter_mut()
-                .for_each(|ty| discard_lifetimes(ty, borrowed, borrow, false)),
+                .for_each(|arg| discard_lifetimes(&mut arg.ty, borrowed, borrow, false)),
         }
     }
 }

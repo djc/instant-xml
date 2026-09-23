@@ -573,6 +573,9 @@ fn named_field<'a>(
         } else if wrapped(&field.ty, "Option").is_some_and(|ty| is_cow(ty, is_str)) {
             field_meta.deserialize_with =
                 Some(Literal::string("::instant_xml::de::borrow_option_cow_str"));
+        } else if wrapped(&field.ty, "Vec").is_some_and(|ty| is_cow(ty, is_str)) {
+            field_meta.deserialize_with =
+                Some(Literal::string("::instant_xml::de::borrow_vec_cow_str"));
         }
     }
 

@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, AnyElement, FromXml};
+use instant_xml::{from_str, to_string, AnyAttribute, AnyElement, FromXml, ToXml};
 
 #[test]
 fn standalone_element() {
@@ -148,6 +148,27 @@ struct MultiWrapper<'a> {
     items: Vec<AnyElement<'a>>,
 }
 
+#[derive(Debug, FromXml, PartialEq)]
+#[xml(ns("http://example.com"))]
+struct AttrWrapper<'a> {
+    #[xml(attribute, borrow)]
+    any: AnyAttribute<'a>,
+}
+
+#[derive(Debug, FromXml, PartialEq)]
+#[xml(ns("http://example.com"))]
+struct AttrsWrapper<'a> {
+    #[xml(attribute, borrow)]
+    attrs: Vec<AnyAttribute<'a>>,
+}
+
+#[derive(Debug, FromXml, ToXml, PartialEq)]
+#[xml(ns("http://example.com", s = "http://schema.com"))]
+struct AttrsRoundtrip<'a> {
+    #[xml(attribute, borrow)]
+    attrs: Vec<AnyAttribute<'a>>,
+}
+
 #[test]
 fn vec_of_elements() {
     let xml = r#"<MultiWrapper xmlns="http://example.com"><a>1</a><b>2</b><c>3</c></MultiWrapper>"#;
@@ -160,6 +181,41 @@ fn vec_of_elements() {
     assert_eq!(parsed.items[1].text.as_deref(), Some("2"));
     assert_eq!(parsed.items[2].name, "c");
     assert_eq!(parsed.items[2].text.as_deref(), Some("3"));
+}
+
+#[test]
+fn any_attribute_field() {
+    let xml =
+        r#"<AttrWrapper xmlns="http://example.com" xmlns:s="http://schema.com" s:type="string" />"#;
+    let parsed = from_str::<AttrWrapper<'_>>(xml).unwrap();
+
+    assert_eq!(parsed.any.ns, "http://schema.com");
+    assert_eq!(parsed.any.name, "type");
+    assert_eq!(parsed.any.value, "string");
+}
+
+#[test]
+fn vec_of_any_attributes() {
+    let xml = r#"<AttrsWrapper xmlns="http://example.com" xmlns:s="http://schema.com" id="42" s:type="string" flag="yes" />"#;
+    let parsed = from_str::<AttrsWrapper<'_>>(xml).unwrap();
+
+    assert_eq!(parsed.attrs.len(), 3);
+    assert_eq!(parsed.attrs[0].ns, "");
+    assert_eq!(parsed.attrs[0].name, "id");
+    assert_eq!(parsed.attrs[0].value, "42");
+    assert_eq!(parsed.attrs[1].ns, "http://schema.com");
+    assert_eq!(parsed.attrs[1].name, "type");
+    assert_eq!(parsed.attrs[1].value, "string");
+    assert_eq!(parsed.attrs[2].ns, "");
+    assert_eq!(parsed.attrs[2].name, "flag");
+    assert_eq!(parsed.attrs[2].value, "yes");
+}
+
+#[test]
+fn roundtrip_vec_of_any_attributes() {
+    let xml = r#"<AttrsRoundtrip xmlns="http://example.com" xmlns:s="http://schema.com" id="42" s:type="string" flag="yes" />"#;
+    let parsed = from_str::<AttrsRoundtrip<'_>>(xml).unwrap();
+    assert_eq!(to_string(&parsed).unwrap(), xml);
 }
 
 #[test]

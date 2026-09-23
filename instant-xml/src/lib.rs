@@ -353,6 +353,19 @@ pub trait ToXml {
         serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error>;
 
+    /// Serialize this value as an XML attribute.
+    fn serialize_attribute<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), Error> {
+        if let Some(id) = field {
+            serializer.write_attr(id.name, id.ns, self)
+        } else {
+            self.serialize(field, serializer)
+        }
+    }
+
     /// Check if this value should be serialized
     ///
     /// Returns `false` for absent optional values, `true` otherwise.
@@ -369,6 +382,14 @@ impl<T: ToXml + ?Sized> ToXml for &T {
     ) -> Result<(), Error> {
         (*self).serialize(field, serializer)
     }
+
+    fn serialize_attribute<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), Error> {
+        (*self).serialize_attribute(field, serializer)
+    }
 }
 
 /// Deserialize a type from XML
@@ -382,6 +403,18 @@ pub trait FromXml<'xml>: Sized {
         field: &'static str,
         deserializer: &mut Deserializer<'cx, 'xml>,
     ) -> Result<(), Error>;
+
+    /// Deserialize from an XML attribute.
+    fn deserialize_attribute<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        _id: Id<'xml>,
+        value: Cow<'xml, str>,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), Error> {
+        let mut nested = deserializer.for_node(de::Node::AttributeValue(value));
+        Self::deserialize(into, field, &mut nested)
+    }
 
     /// The accumulator type used during deserialization
     type Accumulator: Accumulate<Self>;

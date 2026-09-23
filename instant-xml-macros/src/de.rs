@@ -677,8 +677,13 @@ fn named_field<'a>(
         } else {
             tokens.r#match.extend(quote!(
                 __Attributes::#enum_name => {
-                    let mut nested = deserializer.for_node(Node::AttributeValue(attr.value));
-                    let new = <#no_lifetime_type as FromXml>::deserialize(&mut #val_name, #field_str, &mut nested)?;
+                    <#no_lifetime_type as FromXml>::deserialize_attribute(
+                        &mut #val_name,
+                        #field_str,
+                        id,
+                        attr.value,
+                        deserializer,
+                    )?;
                 },
             ));
         }

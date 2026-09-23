@@ -7,7 +7,7 @@ use std::str::{self, FromStr};
 
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
-use crate::impls::CowStrAccumulator;
+use crate::impls::{CowStrAccumulator, OptionAccumulator};
 use crate::{Accumulate, Error, FromXml, Id};
 
 /// XML deserializer for iterating over nodes in an element
@@ -422,6 +422,32 @@ pub fn borrow_cow_str<'a, 'xml: 'a>(
 
     deserializer.ignore()?;
     Ok(())
+}
+
+/// Deserialize a borrowed `Option<Cow<str>>` value
+///
+/// Helper function for deserializing `Option<Cow<str>>` with zero-copy borrowing from the input.
+/// An empty element yields `Some("")`, like the non-borrowing implementation.
+pub fn borrow_option_cow_str<'a, 'xml: 'a>(
+    into: &mut OptionAccumulator<Cow<'a, str>, CowStrAccumulator<'xml, 'a>>,
+    field: &'static str,
+    deserializer: &mut Deserializer<'_, 'xml>,
+) -> Result<(), Error> {
+    let into = into.get_mut();
+    if into.inner.is_some() {
+        return Err(Error::DuplicateValue(field));
+    }
+
+    into.inner = Some(take_borrowed_str(deserializer)?);
+    Ok(())
+}
+
+fn take_borrowed_str<'xml>(
+    deserializer: &mut Deserializer<'_, 'xml>,
+) -> Result<Cow<'xml, str>, Error> {
+    let value = deserializer.take_str()?.unwrap_or(Cow::Borrowed(""));
+    deserializer.ignore()?;
+    Ok(value)
 }
 
 /// Deserialize a borrowed `Cow<[u8]>` value

@@ -670,7 +670,7 @@ fn named_field<'a>(
         if let Some(with) = &deserialize_with {
             tokens.r#match.extend(quote!(
                 __Attributes::#enum_name => {
-                    let mut nested = deserializer.nested(data);
+                    let mut nested = deserializer.for_node(Node::AttributeValue(attr.value));
                     #with(&mut #val_name, #field_str, &mut nested)?;
                 },
             ));

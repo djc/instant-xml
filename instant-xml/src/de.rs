@@ -442,6 +442,20 @@ pub fn borrow_option_cow_str<'a, 'xml: 'a>(
     Ok(())
 }
 
+/// Deserialize a borrowed `Vec<Cow<str>>` value
+///
+/// Helper function for deserializing `Vec<Cow<str>>` with zero-copy borrowing from the input.
+/// Each call appends one value. An empty element appends `""`, like the non-borrowing
+/// implementation.
+pub fn borrow_vec_cow_str<'a, 'xml: 'a>(
+    into: &mut Vec<Cow<'a, str>>,
+    _: &'static str,
+    deserializer: &mut Deserializer<'_, 'xml>,
+) -> Result<(), Error> {
+    into.push(take_borrowed_str(deserializer)?);
+    Ok(())
+}
+
 fn take_borrowed_str<'xml>(
     deserializer: &mut Deserializer<'_, 'xml>,
 ) -> Result<Cow<'xml, str>, Error> {

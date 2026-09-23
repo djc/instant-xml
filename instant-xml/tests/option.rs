@@ -75,3 +75,22 @@ fn option_borrow_element() {
     let de = from_str::<Baz<'_>>("<Baz />").unwrap();
     assert_eq!(de.maybe, None);
 }
+
+#[derive(Debug, Eq, FromXml, PartialEq)]
+struct Qux {
+    maybe: Option<String>,
+}
+
+#[test]
+fn option_borrow_empty_element() {
+    // Same result as `Option<String>`
+    let borrowed = from_str::<Baz<'_>>("<Baz><maybe/></Baz>").unwrap();
+    let owned = from_str::<Qux>("<Qux><maybe/></Qux>").unwrap();
+    assert_eq!(borrowed.maybe.as_deref(), owned.maybe.as_deref());
+    assert_eq!(owned.maybe.as_deref(), Some(""));
+
+    let borrowed = from_str::<Baz<'_>>("<Baz><maybe>test</maybe></Baz>").unwrap();
+    let owned = from_str::<Qux>("<Qux><maybe>test</maybe></Qux>").unwrap();
+    assert_eq!(borrowed.maybe.as_deref(), owned.maybe.as_deref());
+    assert_eq!(owned.maybe.as_deref(), Some("test"));
+}

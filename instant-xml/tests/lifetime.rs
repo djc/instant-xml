@@ -25,3 +25,33 @@ fn lifetime() {
     assert_eq!(xml, to_string(&v).unwrap());
     assert_eq!(v, from_str(xml).unwrap());
 }
+
+#[derive(Debug, Eq, FromXml, PartialEq)]
+struct Item<'a> {
+    #[xml(borrow)]
+    name: Cow<'a, str>,
+}
+
+#[derive(Debug, Eq, FromXml, PartialEq)]
+struct Wrapper<'a> {
+    // `borrow` adds the `'xml: 'a` bound that `Item<'a>` requires
+    #[xml(borrow)]
+    items: Vec<Item<'a>>,
+}
+
+#[test]
+fn borrow_nested() {
+    let xml = "<Wrapper><Item><name>a</name></Item><Item><name>b</name></Item></Wrapper>";
+    let de = from_str::<Wrapper<'_>>(xml).unwrap();
+    assert!(matches!(
+        de.items.as_slice(),
+        [
+            Item {
+                name: Cow::Borrowed("a")
+            },
+            Item {
+                name: Cow::Borrowed("b")
+            },
+        ]
+    ));
+}

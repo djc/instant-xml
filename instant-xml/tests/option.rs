@@ -42,3 +42,36 @@ fn option_borrow() {
     assert_eq!(xml, to_string(&v).unwrap());
     assert_eq!(v, from_str(xml).unwrap());
 }
+
+#[test]
+fn option_borrow_attribute() {
+    let de = from_str::<Bar<'_>>(r#"<Bar maybe="a" />"#).unwrap();
+    assert!(matches!(de.maybe, Some(Cow::Borrowed("a"))));
+
+    let de = from_str::<Bar<'_>>(r#"<Bar maybe="a&amp;b" />"#).unwrap();
+    assert!(matches!(de.maybe, Some(Cow::Owned(s)) if s == "a&b"));
+
+    let de = from_str::<Bar<'_>>("<Bar />").unwrap();
+    assert_eq!(de.maybe, None);
+}
+
+#[derive(Debug, Eq, FromXml, PartialEq)]
+struct Baz<'a> {
+    #[xml(borrow)]
+    maybe: Option<Cow<'a, str>>,
+}
+
+#[test]
+fn option_borrow_element() {
+    let de = from_str::<Baz<'_>>("<Baz><maybe>a</maybe></Baz>").unwrap();
+    assert!(matches!(de.maybe, Some(Cow::Borrowed("a"))));
+
+    let de = from_str::<Baz<'_>>("<Baz><maybe>a&amp;b</maybe></Baz>").unwrap();
+    assert!(matches!(de.maybe, Some(Cow::Owned(s)) if s == "a&b"));
+
+    let de = from_str::<Baz<'_>>("<Baz><maybe/></Baz>").unwrap();
+    assert!(matches!(de.maybe, Some(Cow::Borrowed(""))));
+
+    let de = from_str::<Baz<'_>>("<Baz />").unwrap();
+    assert_eq!(de.maybe, None);
+}

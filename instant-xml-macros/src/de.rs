@@ -570,6 +570,9 @@ fn named_field<'a>(
         } else if is_cow(&field.ty, is_slice_u8) {
             field_meta.deserialize_with =
                 Some(Literal::string("::instant_xml::de::borrow_cow_slice_u8"));
+        } else if wrapped(&field.ty, "Option").is_some_and(|ty| is_cow(ty, is_str)) {
+            field_meta.deserialize_with =
+                Some(Literal::string("::instant_xml::de::borrow_option_cow_str"));
         }
     }
 
@@ -885,6 +888,27 @@ fn is_cow(ty: &syn::Type, elem: fn(&syn::Type) -> bool) -> bool {
             (syn::GenericArgument::Lifetime(_), syn::GenericArgument::Type(arg)) => elem(arg),
             _ => false,
         }
+}
+
+/// Returns the type argument of `ty` if it is `wrapper<T>`, for example `Option<T>`
+fn wrapped<'t>(ty: &'t syn::Type, wrapper: &str) -> Option<&'t syn::Type> {
+    let syn::Type::Path(ty) = ungroup(ty) else {
+        return None;
+    };
+
+    let seg = ty.path.segments.last()?;
+    let syn::PathArguments::AngleBracketed(bracketed) = &seg.arguments else {
+        return None;
+    };
+
+    if seg.ident != wrapper || bracketed.args.len() != 1 {
+        return None;
+    }
+
+    match &bracketed.args[0] {
+        syn::GenericArgument::Type(arg) => Some(arg),
+        _ => None,
+    }
 }
 
 fn is_str(ty: &syn::Type) -> bool {

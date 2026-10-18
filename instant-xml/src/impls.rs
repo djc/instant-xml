@@ -364,6 +364,19 @@ where
         Ok(())
     }
 
+    fn deserialize_attribute<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        id: Id<'xml>,
+        value: Cow<'xml, str>,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), Error> {
+        let mut item = T::Accumulator::default();
+        T::deserialize_attribute(&mut item, field, id, value, deserializer)?;
+        into.push(item.try_done(field)?);
+        Ok(())
+    }
+
     type Accumulator = Vec<T>;
     const KIND: Kind = Kind::Scalar;
 }
@@ -379,6 +392,17 @@ where
     ) -> Result<(), Error> {
         self.as_ref().serialize(field, serializer)
     }
+
+    fn serialize_attribute<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), Error> {
+        for item in self.as_ref() {
+            item.serialize_attribute(field, serializer)?;
+        }
+        Ok(())
+    }
 }
 
 impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
@@ -393,6 +417,17 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Option<T> {
         deserializer: &mut Deserializer<'cx, 'xml>,
     ) -> Result<(), Error> {
         <T>::deserialize(&mut into.value, field, deserializer)?;
+        Ok(())
+    }
+
+    fn deserialize_attribute<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        id: Id<'xml>,
+        value: Cow<'xml, str>,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), Error> {
+        <T>::deserialize_attribute(&mut into.value, field, id, value, deserializer)?;
         Ok(())
     }
 
@@ -512,6 +547,17 @@ impl<T: ToXml> ToXml for Option<T> {
         }
     }
 
+    fn serialize_attribute<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), Error> {
+        match self {
+            Some(v) => v.serialize_attribute(field, serializer),
+            None => Ok(()),
+        }
+    }
+
     fn present(&self) -> bool {
         self.is_some()
     }
@@ -524,6 +570,14 @@ impl<T: ToXml + ?Sized> ToXml for Box<T> {
         serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         self.as_ref().serialize(field, serializer)
+    }
+
+    fn serialize_attribute<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), Error> {
+        self.as_ref().serialize_attribute(field, serializer)
     }
 }
 
@@ -545,6 +599,24 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Box<T> {
         let mut value = T::Accumulator::default();
         T::deserialize(&mut value, field, deserializer)?;
         *into = Some(Self::new(value.try_done(field)?));
+
+        Ok(())
+    }
+
+    fn deserialize_attribute<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        id: Id<'xml>,
+        value: Cow<'xml, str>,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let mut item = T::Accumulator::default();
+        T::deserialize_attribute(&mut item, field, id, value, deserializer)?;
+        *into = Some(Self::new(item.try_done(field)?));
 
         Ok(())
     }
@@ -595,6 +667,19 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Vec<T> {
         Ok(())
     }
 
+    fn deserialize_attribute<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        id: Id<'xml>,
+        value: Cow<'xml, str>,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), Error> {
+        let mut item = T::Accumulator::default();
+        T::deserialize_attribute(&mut item, field, id, value, deserializer)?;
+        into.push(item.try_done(field)?);
+        Ok(())
+    }
+
     type Accumulator = Self;
     const KIND: Kind = T::KIND;
 }
@@ -606,6 +691,17 @@ impl<T: ToXml> ToXml for Vec<T> {
         serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         self.as_slice().serialize(field, serializer)
+    }
+
+    fn serialize_attribute<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), Error> {
+        for item in self {
+            item.serialize_attribute(field, serializer)?;
+        }
+        Ok(())
     }
 }
 

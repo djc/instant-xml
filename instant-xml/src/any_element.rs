@@ -1,7 +1,8 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, fmt};
 
 use crate::de::Node;
-use crate::{Deserializer, Error, FromXml, Id, Kind};
+use crate::ser::Context;
+use crate::{Deserializer, Error, FromXml, Id, Kind, Serializer, ToXml};
 
 /// A dynamically captured XML element.
 ///
@@ -158,6 +159,59 @@ where
     const KIND: Kind = Kind::Element;
 }
 
+impl<'xml, 'a> FromXml<'xml> for AnyAttribute<'a>
+where
+    'xml: 'a,
+{
+    /// Matches any attribute.
+    fn matches(_id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        field.is_some()
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let Some(value) = deserializer.take_str()? else {
+            return Ok(());
+        };
+
+        *into = Some(Self {
+            ns: Cow::Borrowed(""),
+            name: Cow::Borrowed(""),
+            value,
+        });
+        Ok(())
+    }
+
+    fn deserialize_attribute<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        id: Id<'xml>,
+        value: Cow<'xml, str>,
+        _deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        *into = Some(Self {
+            ns: Cow::Borrowed(id.ns),
+            name: Cow::Borrowed(id.name),
+            value,
+        });
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: Kind = Kind::Scalar;
+}
+
 /// An XML attribute with a resolved namespace URI.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AnyAttribute<'xml> {
@@ -177,5 +231,60 @@ impl<'a> AnyAttribute<'a> {
             name: Cow::Owned(self.name.into_owned()),
             value: Cow::Owned(self.value.into_owned()),
         }
+    }
+}
+
+impl ToXml for AnyElement<'_> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), Error> {
+        let id = field.unwrap_or(Id {
+            name: &self.name,
+            ns: &self.ns,
+        });
+        let element = serializer.write_start(id.name, id.ns, None::<Context<0>>)?;
+
+        for attr in &self.attributes {
+            serializer.write_attr(&attr.name, &attr.ns, &attr.value)?;
+        }
+
+        let has_content = self.text.is_some() || !self.children.is_empty();
+        if !has_content {
+            serializer.end_empty()?;
+            return Ok(());
+        }
+
+        serializer.end_start()?;
+
+        if let Some(text) = &self.text {
+            text.serialize(None, serializer)?;
+        }
+
+        for child in &self.children {
+            child.serialize(None, serializer)?;
+        }
+
+        serializer.write_close(element)?;
+        Ok(())
+    }
+}
+
+impl ToXml for AnyAttribute<'_> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), Error> {
+        self.value.serialize(field, serializer)
+    }
+
+    fn serialize_attribute<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), Error> {
+        serializer.write_attr(&self.name, &self.ns, &self.value)
     }
 }

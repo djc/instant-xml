@@ -329,9 +329,7 @@
 //!   assert_eq!(parsed.text, "Hello");
 //!   ```
 
-use std::{borrow::Cow, fmt};
-
-use thiserror::Error;
+use std::{borrow::Cow, error::Error as StdError, fmt};
 
 pub use macros::{FromXml, ToXml};
 
@@ -452,53 +450,82 @@ pub trait FromXmlOwned: for<'xml> FromXml<'xml> {}
 impl<T> FromXmlOwned for T where T: for<'xml> FromXml<'xml> {}
 
 /// Errors that can occur during XML serialization and deserialization
-#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     /// Error formatting output
-    #[error("format: {0}")]
-    Format(#[from] fmt::Error),
+    Format(fmt::Error),
     /// Invalid XML entity encountered
-    #[error("invalid entity: {0}")]
     InvalidEntity(String),
     /// Error parsing XML
-    #[error("parse: {0}")]
-    Parse(#[from] xmlparser::Error),
+    Parse(xmlparser::Error),
     /// Other error
-    #[error("other: {0}")]
     Other(String),
     /// Unexpected end of XML stream
-    #[error("unexpected end of stream")]
     UnexpectedEndOfStream,
     /// Unexpected value encountered
-    #[error("unexpected value: '{0}'")]
     UnexpectedValue(String),
     /// Unexpected XML tag
-    #[error("unexpected tag: {0}")]
     UnexpectedTag(String),
     /// Expected tag but none found
-    #[error("missing tag")]
     MissingTag,
     /// Required field has no value
-    #[error("missing value: {0}")]
     MissingValue(&'static str),
     /// Unexpected XML token
-    #[error("unexpected token: {0}")]
     UnexpectedToken(String),
     /// Unknown namespace prefix
-    #[error("unknown prefix: {0}")]
     UnknownPrefix(String),
     /// Unexpected XML node type
-    #[error("unexpected node: {0}")]
     UnexpectedNode(String),
     /// Internal state error
-    #[error("unexpected state: {0}")]
     UnexpectedState(&'static str),
     /// Expected a scalar value but found an element
-    #[error("expected scalar, found {0}")]
     ExpectedScalar(String),
     /// Field value appears more than once
-    #[error("duplicate value for {0}")]
     DuplicateValue(&'static str),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Format(_) => write!(f, "format error"),
+            Self::InvalidEntity(entity) => write!(f, "invalid entity: {entity}"),
+            Self::Parse(_) => write!(f, "parse error"),
+            Self::Other(msg) => write!(f, "other: {msg}"),
+            Self::UnexpectedEndOfStream => f.write_str("unexpected end of stream"),
+            Self::UnexpectedValue(value) => write!(f, "unexpected value: '{value}'"),
+            Self::UnexpectedTag(tag) => write!(f, "unexpected tag: {tag}"),
+            Self::MissingTag => f.write_str("missing tag"),
+            Self::MissingValue(field) => write!(f, "missing value: {field}"),
+            Self::UnexpectedToken(token) => write!(f, "unexpected token: {token}"),
+            Self::UnknownPrefix(prefix) => write!(f, "unknown prefix: {prefix}"),
+            Self::UnexpectedNode(node) => write!(f, "unexpected node: {node}"),
+            Self::UnexpectedState(state) => write!(f, "unexpected state: {state}"),
+            Self::ExpectedScalar(found) => write!(f, "expected scalar, found {found}"),
+            Self::DuplicateValue(field) => write!(f, "duplicate value for {field}"),
+        }
+    }
+}
+
+impl StdError for Error {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            Self::Format(err) => Some(err),
+            Self::Parse(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<fmt::Error> for Error {
+    fn from(err: fmt::Error) -> Self {
+        Self::Format(err)
+    }
+}
+
+impl From<xmlparser::Error> for Error {
+    fn from(err: xmlparser::Error) -> Self {
+        Self::Parse(err)
+    }
 }
 
 /// The kind of XML node a type represents

@@ -465,7 +465,7 @@ impl ToXml for String {
         field: Option<Id<'_>>,
         serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
-        DisplayToXml(&encode(self)?).serialize(field, serializer)
+        DisplayToXml(&encode(self, serializer.in_attribute)?).serialize(field, serializer)
     }
 }
 
@@ -476,7 +476,11 @@ impl ToXml for char {
         serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
         let mut tmp = [0u8; 4];
-        DisplayToXml(&encode(&*self.encode_utf8(&mut tmp))?).serialize(field, serializer)
+        DisplayToXml(&encode(
+            &*self.encode_utf8(&mut tmp),
+            serializer.in_attribute,
+        )?)
+        .serialize(field, serializer)
     }
 }
 
@@ -486,7 +490,7 @@ impl ToXml for str {
         field: Option<Id<'_>>,
         serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
-        DisplayToXml(&encode(self)?).serialize(field, serializer)
+        DisplayToXml(&encode(self, serializer.in_attribute)?).serialize(field, serializer)
     }
 }
 
@@ -496,7 +500,7 @@ impl ToXml for Cow<'_, str> {
         field: Option<Id<'_>>,
         serializer: &mut Serializer<'_, W>,
     ) -> Result<(), Error> {
-        DisplayToXml(&encode(self)?).serialize(field, serializer)
+        DisplayToXml(&encode(self, serializer.in_attribute)?).serialize(field, serializer)
     }
 }
 
@@ -553,7 +557,7 @@ impl<'xml, T: FromXml<'xml>> FromXml<'xml> for Box<T> {
     const KIND: Kind = T::KIND;
 }
 
-fn encode(input: &str) -> Result<Cow<'_, str>, Error> {
+fn encode(input: &str, attribute: bool) -> Result<Cow<'_, str>, Error> {
     let mut result = String::with_capacity(input.len());
     let mut last_end = 0;
     for (start, c) in input.char_indices() {
@@ -563,6 +567,11 @@ fn encode(input: &str) -> Result<Cow<'_, str>, Error> {
             '<' => "&lt;",
             '>' => "&gt;",
             '\'' => "&apos;",
+            // Parsers turn line breaks into `\n` (XML 1.0 section 2.11)
+            '\r' => "&#xD;",
+            // And whitespace in attribute values into spaces (section 3.3.3)
+            '\n' if attribute => "&#xA;",
+            '\t' if attribute => "&#x9;",
             _ => continue,
         };
         result.push_str(input.get(last_end..start).unwrap());
@@ -876,6 +885,13 @@ mod tests {
     #[test]
     fn encode_unicode() {
         let input = "Iñtërnâ&tiônàlizætiøn";
-        assert_eq!(encode(input).unwrap(), "Iñtërnâ&amp;tiônàlizætiøn");
+        assert_eq!(encode(input, false).unwrap(), "Iñtërnâ&amp;tiônàlizætiøn");
+    }
+
+    #[test]
+    fn encode_whitespace() {
+        let input = "a\r\nb\rc\td";
+        assert_eq!(encode(input, false).unwrap(), "a&#xD;\nb&#xD;c\td");
+        assert_eq!(encode(input, true).unwrap(), "a&#xD;&#xA;b&#xD;c&#x9;d");
     }
 }

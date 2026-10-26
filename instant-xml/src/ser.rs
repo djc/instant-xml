@@ -23,6 +23,8 @@ pub struct Serializer<'xml, W: fmt::Write + ?Sized> {
     /// This might be different from the default namespace for child elements in case of
     /// `force_prefix`.
     attribute_ns: Option<&'static str>,
+    /// Whether an attribute value is being written
+    pub(crate) in_attribute: bool,
     state: State,
 }
 
@@ -34,6 +36,7 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
             prefixes: HashMap::new(),
             default_ns: "",
             attribute_ns: None,
+            in_attribute: false,
             state: State::Element,
         }
     }
@@ -175,7 +178,9 @@ impl<'xml, W: fmt::Write + ?Sized> Serializer<'xml, W> {
         }
 
         self.state = State::Scalar;
+        self.in_attribute = true;
         value.serialize(None, self)?;
+        self.in_attribute = false;
         self.state = State::Attribute;
         self.output.write_char('"')?;
         Ok(())

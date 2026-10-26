@@ -1,8 +1,9 @@
 use std::borrow::Cow;
+use std::fmt;
 
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, to_string, FromXml, ToXml};
+use instant_xml::{from_str, to_string, Error, FromXml, Id, Serializer, ToXml};
 
 #[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
 #[xml(ns("URI"))]
@@ -78,5 +79,64 @@ fn simple_cdata() {
         })
         .unwrap(),
         "<SimpleCData><foo>&lt;foo&gt;</foo></SimpleCData>",
+    );
+}
+
+#[derive(Debug, PartialEq, Eq, FromXml, ToXml)]
+struct Whitespace {
+    #[xml(attribute)]
+    attr: String,
+    text: String,
+}
+
+#[test]
+fn whitespace() {
+    let value = Whitespace {
+        attr: "a\r\nb\rc\td".to_string(),
+        text: "a\r\nb\rc\td".to_string(),
+    };
+
+    let xml = to_string(&value).unwrap();
+    assert_eq!(
+        xml,
+        "<Whitespace attr=\"a&#xD;&#xA;b&#xD;c&#x9;d\"><text>a&#xD;\nb&#xD;c\td</text></Whitespace>",
+    );
+    assert_eq!(from_str::<Whitespace>(&xml).unwrap(), value);
+}
+
+#[derive(Debug, PartialEq, Eq, ToXml)]
+struct WhitespaceList {
+    #[xml(attribute)]
+    list: List,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct List(Vec<String>);
+
+impl ToXml for List {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), Error> {
+        for (i, item) in self.0.iter().enumerate() {
+            if i > 0 {
+                serializer.write_str(" ")?;
+            }
+            item.serialize(None, serializer)?;
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn whitespace_list() {
+    let value = WhitespaceList {
+        list: List(vec!["a\nb".to_string(), "c\td".to_string()]),
+    };
+
+    assert_eq!(
+        to_string(&value).unwrap(),
+        "<WhitespaceList list=\"a&#xA;b c&#x9;d\" />",
     );
 }

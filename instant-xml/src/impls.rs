@@ -7,6 +7,8 @@ use std::{any::type_name, marker::PhantomData};
 
 #[cfg(feature = "chrono")]
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+#[cfg(feature = "jiff02")]
+use jiff02::{civil, Timestamp};
 
 use crate::ser::Context;
 use crate::{Accumulate, Deserializer, Error, FromXml, Id, Kind, Serializer, ToXml};
@@ -799,6 +801,147 @@ impl<'xml> FromXml<'xml> for NaiveDate {
                 Ok(())
             }
             _ => Err(Error::Other("invalid date/time".into())),
+        }
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: Kind = Kind::Scalar;
+}
+
+#[cfg(feature = "jiff02")]
+impl ToXml for Timestamp {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), Error> {
+        DisplayToXml(self).serialize(field, serializer)
+    }
+}
+
+#[cfg(feature = "jiff02")]
+impl<'xml> FromXml<'xml> for Timestamp {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let Some(value) = deserializer.take_str()? else {
+            return Ok(());
+        };
+
+        match Self::from_str(value.as_ref()) {
+            Ok(ts) => {
+                *into = Some(ts);
+                Ok(())
+            }
+            Err(_) => Err(Error::Other("invalid date/time".into())),
+        }
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: Kind = Kind::Scalar;
+}
+
+#[cfg(feature = "jiff02")]
+impl ToXml for civil::DateTime {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), Error> {
+        DisplayToXml(&self.strftime("%Y-%m-%dT%H:%M:%S%.f")).serialize(field, serializer)
+    }
+}
+
+#[cfg(feature = "jiff02")]
+impl<'xml> FromXml<'xml> for civil::DateTime {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let Some(value) = deserializer.take_str()? else {
+            return Ok(());
+        };
+
+        match Self::strptime("%Y-%m-%dT%H:%M:%S%.f", value.as_ref()) {
+            Ok(dt) => {
+                *into = Some(dt);
+                Ok(())
+            }
+            Err(_) => Err(Error::Other("invalid date/time".into())),
+        }
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: Kind = Kind::Scalar;
+}
+
+#[cfg(feature = "jiff02")]
+impl ToXml for civil::Date {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), Error> {
+        DisplayToXml(&self.strftime("%Y-%m-%d")).serialize(field, serializer)
+    }
+}
+
+#[cfg(feature = "jiff02")]
+impl<'xml> FromXml<'xml> for civil::Date {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), Error> {
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let Some(value) = deserializer.take_str()? else {
+            return Ok(());
+        };
+
+        match Self::strptime("%Y-%m-%d", value.as_ref()) {
+            Ok(d) => {
+                *into = Some(d);
+                Ok(())
+            }
+            Err(_) => Err(Error::Other("invalid date/time".into())),
         }
     }
 

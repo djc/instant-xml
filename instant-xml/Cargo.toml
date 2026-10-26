@@ -12,6 +12,7 @@ readme = "../README.md"
 
 [dependencies]
 chrono = { version = "0.4.23", optional = true }
+jiff02 = { package = "jiff", version = "0.2", default-features = false, features = ["std"], optional = true }
 macros = { package = "instant-xml-macros", version = "0.7", path = "../instant-xml-macros" }
 xmlparser = "0.13.3"
 

@@ -13,7 +13,6 @@ readme = "../README.md"
 [dependencies]
 chrono = { version = "0.4.23", optional = true }
 macros = { package = "instant-xml-macros", version = "0.7", path = "../instant-xml-macros" }
-thiserror = "2.0.3"
 xmlparser = "0.13.3"
 
 [dev-dependencies]

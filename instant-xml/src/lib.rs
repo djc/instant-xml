@@ -272,6 +272,28 @@
 //!   assert_eq!(to_string(&config).unwrap(), "<Config>value: 42</Config>");
 //!   ```
 //!
+//! - **`skip_serializing_if = "path"`** - skips serializing the field if the given function
+//!   returns `true`. The function must be callable as `fn(&T) -> bool`, where `T` is the
+//!   field's type. Does not affect deserialization.
+//!
+//!   ```
+//!   # use instant_xml::{ToXml, to_string};
+//!   #[derive(ToXml)]
+//!   struct Item {
+//!       #[xml(attribute, skip_serializing_if = "String::is_empty")]
+//!       label: String,
+//!       #[xml(skip_serializing_if = "is_zero")]
+//!       count: u32,
+//!   }
+//!
+//!   fn is_zero(value: &u32) -> bool {
+//!       *value == 0
+//!   }
+//!
+//!   let item = Item { label: String::new(), count: 3 };
+//!   assert_eq!(to_string(&item).unwrap(), "<Item><count>3</count></Item>");
+//!   ```
+//!
 //! - **`deserialize_with = "path"`** - custom deserialization function with signature:
 //!
 //!   ```

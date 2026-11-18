@@ -318,6 +318,8 @@ pub(crate) fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
                     MetaState::SerializeWith
                 } else if id == "deserialize_with" {
                     MetaState::DeserializeWith
+                } else if id == "skip_serializing_if" {
+                    MetaState::SkipSerializingIf
                 } else if id == "force_prefix" {
                     items.push((MetaItem::ForcePrefix, span));
                     MetaState::Comma
@@ -362,6 +364,13 @@ pub(crate) fn meta_items(attrs: &[syn::Attribute]) -> Vec<(MetaItem, Span)> {
                 items.push((MetaItem::DeserializeWith(lit), span));
                 MetaState::Comma
             }
+            (MetaState::SkipSerializingIf, TokenTree::Punct(punct)) if punct.as_char() == '=' => {
+                MetaState::SkipSerializingIfValue
+            }
+            (MetaState::SkipSerializingIfValue, TokenTree::Literal(lit)) => {
+                items.push((MetaItem::SkipSerializingIf(lit), span));
+                MetaState::Comma
+            }
             (state, tree) => {
                 panic!(
                     "invalid state transition while parsing xml attribute ({}, {tree})",
@@ -387,6 +396,8 @@ enum MetaState {
     SerializeWithValue,
     DeserializeWith,
     DeserializeWithValue,
+    SkipSerializingIf,
+    SkipSerializingIfValue,
 }
 
 impl MetaState {
@@ -403,6 +414,8 @@ impl MetaState {
             Self::SerializeWithValue => "SerializeWithValue",
             Self::DeserializeWith => "DeserializeWith",
             Self::DeserializeWithValue => "DeserializeWithValue",
+            Self::SkipSerializingIf => "SkipSerializingIf",
+            Self::SkipSerializingIfValue => "SkipSerializingIfValue",
         }
     }
 }
@@ -494,5 +507,6 @@ pub(crate) enum MetaItem {
     RenameAll(Literal),
     SerializeWith(Literal),
     DeserializeWith(Literal),
+    SkipSerializingIf(Literal),
     ForcePrefix,
 }

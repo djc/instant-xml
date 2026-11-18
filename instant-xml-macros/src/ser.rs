@@ -330,15 +330,18 @@ impl StructOutput {
             }
 
             if field_meta.direct {
-                direct = Some(field.ident.as_ref().unwrap());
+                direct = Some(present(
+                    field.ident.as_ref().unwrap(),
+                    field_meta.skip_serializing_if.as_ref(),
+                ));
             }
         }
 
         if !inline {
-            self.body.extend(match (attrs_only, direct) {
+            self.body.extend(match (attrs_only, &direct) {
                 (true, _) => quote!(serializer.end_empty()?;),
-                (false, Some(field)) => quote!(
-                    match self.#field.present() {
+                (false, Some(present)) => quote!(
+                    match #present {
                         true => serializer.end_start()?,
                         false => serializer.end_empty()?,
                     }
@@ -363,8 +366,8 @@ impl StructOutput {
 
         if !inline && !attrs_only {
             self.body.extend(match direct {
-                Some(field) => quote!(
-                    match self.#field.present() {
+                Some(present) => quote!(
+                    match #present {
                         true => serializer.write_close(element)?,
                         false => (),
                     }
@@ -421,9 +424,10 @@ impl StructOutput {
                 None => (quote!(""), quote!()),
             };
 
+            let present = present(field_name, field_meta.skip_serializing_if.as_ref());
             self.attributes.extend(quote!(
                 #error
-                if self.#field_name.present() {
+                if #present {
                     serializer.write_attr(#tag, #ns, &self.#field_name)?;
                 }
             ));
@@ -437,7 +441,7 @@ impl StructOutput {
 
         let mut no_lifetime_type = field.ty.clone();
         discard_lifetimes(&mut no_lifetime_type, &mut self.borrowed, false, true);
-        if let Some(with) = field_meta.serialize_with {
+        let serialize = if let Some(with) = field_meta.serialize_with {
             if field_meta.direct {
                 return Err(syn::Error::new(
                     field.span(),
@@ -453,24 +457,31 @@ impl StructOutput {
                 )
             })?;
 
-            self.body
-                .extend(quote!(#path(&self.#field_name, serializer)?;));
-            return Ok(());
+            quote!(#path(&self.#field_name, serializer)?;)
         } else if field_meta.direct {
-            self.body.extend(quote!(
+            quote!(
                 <#no_lifetime_type as ToXml>::serialize(
                     &self.#field_name, None, serializer
                 )?;
-            ));
+            )
         } else {
-            self.body.extend(quote!(
+            quote!(
                 <#no_lifetime_type as ToXml>::serialize(
                     &self.#field_name,
                     Some(::instant_xml::Id { ns: #ns, name: #tag }),
                     serializer,
                 )?;
-            ));
-        }
+            )
+        };
+
+        self.body.extend(match field_meta.skip_serializing_if {
+            Some(skip) => quote!(
+                if !#skip(&self.#field_name) {
+                    #serialize
+                }
+            ),
+            None => serialize,
+        });
 
         Ok(())
     }
@@ -513,6 +524,13 @@ impl StructOutput {
         ));
 
         Ok(())
+    }
+}
+
+fn present(field_name: &syn::Ident, skip_serializing_if: Option<&syn::Path>) -> TokenStream {
+    match skip_serializing_if {
+        Some(skip) => quote!(!#skip(&self.#field_name) && self.#field_name.present()),
+        None => quote!(self.#field_name.present()),
     }
 }
 

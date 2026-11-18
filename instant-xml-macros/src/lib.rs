@@ -128,7 +128,7 @@ impl<'input> ContainerMeta<'input> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 struct FieldMeta {
     attribute: bool,
     borrow: bool,
@@ -137,6 +137,7 @@ struct FieldMeta {
     tag: TokenStream,
     serialize_with: Option<Literal>,
     deserialize_with: Option<Literal>,
+    skip_serializing_if: Option<syn::Path>,
 }
 
 impl FieldMeta {
@@ -159,6 +160,16 @@ impl FieldMeta {
                 MetaItem::Rename(lit) => meta.tag = quote!(#lit),
                 MetaItem::SerializeWith(lit) => meta.serialize_with = Some(lit),
                 MetaItem::DeserializeWith(lit) => meta.deserialize_with = Some(lit),
+                MetaItem::SkipSerializingIf(lit) => {
+                    let path = lit.to_string();
+                    let path = syn::parse_str(path.trim_matches('"')).map_err(|err| {
+                        syn::Error::new(
+                            lit.span(),
+                            format!("failed to parse skip_serializing_if as path: {err}"),
+                        )
+                    })?;
+                    meta.skip_serializing_if = Some(path);
+                }
                 MetaItem::RenameAll(_) => {
                     return Err(syn::Error::new(
                         span,

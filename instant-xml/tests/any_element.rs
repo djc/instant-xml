@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, AnyElement, FromXml};
+use instant_xml::{AnyElement, FromXml, from_str};
 
 #[test]
 fn standalone_element() {

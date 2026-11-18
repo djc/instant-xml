@@ -2,7 +2,7 @@ use std::fmt;
 
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, to_string, Deserializer, Error, FromXml, Serializer, ToXml};
+use instant_xml::{Deserializer, Error, FromXml, Serializer, ToXml, from_str, to_string};
 
 #[derive(ToXml)]
 struct Foo {

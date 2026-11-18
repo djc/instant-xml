@@ -7,15 +7,15 @@ use std::collections::BTreeSet;
 use std::mem;
 
 use proc_macro2::{Literal, Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::spanned::Spanned;
-use syn::{parse_macro_input, DeriveInput, GenericParam, Generics};
+use syn::{DeriveInput, GenericParam, Generics, parse_macro_input};
 
 mod case;
 use case::RenameRule;
 mod de;
 mod meta;
-use meta::{meta_items, MetaItem, Namespace, NamespaceMeta};
+use meta::{MetaItem, Namespace, NamespaceMeta, meta_items};
 mod ser;
 
 /// Derives XML serialization for a struct or enum
@@ -83,7 +83,7 @@ impl<'input> ContainerMeta<'input> {
                     return Err(syn::Error::new(
                         span,
                         "invalid field in container xml attribute",
-                    ))
+                    ));
                 }
             }
         }
@@ -163,7 +163,7 @@ impl FieldMeta {
                     return Err(syn::Error::new(
                         span,
                         "attribute 'rename_all' invalid in field xml attribute",
-                    ))
+                    ));
                 }
                 MetaItem::Mode(_) => {
                     return Err(syn::Error::new(span, "invalid attribute for struct field"));
@@ -172,7 +172,7 @@ impl FieldMeta {
                     return Err(syn::Error::new(
                         span,
                         "attribute 'force_prefix' invalid in field xml attribute",
-                    ))
+                    ));
                 }
             }
         }
@@ -206,7 +206,7 @@ impl VariantMeta {
                     return Err(syn::Error::new(
                         span,
                         "only 'rename' attribute is permitted on enum variants",
-                    ))
+                    ));
                 }
             }
         }
@@ -230,7 +230,7 @@ impl VariantMeta {
                 return Err(syn::Error::new(
                     value.span(),
                     "invalid field discriminant value!",
-                ))
+                ));
             }
             None => None,
         };
@@ -339,46 +339,52 @@ mod tests {
 
     #[test]
     fn non_unit_enum_variant_unsupported() {
-        dbg!(super::ser::to_xml(&parse_quote! {
-            #[xml(scalar)]
-            pub enum TestEnum {
-                Foo(String),
-                Bar,
-                Baz
-            }
-        })
-        .to_string())
+        dbg!(
+            super::ser::to_xml(&parse_quote! {
+                #[xml(scalar)]
+                pub enum TestEnum {
+                    Foo(String),
+                    Bar,
+                    Baz
+                }
+            })
+            .to_string()
+        )
         .find("compile_error ! { \"only unit enum variants are permitted!\" }")
         .unwrap();
     }
 
     #[test]
     fn non_scalar_enums_unsupported() {
-        dbg!(super::ser::to_xml(&parse_quote! {
-            #[xml()]
-            pub enum TestEnum {
-                Foo,
-                Bar,
-                Baz
-            }
-        })
-        .to_string())
+        dbg!(
+            super::ser::to_xml(&parse_quote! {
+                #[xml()]
+                pub enum TestEnum {
+                    Foo,
+                    Bar,
+                    Baz
+                }
+            })
+            .to_string()
+        )
         .find("compile_error ! { \"missing mode\" }")
         .unwrap();
     }
 
     #[test]
     fn scalar_variant_attribute_not_permitted() {
-        dbg!(super::ser::to_xml(&parse_quote! {
-            #[xml(scalar)]
-            pub enum TestEnum {
-                Foo,
-                Bar,
+        dbg!(
+            super::ser::to_xml(&parse_quote! {
                 #[xml(scalar)]
-                Baz
-            }
-        })
-        .to_string())
+                pub enum TestEnum {
+                    Foo,
+                    Bar,
+                    #[xml(scalar)]
+                    Baz
+                }
+            })
+            .to_string()
+        )
         .find("compile_error ! { \"only 'rename' attribute is permitted on enum variants\" }")
         .unwrap();
     }
@@ -387,68 +393,78 @@ mod tests {
     fn scalar_discrimintant_must_be_literal() {
         assert_eq!(
             None,
-            dbg!(super::ser::to_xml(&parse_quote! {
+            dbg!(
+                super::ser::to_xml(&parse_quote! {
+                    #[xml(scalar)]
+                    pub enum TestEnum {
+                        Foo = 1,
+                        Bar,
+                        Baz
+                    }
+                })
+                .to_string()
+            )
+            .find("compile_error ! { \"invalid field discriminant value!\" }")
+        );
+
+        dbg!(
+            super::ser::to_xml(&parse_quote! {
                 #[xml(scalar)]
                 pub enum TestEnum {
-                    Foo = 1,
+                    Foo = 1+1,
                     Bar,
                     Baz
                 }
             })
-            .to_string())
-            .find("compile_error ! { \"invalid field discriminant value!\" }")
-        );
-
-        dbg!(super::ser::to_xml(&parse_quote! {
-            #[xml(scalar)]
-            pub enum TestEnum {
-                Foo = 1+1,
-                Bar,
-                Baz
-            }
-        })
-        .to_string())
+            .to_string()
+        )
         .find("compile_error ! { \"invalid field discriminant value!\" }")
         .unwrap();
     }
 
     #[test]
     fn rename_all_attribute_not_permitted() {
-        dbg!(super::ser::to_xml(&parse_quote! {
-            pub struct TestStruct {
-                #[xml(rename_all = "UPPERCASE")]
-                field_1: String,
-                field_2: u8,
-            }
-        })
-        .to_string())
+        dbg!(
+            super::ser::to_xml(&parse_quote! {
+                pub struct TestStruct {
+                    #[xml(rename_all = "UPPERCASE")]
+                    field_1: String,
+                    field_2: u8,
+                }
+            })
+            .to_string()
+        )
         .find("compile_error ! { \"attribute 'rename_all' invalid in field xml attribute\" }")
         .unwrap();
 
-        dbg!(super::ser::to_xml(&parse_quote! {
-            #[xml(scalar)]
-            pub enum TestEnum {
-                Foo = 1,
-                Bar,
-                #[xml(rename_all = "UPPERCASE")]
-                Baz
-            }
-        })
-        .to_string())
+        dbg!(
+            super::ser::to_xml(&parse_quote! {
+                #[xml(scalar)]
+                pub enum TestEnum {
+                    Foo = 1,
+                    Bar,
+                    #[xml(rename_all = "UPPERCASE")]
+                    Baz
+                }
+            })
+            .to_string()
+        )
         .find("compile_error ! { \"only 'rename' attribute is permitted on enum variants\" }")
         .unwrap();
     }
 
     #[test]
     fn bogus_rename_all_not_permitted() {
-        dbg!(super::ser::to_xml(&parse_quote! {
-            #[xml(rename_all = "forgetaboutit")]
-            pub struct TestStruct {
-                field_1: String,
-                field_2: u8,
-            }
-        })
-        .to_string())
+        dbg!(
+            super::ser::to_xml(&parse_quote! {
+                #[xml(rename_all = "forgetaboutit")]
+                pub struct TestStruct {
+                    field_1: String,
+                    field_2: u8,
+                }
+            })
+            .to_string()
+        )
         .find("compile_error ! {")
         .unwrap();
     }

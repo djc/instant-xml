@@ -1,9 +1,9 @@
 #![cfg(feature = "jiff")]
 
-use jiff::{civil, tz::Offset, Timestamp};
+use jiff::{Timestamp, civil, tz::Offset};
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, to_string, FromXml, ToXml};
+use instant_xml::{FromXml, ToXml, from_str, to_string};
 
 #[derive(Debug, Eq, PartialEq, FromXml, ToXml)]
 struct Test<T> {

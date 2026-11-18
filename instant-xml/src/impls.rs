@@ -8,7 +8,7 @@ use std::{any::type_name, marker::PhantomData};
 #[cfg(feature = "chrono")]
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 #[cfg(feature = "jiff")]
-use jiff::{civil, Timestamp};
+use jiff::{Timestamp, civil};
 
 use crate::ser::Context;
 use crate::{Accumulate, Deserializer, Error, FromXml, Id, Kind, Serializer, ToXml};
@@ -111,7 +111,7 @@ impl<'xml> FromXml<'xml> for bool {
             val => {
                 return Err(Error::UnexpectedValue(format!(
                     "unable to parse bool from '{val}' for {field}"
-                )))
+                )));
             }
         };
 
@@ -209,7 +209,7 @@ macro_rules! from_xml_for_number {
                         return Err(Error::UnexpectedValue(format!(
                             "unable to parse number {} from `{value}` for {field}",
                             type_name::<$typ>()
-                        )))
+                        )));
                     }
                 }
 

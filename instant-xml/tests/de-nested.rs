@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, FromXml};
+use instant_xml::{FromXml, from_str};
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
 #[xml(ns("URI", bar = BAR))]

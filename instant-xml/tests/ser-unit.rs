@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::{to_string, ToXml};
+use instant_xml::{ToXml, to_string};
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
 struct Unit;

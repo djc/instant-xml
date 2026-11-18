@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, to_string, FromXml, ToXml};
+use instant_xml::{FromXml, ToXml, from_str, to_string};
 
 #[derive(Debug, PartialEq, Eq, ToXml, FromXml)]
 #[xml(ns(CORE, NE = NESTED), rename = "top")]

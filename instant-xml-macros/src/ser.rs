@@ -1,11 +1,11 @@
 use std::collections::BTreeSet;
 
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::spanned::Spanned;
 
-use super::{discard_lifetimes, meta_items, ContainerMeta, FieldMeta, Mode, VariantMeta};
-use crate::{case::RenameRule, Namespace};
+use super::{ContainerMeta, FieldMeta, Mode, VariantMeta, discard_lifetimes, meta_items};
+use crate::{Namespace, case::RenameRule};
 
 pub(crate) fn to_xml(input: &syn::DeriveInput) -> TokenStream {
     let meta = match ContainerMeta::from_derive(input) {
@@ -109,7 +109,7 @@ fn serialize_forward_enum(
                     input.span(),
                     "wrapped enum variants must have 1 unnamed field",
                 )
-                .to_compile_error()
+                .to_compile_error();
             }
         }
 

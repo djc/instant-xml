@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::{to_string, ToXml};
+use instant_xml::{ToXml, to_string};
 
 #[derive(Debug, Eq, PartialEq, ToXml)]
 #[xml(ns(dar = "BAZ", internal = INTERNAL))]
@@ -76,5 +76,8 @@ fn test_didl() {
             }),
         },
     };
-    assert_eq!(to_string(&didl).unwrap(), "<DIDL-Lite xmlns=\"DIDL\" xmlns:upnp=\"UPNP\"><item><upnp:albumArtURI xmlns=\"UPNP\">http://art</upnp:albumArtURI></item></DIDL-Lite>");
+    assert_eq!(
+        to_string(&didl).unwrap(),
+        "<DIDL-Lite xmlns=\"DIDL\" xmlns:upnp=\"UPNP\"><item><upnp:albumArtURI xmlns=\"UPNP\">http://art</upnp:albumArtURI></item></DIDL-Lite>"
+    );
 }

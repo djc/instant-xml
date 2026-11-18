@@ -336,7 +336,7 @@ pub use macros::{FromXml, ToXml};
 pub mod de;
 mod impls;
 pub use de::Deserializer;
-pub use impls::{display_to_xml, from_xml_str, OptionAccumulator};
+pub use impls::{OptionAccumulator, display_to_xml, from_xml_str};
 pub mod ser;
 pub use ser::Serializer;
 mod any_element;

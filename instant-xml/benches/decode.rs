@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use bencher::Bencher;
 use bencher::{benchmark_group, benchmark_main};
-use instant_xml::{from_str, FromXml};
+use instant_xml::{FromXml, from_str};
 
 fn decode_short_ascii(bench: &mut Bencher) {
     let xml = "<Element><inner>foobar</inner></Element>";

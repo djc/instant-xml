@@ -341,7 +341,7 @@ impl<'xml> Iterator for Context<'xml> {
                             None => {
                                 return Some(Err(Error::UnexpectedState(
                                     "attribute without element context",
-                                )))
+                                )));
                             }
                         }
                     } else if prefix.as_str() == "xmlns" {
@@ -359,7 +359,7 @@ impl<'xml> Iterator for Context<'xml> {
                             None => {
                                 return Some(Err(Error::UnexpectedState(
                                     "attribute without element context",
-                                )))
+                                )));
                             }
                         }
                     } else {
@@ -531,7 +531,7 @@ fn decode(input: &str) -> Result<Cow<'_, str>, Error> {
                     _ => {
                         return Err(Error::InvalidEntity(
                             String::from_utf8_lossy(&chars[..len]).into_owned(),
-                        ))
+                        ));
                     }
                 };
 
@@ -676,7 +676,7 @@ impl<'a, T> Mut<'a, T> {
     fn borrow<'b>(&'b mut self) -> Mut<'b, T> {
         match self {
             Mut::Ref(r) => Mut::Ref(r),
-            Mut::Owned(ref mut o) => Mut::Ref(o),
+            Mut::Owned(o) => Mut::Ref(o),
         }
     }
 }

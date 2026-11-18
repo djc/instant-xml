@@ -1,6 +1,6 @@
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, Error, FromXml};
+use instant_xml::{Error, FromXml, from_str};
 
 #[derive(Debug, Eq, PartialEq, FromXml)]
 struct NestedWrongNamespace {
@@ -36,7 +36,9 @@ fn default_namespaces() {
 
     // Default namespace not-nested - with xml:lang
     assert_eq!(
-        from_str("<NestedDe xml:lang=\"en\" xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe>"),
+        from_str(
+            "<NestedDe xml:lang=\"en\" xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe>"
+        ),
         Ok(NestedDe { flag: true })
     );
 
@@ -52,7 +54,9 @@ fn default_namespaces() {
 
     // Correct child namespace
     assert_eq!(
-        from_str("<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedDe xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe></StructWithCorrectNestedNamespace>"),
+        from_str(
+            "<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedDe xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedDe></StructWithCorrectNestedNamespace>"
+        ),
         Ok(StructWithCorrectNestedNamespace {
             test: NestedDe { flag: true }
         })
@@ -60,7 +64,9 @@ fn default_namespaces() {
 
     // Correct child namespace - without child redefinition
     assert_eq!(
-        from_str("<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedDe><bar:flag>true</bar:flag></NestedDe></StructWithCorrectNestedNamespace>"),
+        from_str(
+            "<StructWithCorrectNestedNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedDe><bar:flag>true</bar:flag></NestedDe></StructWithCorrectNestedNamespace>"
+        ),
         Ok(StructWithCorrectNestedNamespace {
             test: NestedDe { flag: true }
         })
@@ -68,20 +74,22 @@ fn default_namespaces() {
 
     // Different child namespace
     assert_eq!(
-        from_str("<StructWithWrongNestedNamespace xmlns=\"URI\" xmlns:dar=\"BAZ\"><NestedWrongNamespace xmlns=\"\"><flag>true</flag></NestedWrongNamespace></StructWithWrongNestedNamespace>"),
+        from_str(
+            "<StructWithWrongNestedNamespace xmlns=\"URI\" xmlns:dar=\"BAZ\"><NestedWrongNamespace xmlns=\"\"><flag>true</flag></NestedWrongNamespace></StructWithWrongNestedNamespace>"
+        ),
         Ok(StructWithWrongNestedNamespace {
-            test: NestedWrongNamespace {
-                flag: true
-            }
+            test: NestedWrongNamespace { flag: true }
         })
     );
 
     // Wrong child namespace
     assert_eq!(
-        from_str("<StructWithWrongNestedNamespace xmlns=\"URI\" xmlns:dar=\"BAZ\"><NestedWrongNamespace><flag>true</flag></NestedWrongNamespace></StructWithWrongNestedNamespace>"),
-        Err::<StructWithWrongNestedNamespace, _>(
-            Error::MissingValue("StructWithWrongNestedNamespace::test")
-        )
+        from_str(
+            "<StructWithWrongNestedNamespace xmlns=\"URI\" xmlns:dar=\"BAZ\"><NestedWrongNamespace><flag>true</flag></NestedWrongNamespace></StructWithWrongNestedNamespace>"
+        ),
+        Err::<StructWithWrongNestedNamespace, _>(Error::MissingValue(
+            "StructWithWrongNestedNamespace::test"
+        ))
     );
 }
 
@@ -138,9 +146,7 @@ fn other_namespaces() {
             "<StructOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><bar:flag>true</bar:flag></NestedOtherNamespace></StructOtherNamespace>"
         ),
         Ok(StructOtherNamespace {
-            test: NestedOtherNamespace {
-                flag: true,
-            }
+            test: NestedOtherNamespace { flag: true }
         })
     );
 
@@ -150,9 +156,7 @@ fn other_namespaces() {
             "<StructOtherNamespace xmlns=\"URI\" xmlns:bar=\"BAZ\"><NestedOtherNamespace><bar:flag>true</bar:flag></NestedOtherNamespace></StructOtherNamespace>"
         ),
         Ok(StructOtherNamespace {
-            test: NestedOtherNamespace {
-                flag: true,
-            }
+            test: NestedOtherNamespace { flag: true }
         })
     );
 
@@ -175,7 +179,11 @@ struct DashedNs {
 #[test]
 fn dashed_ns() {
     assert_eq!(
-        from_str("<DashedNs xmlns=\"URI\" xmlns:da_sh.ed-ns=\"dashed\"><da_sh.ed-ns:element>hello</da_sh.ed-ns:element></DashedNs>"),
-        Ok(DashedNs { element: "hello".to_owned() })
+        from_str(
+            "<DashedNs xmlns=\"URI\" xmlns:da_sh.ed-ns=\"dashed\"><da_sh.ed-ns:element>hello</da_sh.ed-ns:element></DashedNs>"
+        ),
+        Ok(DashedNs {
+            element: "hello".to_owned()
+        })
     );
 }

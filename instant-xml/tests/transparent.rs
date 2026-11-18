@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, to_string, Error, FromXml, ToXml};
+use instant_xml::{Error, FromXml, ToXml, from_str, to_string};
 
 #[derive(Debug, Eq, FromXml, PartialEq, ToXml)]
 struct Wrapper {

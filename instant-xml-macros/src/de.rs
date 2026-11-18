@@ -5,7 +5,7 @@ use quote::quote;
 use syn::spanned::Spanned;
 
 use super::{
-    discard_lifetimes, meta_items, ContainerMeta, FieldMeta, Mode, Namespace, VariantMeta,
+    ContainerMeta, FieldMeta, Mode, Namespace, VariantMeta, discard_lifetimes, meta_items,
 };
 
 pub(crate) fn from_xml(input: &syn::DeriveInput) -> TokenStream {
@@ -143,7 +143,7 @@ fn deserialize_forward_enum(
                     input.span(),
                     "wrapped enum variants must have 1 unnamed field",
                 )
-                .to_compile_error()
+                .to_compile_error();
             }
         };
 

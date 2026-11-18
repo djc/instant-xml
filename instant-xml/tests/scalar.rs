@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use serde::{Deserialize, Serialize};
 use similar_asserts::assert_eq;
 
-use instant_xml::{from_str, FromXml, ToXml};
+use instant_xml::{FromXml, ToXml, from_str};
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Serialize, FromXml, ToXml)]
 #[xml(ns("URI"))]
@@ -35,7 +35,7 @@ fn scalars() {
         from_str(
             "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.20</f32_type><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes><cow>123</cow><slice>1</slice><slice>2</slice><slice>3</slice></StructDeserializerScalars>"
         ),
-        Ok(StructDeserializerScalars{
+        Ok(StructDeserializerScalars {
             bool_type: true,
             i8_type: 1,
             u32_type: 42,
@@ -59,7 +59,7 @@ fn scalars() {
         from_str(
             "<StructDeserializerScalars xmlns=\"URI\"><bool_type>true</bool_type><i8_type>1</i8_type><u32_type>42</u32_type><string_type>string</string_type><str_type_a>lifetime a</str_type_a><str_type_b>lifetime b</str_type_b><char_type>c</char_type><f32_type>1.2</f32_type><NestedLifetimes><flag>true</flag><str_type_a>asd</str_type_a></NestedLifetimes><cow>123</cow><option>asd</option><slice>1</slice><slice>2</slice><slice>3</slice></StructDeserializerScalars>"
         ),
-        Ok(StructDeserializerScalars{
+        Ok(StructDeserializerScalars {
             bool_type: true,
             i8_type: 1,
             u32_type: 42,

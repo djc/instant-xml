@@ -53,3 +53,38 @@ fn deserialize_with_attribute() {
     assert_eq!(from_str(r#"<Bar flag="yes" />"#), Ok(Bar { flag: true }));
     assert_eq!(from_str(r#"<Bar flag="no" />"#), Ok(Bar { flag: false }));
 }
+
+#[derive(Debug, FromXml, PartialEq)]
+struct Flags {
+    #[xml(attribute, deserialize_with = "deserialize_flag_and_ignore")]
+    first: bool,
+    #[xml(attribute, deserialize_with = "deserialize_flag_and_ignore")]
+    second: bool,
+    #[xml(deserialize_with = "deserialize_flag_and_ignore")]
+    third: bool,
+    fourth: Option<String>,
+}
+
+fn deserialize_flag_and_ignore(
+    into: &mut Option<bool>,
+    field: &'static str,
+    deserializer: &mut Deserializer<'_, '_>,
+) -> Result<(), Error> {
+    deserialize_flag(into, field, deserializer)?;
+    deserializer.ignore()
+}
+
+#[test]
+fn deserialize_with_ignore() {
+    assert_eq!(
+        from_str(
+            r#"<Flags first="yes" second="no"><third>yes<x/></third><fourth>a</fourth></Flags>"#
+        ),
+        Ok(Flags {
+            first: true,
+            second: false,
+            third: true,
+            fourth: Some("a".to_owned()),
+        })
+    );
+}

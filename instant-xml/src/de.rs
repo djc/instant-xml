@@ -15,6 +15,7 @@ pub struct Deserializer<'cx, 'xml> {
     parent: Element<'xml>,
     level: usize,
     done: bool,
+    node: Option<Node<'xml>>,
     context: Mut<'cx, Context<'xml>>,
 }
 
@@ -49,6 +50,7 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
             parent,
             level,
             done: false,
+            node: None,
             context,
         }
     }
@@ -92,16 +94,16 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
         }
     }
 
-    /// Create a deserializer that will yield the given node first
+    /// Create a deserializer that will yield only the given node
     pub fn for_node<'a>(&'a mut self, node: Node<'xml>) -> Deserializer<'a, 'xml>
     where
         'cx: 'a,
     {
-        self.context.records.push_front(node);
         Deserializer {
             parent: self.parent,
             level: self.level,
             done: self.done,
+            node: Some(node),
             context: self.context.borrow(),
         }
     }
@@ -156,6 +158,11 @@ impl<'xml> Iterator for Deserializer<'_, 'xml> {
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
             return None;
+        }
+
+        if let Some(node) = self.node.take() {
+            self.done = true;
+            return Some(Ok(node));
         }
 
         let (prefix, local) = match self.context.next() {

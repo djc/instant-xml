@@ -1,8 +1,8 @@
 [package]
 name = "instant-xml-macros"
 version = "0.7.2"
-edition = "2021"
-rust-version = "1.85"
+edition = { workspace = true }
+rust-version = { workspace = true }
 workspace = ".."
 license = "Apache-2.0 OR MIT"
 description = "Procedural macros for instant-xml"

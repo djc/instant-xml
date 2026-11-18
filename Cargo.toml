@@ -2,6 +2,10 @@
 members = ["instant-xml", "instant-xml-macros"]
 resolver = "2"
 
+[workspace.package]
+edition = "2021"
+rust-version = "1.85"
+
 [workspace.lints.clippy]
 cloned_instead_of_copied = "warn"
 manual_let_else = "warn"

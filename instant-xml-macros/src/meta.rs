@@ -148,8 +148,7 @@ impl NamespaceMeta {
                     NsState::PrefixValue { prefix }
                 }
                 (NsState::PrefixValue { prefix }, TokenTree::Literal(lit)) => {
-                    new.prefixes
-                        .insert(prefix.to_string(), Namespace::Literal(lit));
+                    new.prefixes.insert(prefix, Namespace::Literal(lit));
                     NsState::Comma
                 }
                 (NsState::PrefixValue { prefix }, TokenTree::Punct(punct))
@@ -240,8 +239,7 @@ impl NamespaceMeta {
                     },
                     TokenTree::Punct(punct),
                 ) if punct.as_char() == ',' => {
-                    new.prefixes
-                        .insert(prefix.to_string(), Namespace::Path(path));
+                    new.prefixes.insert(prefix, Namespace::Path(path));
                     NsState::Prefix
                 }
                 (state, tree) => {

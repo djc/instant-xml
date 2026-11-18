@@ -390,6 +390,9 @@ impl StructOutput {
             None => quote!(""),
         };
 
+        let mut no_lifetime_type = field.ty.clone();
+        discard_lifetimes(&mut no_lifetime_type, &mut self.borrowed, false, true);
+
         if field_meta.attribute {
             if field_meta.direct {
                 return Err(syn::Error::new(
@@ -424,7 +427,11 @@ impl StructOutput {
             self.attributes.extend(quote!(
                 #error
                 if self.#field_name.present() {
-                    serializer.write_attr(#tag, #ns, &self.#field_name)?;
+                    <#no_lifetime_type as ToXml>::serialize_attribute(
+                        &self.#field_name,
+                        Some(::instant_xml::Id { ns: #ns, name: #tag }),
+                        serializer,
+                    )?;
                 }
             ));
             return Ok(());
@@ -435,8 +442,6 @@ impl StructOutput {
             None => default_ns,
         };
 
-        let mut no_lifetime_type = field.ty.clone();
-        discard_lifetimes(&mut no_lifetime_type, &mut self.borrowed, false, true);
         if let Some(with) = field_meta.serialize_with {
             if field_meta.direct {
                 return Err(syn::Error::new(

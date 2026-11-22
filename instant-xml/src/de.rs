@@ -150,6 +150,36 @@ impl<'cx, 'xml> Deserializer<'cx, 'xml> {
     pub fn attribute_id(&self, attr: &Attribute<'xml>) -> Result<Id<'xml>, Error> {
         self.context.attribute_id(attr)
     }
+
+    /// Hand the rest of the current element's content to the caller as raw tokens.
+    ///
+    /// - Any attributes of the current element that have not been read yet are
+    ///   skipped. Read them with [`Iterator::next`] first if you need them.
+    /// - Tokens are yielded until the current element's matching close tag, which
+    ///   is consumed; afterwards this deserializer is done, and the namespace
+    ///   stack is exactly as if the element had been read node by node.
+    /// - Namespace declarations found inside the raw section are not tracked: [`Deserializer::namespace`] still
+    ///   resolves prefixes declared on the current element or its ancestors.
+    /// - Attribute values and text have XML entities decoded, as everywhere else.
+    pub fn raw_children(&mut self) -> RawChildren<'_, 'xml> {
+        let mut finished = self.done;
+        // Drop pending attribute records of the current element. A pending
+        // `Close` means it was an empty element (`<vertices/>`): consume it.
+        while let Some(record) = self.context.records.pop_front() {
+            if let Node::Close { .. } = record {
+                self.context.stack.pop();
+                finished = true;
+            }
+        }
+        self.done = true;
+        self.node = None;
+        RawChildren {
+            context: &mut self.context,
+            parent: self.parent,
+            depth: 0,
+            finished,
+        }
+    }
 }
 
 impl<'xml> Iterator for Deserializer<'_, 'xml> {
@@ -704,6 +734,152 @@ impl<T> DerefMut for Mut<'_, T> {
         match self {
             Mut::Ref(r) => r,
             Mut::Owned(o) => o,
+        }
+    }
+}
+
+/// A raw token from [`Deserializer::raw_children`].
+#[derive(Debug)]
+pub enum RawToken<'xml> {
+    /// `<prefix:local` — start of an element's start tag
+    ElementStart {
+        /// Namespace prefix as written (empty if none)
+        prefix: &'xml str,
+        /// Local name
+        local: &'xml str,
+    },
+    /// An attribute of the element whose start tag is open
+    Attribute {
+        /// Namespace prefix as written (empty if none)
+        prefix: &'xml str,
+        /// Local name
+        local: &'xml str,
+        /// Value with entities decoded
+        value: Cow<'xml, str>,
+    },
+    /// `>` — end of a start tag; children follow
+    StartTagEnd,
+    /// `/>` — end of an empty element
+    EmptyElementEnd,
+    /// `</prefix:local>` — close tag of a child element
+    Close {
+        /// Namespace prefix as written (empty if none)
+        prefix: &'xml str,
+        /// Local name
+        local: &'xml str,
+    },
+    /// Text or CDATA content (entities decoded for text)
+    Text(Cow<'xml, str>),
+}
+
+/// Iterator returned by [`Deserializer::raw_children`].
+pub struct RawChildren<'a, 'xml> {
+    context: &'a mut Context<'xml>,
+    parent: Element<'xml>,
+    depth: usize,
+    finished: bool,
+}
+
+impl<'xml> Iterator for RawChildren<'_, 'xml> {
+    type Item = Result<RawToken<'xml>, Error>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+        loop {
+            let token = match self.context.parser.next() {
+                Some(Ok(t)) => t,
+                Some(Err(e)) => {
+                    self.finished = true;
+                    return Some(Err(Error::Parse(e)));
+                }
+                None => {
+                    self.finished = true;
+                    return Some(Err(Error::UnexpectedEndOfStream));
+                }
+            };
+            return Some(Ok(match token {
+                Token::ElementStart { prefix, local, .. } => {
+                    self.depth += 1;
+                    if self.context.stack.len() + self.depth > self.context.limits.max_levels {
+                        self.finished = true;
+                        return Some(Err(Error::Other(
+                            "maximum number of nested element levels exceeded".to_owned(),
+                        )));
+                    }
+                    RawToken::ElementStart {
+                        prefix: prefix.as_str(),
+                        local: local.as_str(),
+                    }
+                }
+                Token::Attribute {
+                    prefix,
+                    local,
+                    value,
+                    ..
+                } => {
+                    let raw = value.as_str();
+                    let value = if raw.as_bytes().contains(&b'&') {
+                        match decode(raw) {
+                            Ok(v) => v,
+                            Err(e) => return Some(Err(e)),
+                        }
+                    } else {
+                        Cow::Borrowed(raw)
+                    };
+                    RawToken::Attribute {
+                        prefix: prefix.as_str(),
+                        local: local.as_str(),
+                        value,
+                    }
+                }
+                Token::ElementEnd {
+                    end: ElementEnd::Open,
+                    ..
+                } => RawToken::StartTagEnd,
+                Token::ElementEnd {
+                    end: ElementEnd::Empty,
+                    ..
+                } => {
+                    self.depth -= 1;
+                    RawToken::EmptyElementEnd
+                }
+                Token::ElementEnd {
+                    end: ElementEnd::Close(prefix, local),
+                    ..
+                } => {
+                    if self.depth == 0 {
+                        // Close tag of the element raw_children() was called on.
+                        self.finished = true;
+                        let prefix = match prefix.is_empty() {
+                            true => None,
+                            false => Some(prefix.as_str()),
+                        };
+                        if local.as_str() != self.parent.local || prefix != self.parent.prefix {
+                            return Some(Err(Error::UnexpectedState("close element mismatch")));
+                        }
+                        self.context.stack.pop();
+                        return None;
+                    }
+                    self.depth -= 1;
+                    RawToken::Close {
+                        prefix: prefix.as_str(),
+                        local: local.as_str(),
+                    }
+                }
+                Token::Text { text } => match decode(text.as_str()) {
+                    Ok(t) => RawToken::Text(t),
+                    Err(e) => return Some(Err(e)),
+                },
+                Token::Cdata { text, .. } => RawToken::Text(Cow::Borrowed(text.as_str())),
+                Token::Comment { .. } => continue,
+                other => {
+                    self.finished = true;
+                    return Some(Err(Error::UnexpectedToken(format!("{other:?}"))));
+                }
+            }));
         }
     }
 }
